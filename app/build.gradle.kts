@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.omnituner_android"
+    namespace = "com.omnituner.android"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.omnituner_android"
+        applicationId = "com.omnituner.android"
         minSdk = 29
         targetSdk = 37
         versionCode = 1
@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":shared"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

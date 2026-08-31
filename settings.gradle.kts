@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OmniTuner-Android"
+rootProject.name = "OmniTuner"
 include(":app")
- 
+include(":shared")
