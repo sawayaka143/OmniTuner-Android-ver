@@ -54,6 +54,22 @@ class BiquadFilter {
         normalize(alpha, cosW0)
     }
 
+    /**
+     * Web Audio "bandpass": Q in linear units, constant 0 dB peak gain form
+     * (b0 = alpha, b2 = -alpha), matching BiquadFilterNode/Chromium.
+     */
+    fun setBandpass(sampleRate: Double, frequency: Double, qLinear: Double) {
+        val w0 = 2.0 * PI * frequency / sampleRate
+        val cosW0 = cos(w0)
+        val alpha = sin(w0) / (2.0 * qLinear)
+        rawAlpha = alpha
+
+        b0 = alpha
+        b1 = 0.0
+        b2 = -alpha
+        normalize(alpha, cosW0)
+    }
+
     private fun normalize(alpha: Double, cosW0: Double) {
         val a0 = 1.0 + alpha
         b0 /= a0
