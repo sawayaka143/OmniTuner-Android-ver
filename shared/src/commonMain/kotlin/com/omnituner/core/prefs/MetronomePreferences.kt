@@ -274,6 +274,17 @@ class MetronomePreferences(private val storage: KeyValueStorage?) {
         persist()
     }
 
+    /** Bulk state replacement for UI-view-model driven stores. */
+    fun replaceState(state: MetronomeState) {
+        this.state.value = state
+        persist()
+    }
+
+    fun replacePresets(presets: List<MetronomePreset>) {
+        this.presets.value = presets.take(PRESETS_MAX)
+        persist()
+    }
+
     fun setTimeSignature(numerator: Int, denominator: Int) {
         if (numerator < 1 || numerator > 32) return
         if (!isDenominator(denominator)) return

@@ -20,12 +20,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.omnituner.android.ui.metronome.MetronomeScreen
 import com.omnituner.android.ui.tuner.TunerScreen
 import com.omnituner.android.ui.theme.OmniTunerTheme
 
@@ -59,6 +61,7 @@ fun OmniTunerRoot() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val container = (LocalContext.current.applicationContext as OmniTunerApp).container
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -101,7 +104,7 @@ fun OmniTunerRoot() {
             composable("tuner") { TunerScreen() }
             composable("scales") { PlaceholderScreen("Scales") }
             composable("chords") { PlaceholderScreen("Chord Finder") }
-            composable("metronome") { PlaceholderScreen("Metronome") }
+            composable("metronome") { MetronomeScreen(container.metronomePreferences) }
         }
     }
 }
