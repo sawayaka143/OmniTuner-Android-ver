@@ -27,7 +27,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.omnituner.android.ui.chords.ChordFinderScreen
 import com.omnituner.android.ui.metronome.MetronomeScreen
+import com.omnituner.android.ui.scales.ScalesScreen
 import com.omnituner.android.ui.tuner.TunerScreen
 import com.omnituner.android.ui.theme.OmniTunerTheme
 
@@ -61,7 +63,8 @@ fun OmniTunerRoot() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val container = (LocalContext.current.applicationContext as OmniTunerApp).container
+    val app = LocalContext.current.applicationContext as OmniTunerApp
+    val container = app.container
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -102,19 +105,10 @@ fun OmniTunerRoot() {
                 .padding(innerPadding),
         ) {
             composable("tuner") { TunerScreen() }
-            composable("scales") { PlaceholderScreen("Scales") }
-            composable("chords") { PlaceholderScreen("Chord Finder") }
+            composable("scales") { ScalesScreen(app) }
+            composable("chords") { ChordFinderScreen(app) }
             composable("metronome") { MetronomeScreen(container.metronomePreferences) }
         }
     }
 }
 
-@Composable
-private fun PlaceholderScreen(title: String) {
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center,
-    ) {
-        Text("$title — coming in the next milestone")
-    }
-}
