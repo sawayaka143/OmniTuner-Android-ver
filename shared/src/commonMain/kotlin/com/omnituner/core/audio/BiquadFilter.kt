@@ -79,12 +79,13 @@ class BiquadFilter {
         a2 = (1.0 - alpha) / a0
     }
 
-    fun process(input: FloatArray, output: FloatArray) {
+    fun process(input: FloatArray, output: FloatArray, count: Int = input.size) {
         var x1 = 0.0
         var x2 = 0.0
         var y1 = 0.0
         var y2 = 0.0
-        for (i in input.indices) {
+        val n = count.coerceAtMost(input.size).coerceAtMost(output.size)
+        for (i in 0 until n) {
             val x0 = input[i].toDouble()
             val y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
             output[i] = y0.toFloat()
