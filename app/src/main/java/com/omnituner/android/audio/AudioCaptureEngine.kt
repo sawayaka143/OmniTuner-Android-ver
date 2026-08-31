@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class AudioCaptureEngine(private val context: Context) {
 
-    interface Listener {
+    fun interface Listener {
         /**
          * Called after every analysis pass on the capture thread.
          * frequency is null for dropouts; inputLevel is the raw RMS.
@@ -110,7 +110,7 @@ class AudioCaptureEngine(private val context: Context) {
         return null
     }
 
-    fun stop(listener: Listener? = null) {
+    fun stop() {
         if (!running) return
         running = false
         generation.incrementAndGet()
@@ -132,7 +132,6 @@ class AudioCaptureEngine(private val context: Context) {
         record = null
         smoother.reset()
         smoother.markIdle()
-        listener?.onAnalysis(null, 0.0, PitchTrackingState.IDLE)
     }
 
     private fun captureLoop(record: AudioRecord, myGeneration: Int, listener: Listener) {
