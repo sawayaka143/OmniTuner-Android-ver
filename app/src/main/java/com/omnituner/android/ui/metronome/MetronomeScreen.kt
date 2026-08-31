@@ -236,10 +236,10 @@ fun MetronomeScreen(
                     items((1..16).toList()) { bar ->
                         val active = metronome.barPattern.getOrNull(bar - 1) == 1
                         val within = bar <= metronome.barPattern.size
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
                                     when {
                                         active -> MaterialTheme.colorScheme.primary
                                         within -> MaterialTheme.colorScheme.surfaceVariant

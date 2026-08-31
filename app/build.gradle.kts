@@ -21,8 +21,9 @@ android {
 
     buildTypes {
         release {
+            // R8 enabled for release (kept off by template default for dev).
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
