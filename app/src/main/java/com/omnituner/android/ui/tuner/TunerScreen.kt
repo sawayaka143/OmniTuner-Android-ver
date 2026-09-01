@@ -631,7 +631,7 @@ private fun InstrumentTuningSelector(
             },
             selected = state.selectedInstrumentId,
             onSelect = onSelectInstrument,
-            menuFooter = {
+            footer = {
                 FooterAction(R.drawable.tabler_plus, "New instrument", onNewInstrument)
                 FooterAction(null, "Manage instruments", onManageInstruments)
             },
@@ -670,7 +670,7 @@ private fun InstrumentTuningSelector(
                     }
                 }
             },
-            menuFooter = {
+            footer = {
                 FooterAction(R.drawable.tabler_plus, "New tuning", onNewTuning)
             },
         )
