@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.omnituner.core.prefs.KeyValueStorage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -14,7 +15,9 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Synchronous facade over DataStore for the shared preference schemas.
  * Reads are served from an in-memory mirror (hydrated once); writes update the
- * mirror immediately and persist asynchronously.
+ * mirror immediately and persist through a single ordered writer so successive
+ * setItem calls reach disk in call order (DataStore edits launched directly on a
+ * multi-threaded dispatcher can otherwise land out of order and lose updates).
  */
 class DataStoreKeyValueStorage(
     private val dataStore: DataStore<Preferences>,
@@ -22,6 +25,13 @@ class DataStoreKeyValueStorage(
 ) : KeyValueStorage {
 
     private val mirror = ConcurrentHashMap<String, String>()
+
+    private val writes = Channel<Write>(Channel.UNLIMITED)
+
+    private sealed interface Write {
+        data class Put(val key: String, val value: String) : Write
+        data class Remove(val key: String) : Write
+    }
 
     init {
         val initial: Preferences? = runBlocking {
@@ -38,27 +48,33 @@ class DataStoreKeyValueStorage(
                 if (value is String) mirror[entry.key.name] = value
             }
         }
+
+        scope.launch {
+            for (write in writes) {
+                try {
+                    when (write) {
+                        is Write.Put -> dataStore.edit {
+                            it[stringPreferencesKey(write.key)] = write.value
+                        }
+                        is Write.Remove -> dataStore.edit {
+                            it.remove(stringPreferencesKey(write.key))
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
     }
 
     override fun getItem(key: String): String? = mirror[key]
 
     override fun setItem(key: String, value: String) {
         mirror[key] = value
-        scope.launch {
-            try {
-                dataStore.edit { it[stringPreferencesKey(key)] = value }
-            } catch (_: Exception) {
-            }
-        }
+        writes.trySend(Write.Put(key, value))
     }
 
     override fun removeItem(key: String) {
         mirror.remove(key)
-        scope.launch {
-            try {
-                dataStore.edit { it.remove(stringPreferencesKey(key)) }
-            } catch (_: Exception) {
-            }
-        }
+        writes.trySend(Write.Remove(key))
     }
 }
