@@ -92,6 +92,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.prefs.MAX_CUSTOM_INSTRUMENT_NAME_LENGTH
@@ -104,9 +105,6 @@ import com.omnituner.core.prefs.TUNER_MODE_AUTO
 import com.omnituner.core.prefs.TUNER_MODE_MANUAL
 import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
 import kotlin.math.roundToInt
-
-private val IN_TUNE_COLOR = Color(0xFF7ECBA8)
-private val OUT_OF_TUNE_COLOR = Color(0xFFFF8AAB)
 
 private data class TuningEditorRequest(
     val editingId: String?,
@@ -300,14 +298,14 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                 // Needle meter: ±50 cents, 41 ticks, center at index 20
                 PitchMeterCanvas(
                     needlePercent = state.needlePercent.toFloat(),
-                    needleColor = needleColor(state) ?: MaterialTheme.colorScheme.primary,
+                    needleColor = needleColor(state) ?: currentWebPalette().needleColor,
                     glow = state.pulseActive && state.confirmed,
                     cents = state.frameCents?.toFloat(),
                 )
 
                 PitchDisplay(
                     state = state,
-                    color = needleColor(state) ?: MaterialTheme.colorScheme.onSurface,
+                    color = needleColor(state) ?: currentWebPalette().needleColor,
                 )
 
                 StringChips(state = state, onSelect = viewModel::selectString)
@@ -465,7 +463,7 @@ private fun TunePrompt(state: TunerUiState) {
     val promptColor = if (state.isTuned) {
         tunedColor(state)
     } else {
-        needleColor(state) ?: MaterialTheme.colorScheme.onSurface
+        needleColor(state) ?: currentWebPalette().needleColor
     }
     val centsColor = if (state.isTuned) {
         tunedColor(state)
@@ -561,8 +559,9 @@ private fun needleColor(state: TunerUiState): Color? {
     }
 }
 
+@Composable
 private fun tunedColor(state: TunerUiState): Color =
-    parseHex(state.inTune.color) ?: IN_TUNE_COLOR
+    parseHex(state.inTune.color) ?: currentWebPalette().inTuneColor
 
 private fun parseHex(hex: String): Color? {
     if (!hex.startsWith("#") || hex.length != 7) return null
@@ -787,6 +786,9 @@ private fun PitchMeterCanvas(
         label = "glowAlpha",
     )
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // Theme-aware tick ink from web tokens --meter-tick-minor/-major.
+    val tickColor = currentWebPalette().meterTickMinor
+    val majorColor = currentWebPalette().meterTickMajor
 
     Box(
         modifier = Modifier
@@ -808,9 +810,6 @@ private fun PitchMeterCanvas(
             val tickHeightMajor = size.height * 0.30f
             val tickHeightMinor = size.height * 0.18f
             val totalTicks = 41
-            // Theme-aware tick ink; alphas from web tokens --meter-tick-minor/-major.
-            val tickColor = labelColor.copy(alpha = 0.15f)
-            val majorColor = labelColor.copy(alpha = 0.35f)
 
             // baseline
             drawLine(
