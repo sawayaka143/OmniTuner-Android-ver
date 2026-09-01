@@ -85,6 +85,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.prefs.MAX_CUSTOM_INSTRUMENT_NAME_LENGTH
@@ -93,9 +94,13 @@ import com.omnituner.core.prefs.MAX_STRING_COUNT
 import com.omnituner.core.prefs.MAX_TUNER_MIDI_NOTE
 import com.omnituner.core.prefs.MIN_STRING_COUNT
 import com.omnituner.core.prefs.MIN_TUNER_MIDI_NOTE
+import com.omnituner.core.prefs.REFERENCE_PITCH_MAX
+import com.omnituner.core.prefs.REFERENCE_PITCH_MIN
 import com.omnituner.core.prefs.TUNER_MODE_AUTO
 import com.omnituner.core.prefs.TUNER_MODE_MANUAL
 import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
+import com.omnituner.core.prefs.TUNER_TOLERANCE_MAX
+import com.omnituner.core.prefs.TUNER_TOLERANCE_MIN
 import kotlin.math.roundToInt
 
 private val IN_TUNE_COLOR = Color(0xFF7ECBA8)
@@ -1048,36 +1053,38 @@ private fun TunerSettingsSheet(
             }
 
             // Reference pitch
-            val refPitch = state.referencePitch.toFloat()
-            SettingSliderRow(
+            RepeatStepperRow(
                 label = "Reference pitch",
                 valueText = "${state.referencePitch} Hz",
-                value = refPitch,
-                valueRange = 415f..466f,
-                steps = 50,
-                onValueChange = { viewModel.setReferencePitch(it.roundToInt().toDouble()) },
+                onDelta = { delta ->
+                    viewModel.setReferencePitch(
+                        (state.referencePitch + delta)
+                            .coerceIn(REFERENCE_PITCH_MIN, REFERENCE_PITCH_MAX).toDouble(),
+                    )
+                },
             )
 
             // Tolerance
-            val tolerance = state.inTune.tolerance.toFloat()
-            SettingSliderRow(
+            RepeatStepperRow(
                 label = "In-tune tolerance",
                 valueText = "±${state.inTune.tolerance} ¢",
-                value = tolerance,
-                valueRange = 1f..15f,
-                steps = 13,
-                onValueChange = { viewModel.setInTuneTolerance(it.roundToInt().toDouble()) },
+                onDelta = { delta ->
+                    viewModel.setInTuneTolerance(
+                        (state.inTune.tolerance + delta)
+                            .coerceIn(TUNER_TOLERANCE_MIN, TUNER_TOLERANCE_MAX).toDouble(),
+                    )
+                },
             )
 
-            // Hold time
-            val hold = state.inTune.holdMs.toFloat()
+            // Hold time: smooth track, snapped to the 50 ms step in code
             SettingSliderRow(
                 label = "Hold to confirm",
                 valueText = "${state.inTune.holdMs} ms",
-                value = hold,
+                value = state.inTune.holdMs.toFloat(),
                 valueRange = 0f..1500f,
-                steps = 29,
-                onValueChange = { viewModel.setInTuneHoldMs(it.roundToInt().toDouble()) },
+                onValueChange = { raw ->
+                    viewModel.setInTuneHoldMs(((raw / 50f).roundToInt() * 50).toDouble())
+                },
             )
 
             HorizontalDivider()
@@ -1129,7 +1136,6 @@ private fun SettingSliderRow(
     valueText: String,
     value: Float,
     valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
     onValueChange: (Float) -> Unit,
 ) {
     Column {
@@ -1145,7 +1151,6 @@ private fun SettingSliderRow(
             value = value,
             onValueChange = onValueChange,
             valueRange = valueRange,
-            steps = steps,
         )
     }
 }
