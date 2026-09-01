@@ -1,24 +1,22 @@
 package com.omnituner.android.ui.scales
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,15 +38,21 @@ import com.omnituner.android.R
 import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.FretboardCanvas
-import com.omnituner.android.ui.common.InstrumentTuningPicker
 import com.omnituner.android.ui.common.RotateHint
 import com.omnituner.android.ui.common.SectionCard
+import com.omnituner.android.ui.common.WebSelectOption
+import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WebToggleRow
+import com.omnituner.core.data.FLAT_NAMES
 import com.omnituner.core.data.SCALES
+import com.omnituner.core.data.SHARP_NAMES
 import com.omnituner.core.prefs.ACCIDENTAL_FLAT
 import com.omnituner.core.prefs.ACCIDENTAL_SHARP
 import com.omnituner.core.prefs.LABEL_MODE_NOTE_NAMES
 import com.omnituner.core.prefs.LABEL_MODE_SCALE_DEGREES
+import com.omnituner.core.theory.noteName
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScalesScreen(app: OmniTunerApp) {
     val container = app.container
@@ -65,6 +69,7 @@ fun ScalesScreen(app: OmniTunerApp) {
     val state by viewModel.ui.collectAsState()
     val prefsState = state.prefs
     val scale = SCALES.find { it.id == prefsState.scaleId } ?: SCALES.first()
+    val rootNames = if (prefsState.accidental == ACCIDENTAL_FLAT) FLAT_NAMES else SHARP_NAMES
 
     val rotateHintDismissed = rememberSaveable { mutableStateOf(false) }
 
@@ -80,17 +85,32 @@ fun ScalesScreen(app: OmniTunerApp) {
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            InstrumentTuningPicker(
-                instruments = state.instruments,
-                tunings = state.tunings,
-                instrumentLabel = state.instrumentLabel,
-                tuningLabel = state.tuningLabel,
-                onSelectInstrument = viewModel::selectInstrument,
-                onSelectTuning = viewModel::selectTuning,
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                WebSelectRow(
+                    label = "Instrument",
+                    value = state.instrumentLabel,
+                    options = state.instruments.map { instrument ->
+                        WebSelectOption(instrument.id, instrument.label)
+                    },
+                    selected = state.instrumentId,
+                    onSelect = viewModel::selectInstrument,
+                )
+                WebSelectRow(
+                    label = "Tuning",
+                    value = state.tuningLabel,
+                    options = state.tunings.map { tuning ->
+                        WebSelectOption(tuning.id, tuning.label)
+                    },
+                    selected = state.tuningId,
+                    onSelect = viewModel::selectTuning,
+                )
+            }
             IconButton(
                 onClick = { viewModel.playScale(down = false) },
                 modifier = Modifier.semantics {
@@ -111,85 +131,67 @@ fun ScalesScreen(app: OmniTunerApp) {
 
         SectionCard {
             Text("Scale", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "${scale.label}${scale.aka?.let { " ($it)" } ?: ""} · ${prefsState.rootPitchClass}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            WebSelectRow(
+                label = "Scale",
+                value = "${scale.label}${scale.aka?.let { " ($it)" } ?: ""}",
+                options = SCALES.map { item ->
+                    WebSelectOption(item.id, item.label, alt = item.group)
+                },
+                selected = prefsState.scaleId,
+                onSelect = viewModel::setScaleId,
             )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(SCALES) { item ->
-                    FilterChip(
-                        selected = prefsState.scaleId == item.id,
-                        onClick = { viewModel.setScaleId(item.id) },
-                        label = { Text(item.label) },
-                    )
-                }
-            }
-            Text("Root", style = MaterialTheme.typography.titleSmall)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items((0..11).toList()) { pc ->
-                    FilterChip(
-                        selected = prefsState.rootPitchClass == pc,
-                        onClick = { viewModel.setRootPitchClass(pc) },
-                        label = {
-                            Text(
-                                com.omnituner.core.theory.noteName(
-                                    pc,
-                                    prefsState.accidental == ACCIDENTAL_FLAT,
-                                ),
-                            )
-                        },
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = prefsState.accidental == ACCIDENTAL_SHARP,
-                    onClick = { viewModel.setAccidental(ACCIDENTAL_SHARP) },
-                    label = { Text("Sharps") },
+            WebSelectRow(
+                label = "Root",
+                value = noteName(prefsState.rootPitchClass, prefsState.accidental == ACCIDENTAL_FLAT),
+                options = rootNames.mapIndexed { pc, name -> WebSelectOption(pc, name) },
+                selected = prefsState.rootPitchClass,
+                onSelect = viewModel::setRootPitchClass,
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val accidentals = listOf(
+                    ACCIDENTAL_SHARP to "Sharps",
+                    ACCIDENTAL_FLAT to "Flats",
                 )
-                FilterChip(
-                    selected = prefsState.accidental == ACCIDENTAL_FLAT,
-                    onClick = { viewModel.setAccidental(ACCIDENTAL_FLAT) },
-                    label = { Text("Flats") },
-                )
+                accidentals.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = prefsState.accidental == value,
+                        onClick = { viewModel.setAccidental(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = accidentals.size),
+                    ) { Text(label) }
+                }
             }
         }
 
         SectionCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Fretboard", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (frets in listOf(12, 15, 21)) {
-                        FilterChip(
-                            selected = prefsState.fretCount == frets,
-                            onClick = { viewModel.setFretCount(frets) },
-                            label = { Text("$frets") },
-                        )
-                    }
+            Text("Fretboard", style = MaterialTheme.typography.titleMedium)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val fretCounts = listOf(12, 15, 21)
+                fretCounts.forEachIndexed { index, frets ->
+                    SegmentedButton(
+                        selected = prefsState.fretCount == frets,
+                        onClick = { viewModel.setFretCount(frets) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = fretCounts.size),
+                    ) { Text("$frets") }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = prefsState.labelMode == LABEL_MODE_NOTE_NAMES,
-                    onClick = { viewModel.setLabelMode(LABEL_MODE_NOTE_NAMES) },
-                    label = { Text("Notes") },
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val labelModes = listOf(
+                    LABEL_MODE_NOTE_NAMES to "Notes",
+                    LABEL_MODE_SCALE_DEGREES to "Degrees",
                 )
-                FilterChip(
-                    selected = prefsState.labelMode == LABEL_MODE_SCALE_DEGREES,
-                    onClick = { viewModel.setLabelMode(LABEL_MODE_SCALE_DEGREES) },
-                    label = { Text("Degrees") },
-                )
-                FilterChip(
-                    selected = prefsState.showOutsideScale,
-                    onClick = { viewModel.setShowOutsideScale(!prefsState.showOutsideScale) },
-                    label = { Text("Show outside") },
-                )
+                labelModes.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = prefsState.labelMode == value,
+                        onClick = { viewModel.setLabelMode(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = labelModes.size),
+                    ) { Text(label) }
+                }
             }
+            WebToggleRow(
+                label = "Show outside scale",
+                checked = prefsState.showOutsideScale,
+                onCheckedChange = viewModel::setShowOutsideScale,
+            )
 
             FretboardCanvas(
                 board = state.board,

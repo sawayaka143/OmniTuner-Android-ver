@@ -1,18 +1,7 @@
 package com.omnituner.android.ui.common
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -22,8 +11,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
 import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.android.ui.theme.textColorOn
-import com.omnituner.core.data.Instrument
-import com.omnituner.core.data.Tuning
 import com.omnituner.core.theory.FretCell
 
 @Composable
@@ -162,56 +149,3 @@ fun FretboardCanvas(
 
 }
 
-@Composable
-fun InstrumentTuningPicker(
-    instruments: List<Instrument>,
-    tunings: List<Tuning>,
-    instrumentLabel: String,
-    tuningLabel: String,
-    onSelectInstrument: (String) -> Unit,
-    onSelectTuning: (String) -> Unit,
-) {
-    var instrumentMenuOpen by remember { mutableStateOf(false) }
-    var tuningMenuOpen by remember { mutableStateOf(false) }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column {
-            TextButton(onClick = { instrumentMenuOpen = true }) {
-                Text("$instrumentLabel ▾")
-            }
-            DropdownMenu(
-                expanded = instrumentMenuOpen,
-                onDismissRequest = { instrumentMenuOpen = false },
-            ) {
-                for (instrument in instruments) {
-                    DropdownMenuItem(
-                        text = { Text(instrument.label) },
-                        onClick = {
-                            instrumentMenuOpen = false
-                            onSelectInstrument(instrument.id)
-                        },
-                    )
-                }
-            }
-        }
-        Column {
-            TextButton(onClick = { tuningMenuOpen = true }) {
-                Text(tuningLabel)
-            }
-            DropdownMenu(
-                expanded = tuningMenuOpen,
-                onDismissRequest = { tuningMenuOpen = false },
-            ) {
-                for (tuning in tunings) {
-                    DropdownMenuItem(
-                        text = { Text(tuning.label) },
-                        onClick = {
-                            tuningMenuOpen = false
-                            onSelectTuning(tuning.id)
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
