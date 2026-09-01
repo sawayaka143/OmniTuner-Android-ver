@@ -1,8 +1,6 @@
 package com.omnituner.android.ui.common
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.DropdownMenu
@@ -34,7 +32,6 @@ fun FretboardCanvas(
     showLabels: Boolean,
     useNoteNames: Boolean,
     showOutside: Boolean,
-    onCellTap: (FretCell) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -163,18 +160,7 @@ fun FretboardCanvas(
         }
     }
 
-    if (onCellTap != {}) {
-        Box(
-            modifier = modifier
-                .clickable {
-                    // precise per-cell handling would need pointerInput; tapped cell
-                    // resolution lives in the scales screen's own overlay.
-                },
-        )
-    }
 }
-
-private val NoOp: (FretCell) -> Unit = {}
 
 @Composable
 fun InstrumentTuningPicker(

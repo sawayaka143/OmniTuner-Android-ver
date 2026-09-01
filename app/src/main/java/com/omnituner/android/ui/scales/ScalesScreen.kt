@@ -196,7 +196,6 @@ fun ScalesScreen(app: OmniTunerApp) {
                 showLabels = true,
                 useNoteNames = prefsState.labelMode == LABEL_MODE_NOTE_NAMES,
                 showOutside = prefsState.showOutsideScale,
-                onCellTap = {},
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
