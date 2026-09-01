@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -42,6 +40,8 @@ import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.RotateHint
 import com.omnituner.android.ui.common.SectionCard
+import com.omnituner.android.ui.common.WebSelectOption
+import com.omnituner.android.ui.common.WebSelectRow
 import com.omnituner.android.ui.theme.webQualityColor
 import com.omnituner.core.data.PROGRESSION_PRESETS
 import com.omnituner.core.theory.VoicingShape
@@ -112,15 +112,13 @@ fun ChordFinderScreen(app: OmniTunerApp) {
             }
 
             val tonicChips = listOf("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(tonicChips) { tonic ->
-                    FilterChip(
-                        selected = state.tonicInput == tonic,
-                        onClick = { viewModel.setTonic(tonic) },
-                        label = { Text(tonic) },
-                    )
-                }
-            }
+            WebSelectRow(
+                label = "Tonic",
+                value = state.tonicInput,
+                options = tonicChips.map { tonic -> WebSelectOption(tonic, tonic) },
+                selected = state.tonicInput,
+                onSelect = viewModel::setTonic,
+            )
         }
 
         // Key finder
@@ -175,15 +173,17 @@ fun ChordFinderScreen(app: OmniTunerApp) {
         // Progression presets
         SectionCard {
             Text("Progressions", style = MaterialTheme.typography.titleMedium)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(PROGRESSION_PRESETS) { preset ->
-                    FilterChip(
-                        selected = false,
-                        onClick = { viewModel.applyPreset(preset) },
-                        label = { Text(preset.name) },
-                    )
-                }
-            }
+            WebSelectRow(
+                label = "Progression preset",
+                value = "Load a preset",
+                options = PROGRESSION_PRESETS.map { preset ->
+                    WebSelectOption(preset.id, preset.name, alt = preset.degrees.joinToString(" "))
+                },
+                selected = null,
+                onSelect = { id ->
+                    PROGRESSION_PRESETS.firstOrNull { it.id == id }?.let(viewModel::applyPreset)
+                },
+            )
         }
 
         // Voicings
