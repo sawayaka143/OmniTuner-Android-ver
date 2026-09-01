@@ -24,22 +24,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.Tuning
 import com.omnituner.core.theory.FretCell
 
-fun parseHexColor(hex: String): Color {
+fun parseHexColor(hex: String, fallback: Color): Color {
     return try {
         Color(android.graphics.Color.parseColor(hex))
     } catch (_: Exception) {
-        Color(0xFF94948E)
+        fallback
     }
 }
+
+/** Web textColorOn: ink that contrasts with an arbitrary interval cell color. */
+private fun inkOn(color: Color): Color =
+    if (color.luminance() > 0.45f) Color(0xFF121211) else Color(0xFFF5F5F3)
 
 /**
  * Shared fretboard renderer for the scales explorer (interval cells) and the
@@ -55,7 +61,10 @@ fun FretboardCanvas(
     dimNonHighlighted: Boolean = false,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(fontSize = 10.sp, color = Color.White)
+    val palette = currentWebPalette()
+    val wireColor = palette.text
+    val stringLabelColor = palette.muted
+    val highlightColor = palette.warn
     val fretCount = board.firstOrNull()?.size?.minus(1) ?: 12
 
     Canvas(modifier = modifier) {
@@ -67,7 +76,7 @@ fun FretboardCanvas(
 
         // nut + fret wires
         drawLine(
-            color = Color.White.copy(alpha = 0.7f),
+            color = wireColor.copy(alpha = 0.7f),
             start = Offset(labelColumnWidth, 0f),
             end = Offset(labelColumnWidth, size.height),
             strokeWidth = 4f,
@@ -75,7 +84,7 @@ fun FretboardCanvas(
         for (fret in 1..fretCount) {
             val x = labelColumnWidth + fretAreaWidth * fret / fretCount
             drawLine(
-                color = Color.White.copy(alpha = 0.25f),
+                color = wireColor.copy(alpha = 0.25f),
                 start = Offset(x, 0f),
                 end = Offset(x, size.height),
                 strokeWidth = 1.5f,
@@ -85,7 +94,7 @@ fun FretboardCanvas(
         for (s in 0 until strings) {
             val y = rowHeight * (s + 0.5f)
             drawLine(
-                color = Color.White.copy(alpha = 0.45f),
+                color = wireColor.copy(alpha = 0.45f),
                 start = Offset(labelColumnWidth, y),
                 end = Offset(size.width, y),
                 strokeWidth = if (strings >= 6) 2f else 3f,
@@ -105,21 +114,25 @@ fun FretboardCanvas(
 
                 if (highlightPcs != null) {
                     if (highlight) {
-                        drawCircle(color = Color(0xFFFF9900), radius = radius, center = Offset(cx, cy))
+                        drawCircle(color = highlightColor, radius = radius, center = Offset(cx, cy))
                     }
                     continue
                 }
 
                 val interval = cell.interval
                 if (interval != null) {
+                    val cellColor = parseHexColor(cell.color, palette.dim)
                     drawCircle(
-                        color = parseHexColor(cell.color),
+                        color = cellColor,
                         radius = radius,
                         center = Offset(cx, cy),
                     )
                     if (showLabels) {
                         val text = interval.label
-                        val measured = textMeasurer.measure(text, labelStyle)
+                        val measured = textMeasurer.measure(
+                            text,
+                            TextStyle(fontSize = 10.sp, color = inkOn(cellColor)),
+                        )
                         drawText(
                             measured,
                             topLeft = Offset(
@@ -136,7 +149,10 @@ fun FretboardCanvas(
         for (row in board) {
             val first = row.firstOrNull() ?: continue
             val y = rowHeight * (first.stringIndex + 0.5f)
-            val measured = textMeasurer.measure(first.noteName, labelStyle)
+            val measured = textMeasurer.measure(
+                first.noteName,
+                TextStyle(fontSize = 10.sp, color = stringLabelColor),
+            )
             drawText(
                 measured,
                 topLeft = Offset(

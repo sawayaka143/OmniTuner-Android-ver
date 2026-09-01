@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.metronome.BPM_MAX
 import com.omnituner.core.metronome.BPM_MIN
 import kotlin.math.PI
@@ -64,6 +65,7 @@ fun BpmDial(
     val tickColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
     val pointerColor = MaterialTheme.colorScheme.primary
     val hubColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val wellColor = currentWebPalette().dialWell
 
     Box(modifier = modifier.size(220.dp), contentAlignment = Alignment.Center) {
         Canvas(
@@ -122,6 +124,13 @@ fun BpmDial(
             val scale = size.width / FACE
             val cx = size.width / 2f
             val cy = size.height / 2f
+
+            // Recessed dial well behind the face (web: --dial-well)
+            drawCircle(
+                color = wellColor,
+                radius = 138f * scale,
+                center = Offset(cx, cy),
+            )
 
             // Rotating tick ring (web: faceTransform rotate(rotation cx cy))
             rotate(degrees = displayRotation.toFloat(), pivot = Offset(cx, cy)) {
