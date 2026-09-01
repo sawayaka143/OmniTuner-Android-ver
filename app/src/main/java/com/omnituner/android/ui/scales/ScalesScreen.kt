@@ -1,4 +1,4 @@
-﻿package com.omnituner.android.ui.scales
+package com.omnituner.android.ui.scales
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -103,7 +103,7 @@ fun ScalesScreen(app: OmniTunerApp) {
         SectionCard {
             Text("Scale", style = MaterialTheme.typography.titleMedium)
             Text(
-                "${scale.label}${scale.aka?.let { " ($it)" } ?: ""} Â· ${prefsState.rootPitchClass}",
+                "${scale.label}${scale.aka?.let { " ($it)" } ?: ""} · ${prefsState.rootPitchClass}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

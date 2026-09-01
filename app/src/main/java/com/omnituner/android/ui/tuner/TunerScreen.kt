@@ -1,4 +1,4 @@
-﻿package com.omnituner.android.ui.tuner
+package com.omnituner.android.ui.tuner
 
 import android.Manifest
 import android.app.Activity
@@ -208,7 +208,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             .padding(16.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
-        // Workbench card (web: .workbench â€” bordered rounded card, max 480px on phones)
+        // Workbench card (web: .workbench — bordered rounded card, max 480px on phones)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -229,7 +229,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Controls row (web: .tuner-controls â€” centered instrument selector)
+            // Controls row (web: .tuner-controls — centered instrument selector)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -281,7 +281,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Stage (web: .tuner-stage â€” centered column)
+            // Stage (web: .tuner-stage — centered column)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -291,7 +291,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             ) {
                 TunePrompt(state = state)
 
-                // Needle meter: Â±50 cents, 41 ticks, center at index 20
+                // Needle meter: ±50 cents, 41 ticks, center at index 20
                 PitchMeterCanvas(
                     needlePercent = state.needlePercent.toFloat(),
                     needleColor = needleColor(state) ?: currentWebPalette().needleColor,
@@ -428,7 +428,7 @@ private fun WorkbenchHeader(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${state.instrumentLabel} Â· ${state.tuningSummary}",
+                text = "${state.instrumentLabel} · ${state.tuningSummary}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -514,7 +514,7 @@ private fun PitchDisplay(state: TunerUiState, color: Color) {
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = state.noteName ?: "â€”",
+                text = state.noteName ?: "—",
                 fontSize = 72.sp,
                 fontWeight = FontWeight.Bold,
                 color = color,
@@ -625,7 +625,7 @@ private fun InstrumentTuningSelector(
 
     Column {
         TextButton(onClick = { instrumentMenuOpen = true }) {
-            Text("${state.instrumentLabel} â–¾")
+            Text("${state.instrumentLabel} ▾")
         }
         DropdownMenu(
             expanded = instrumentMenuOpen,
@@ -642,7 +642,7 @@ private fun InstrumentTuningSelector(
             }
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("New instrumentâ€¦") },
+                text = { Text("New instrument…") },
                 leadingIcon = { Icon(painterResource(R.drawable.tabler_plus), contentDescription = null) },
                 onClick = {
                     instrumentMenuOpen = false
@@ -650,7 +650,7 @@ private fun InstrumentTuningSelector(
                 },
             )
             DropdownMenuItem(
-                text = { Text("Manage instrumentsâ€¦") },
+                text = { Text("Manage instruments…") },
                 onClick = {
                     instrumentMenuOpen = false
                     onManageInstruments()
@@ -707,7 +707,7 @@ private fun InstrumentTuningSelector(
             }
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("New tuningâ€¦") },
+                text = { Text("New tuning…") },
                 leadingIcon = { Icon(painterResource(R.drawable.tabler_plus), contentDescription = null) },
                 onClick = {
                     tuningMenuOpen = false
@@ -912,7 +912,7 @@ private fun TuningEditorDialog(
 
                 Box {
                     TextButton(onClick = { presetOpen = true }) {
-                        Text("Start from preset â–¾")
+                        Text("Start from preset ▾")
                     }
                     DropdownMenu(
                         expanded = presetOpen,
