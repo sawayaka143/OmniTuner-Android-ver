@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.AudioCaptureEngine
+import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.Haptics
 import com.omnituner.core.audio.centsFromMidiFloat
@@ -25,6 +26,7 @@ import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.NamedFrequency
 import com.omnituner.core.data.Tuning
 import com.omnituner.core.prefs.InTunePreferences
+import com.omnituner.core.prefs.InstrumentNameException
 import com.omnituner.core.prefs.TUNER_MODE_AUTO
 import com.omnituner.core.prefs.TUNER_MODE_MANUAL
 import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
@@ -52,6 +54,7 @@ data class TunerUiState(
     val tuningLabel: String = "",
     val selectedInstrumentId: String = "",
     val selectedTuningId: String = "",
+    val instrumentStringCount: Int = 6,
     val frameCents: Double? = null,
     val inRange: Boolean = false,
     val confirmed: Boolean = false,
@@ -68,6 +71,8 @@ data class TunerUiState(
     val noteOctave: Int? = null,
     val statusMessage: String = "IDLE",
     val manualIndex: Int = 0,
+    val referencePitch: Int = 440,
+    val startupMode: String = TUNER_STARTUP_REMEMBER,
     val inTune: InTunePreferences = InTunePreferences(),
 )
 
@@ -78,6 +83,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     private val registry = container.instrumentRegistry
     private val engine = AudioCaptureEngine(application)
     private val player = NotePlayer()
+    private val samplePlayer = GuitarSamplePlayer(application)
     private val haptics = Haptics(application)
 
     private data class Analysis(
@@ -91,7 +97,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     private val _ui = MutableStateFlow(TunerUiState())
     val ui: StateFlow<TunerUiState> = _ui.asStateFlow()
 
-    // MutableStateFlow-free compose-native state is avoided in VMs; use flows instead.
     private val holdStartedAt = java.util.concurrent.atomic.AtomicLong(0)
     private var holdJob: Job? = null
     private var releaseJob: Job? = null
@@ -169,7 +174,10 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
         val string = currentStrings().getOrNull(index)
         if (string != null) {
-            player.playNote(frequencyToMidiNote(string.freq) ?: 69)
+            val midi = frequencyToMidiNote(string.freq) ?: 69
+            if (!samplePlayer.playSampleNote(midi)) {
+                player.playNote(midi)
+            }
         }
         rebuildUi()
     }
@@ -177,11 +185,112 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     fun selectInstrument(instrumentId: String) {
         if (registry.selectedInstrumentIdFlow.value == instrumentId) return
         registry.selectInstrument(instrumentId)
+        resetHoldState()
         rebuildUi()
     }
 
     fun selectTuning(tuningId: String) {
+        if (registry.selectedTuningIdFlow.value == tuningId) return
         registry.selectTuning(tuningId)
+        resetHoldState()
+        rebuildUi()
+    }
+
+    // ------------------------------------------------- custom tunings/instruments
+
+    /** Returns null on success, or a validation error message for the editor. */
+    fun saveCustomTuning(editingId: String?, name: String, notes: List<Int>): String? =
+        trapValidation {
+            val tuning = if (editingId != null) {
+                registry.updateTuning(editingId, name, notes)
+            } else {
+                registry.createTuning(registry.selectedInstrumentIdFlow.value, name, notes)
+            }
+            registry.selectTuning(tuning.id)
+            resetHoldState()
+            rebuildUi()
+        }
+
+    fun deleteCustomTuning(tuningId: String) {
+        registry.deleteTuning(tuningId)
+        resetHoldState()
+        rebuildUi()
+    }
+
+    /** Returns null on success, or a validation error message for the manager. */
+    fun saveCustomInstrument(
+        editingId: String?,
+        name: String,
+        stringCount: Int,
+        notes: List<Int>,
+    ): String? = trapValidation {
+        val instrument = if (editingId != null) {
+            registry.updateInstrument(editingId, name, stringCount, notes)
+        } else {
+            registry.createInstrument(name, stringCount, notes)
+        }
+        registry.selectInstrument(instrument.id)
+        resetHoldState()
+        rebuildUi()
+    }
+
+    fun deleteCustomInstrument(instrumentId: String) {
+        registry.deleteInstrument(instrumentId)
+        resetHoldState()
+        rebuildUi()
+    }
+
+    private inline fun trapValidation(block: () -> Unit): String? = try {
+        block()
+        null
+    } catch (e: InstrumentNameException) {
+        e.message
+    }
+
+    // --------------------------------------------------------- settings passthrough
+
+    fun setReferencePitch(value: Double) {
+        prefs.setReferencePitch(value)
+        rebuildUi()
+    }
+
+    fun setStartupMode(value: String) {
+        prefs.setStartupMode(value)
+        rebuildUi()
+    }
+
+    fun setInTuneEnabled(value: Boolean) {
+        prefs.setInTuneEnabled(value)
+        rebuildUi()
+    }
+
+    fun setInTuneSound(value: Boolean) {
+        prefs.setInTuneSound(value)
+        rebuildUi()
+    }
+
+    fun setInTuneGlow(value: Boolean) {
+        prefs.setInTuneGlow(value)
+        rebuildUi()
+    }
+
+    fun setInTuneTolerance(value: Double) {
+        prefs.setInTuneTolerance(value)
+        rebuildUi()
+    }
+
+    fun setInTuneHoldMs(value: Double) {
+        prefs.setInTuneHoldMs(value)
+        rebuildUi()
+    }
+
+    fun setInTuneColor(hex: String) {
+        prefs.setInTuneColor(hex)
+        rebuildUi()
+    }
+
+    fun setOutOfTuneColor(hex: String) {
+        prefs.setOutOfTuneColor(hex)
         rebuildUi()
     }
 
@@ -454,6 +563,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             tuningLabel = tuning.label,
             selectedInstrumentId = registry.selectedInstrumentIdFlow.value,
             selectedTuningId = registry.selectedTuningIdFlow.value,
+            instrumentStringCount = instrument.stringCount,
             frameCents = cents,
             inRange = inRangeNow,
             confirmed = confirmed,
@@ -470,6 +580,8 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             noteOctave = noteOctave,
             statusMessage = statusMessage,
             manualIndex = manualIndex,
+            referencePitch = settings.referencePitch,
+            startupMode = settings.startupMode,
             inTune = settings.inTune,
         )
     }
@@ -484,9 +596,5 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         engine.stop()
         super.onCleared()
-    }
-
-    companion object {
-        private const val TAG = "TunerViewModel"
     }
 }
