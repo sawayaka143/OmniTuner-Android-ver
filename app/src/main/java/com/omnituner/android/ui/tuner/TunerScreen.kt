@@ -94,13 +94,9 @@ import com.omnituner.core.prefs.MAX_STRING_COUNT
 import com.omnituner.core.prefs.MAX_TUNER_MIDI_NOTE
 import com.omnituner.core.prefs.MIN_STRING_COUNT
 import com.omnituner.core.prefs.MIN_TUNER_MIDI_NOTE
-import com.omnituner.core.prefs.REFERENCE_PITCH_MAX
-import com.omnituner.core.prefs.REFERENCE_PITCH_MIN
 import com.omnituner.core.prefs.TUNER_MODE_AUTO
 import com.omnituner.core.prefs.TUNER_MODE_MANUAL
 import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
-import com.omnituner.core.prefs.TUNER_TOLERANCE_MAX
-import com.omnituner.core.prefs.TUNER_TOLERANCE_MIN
 import kotlin.math.roundToInt
 
 private val IN_TUNE_COLOR = Color(0xFF7ECBA8)
@@ -1056,24 +1052,14 @@ private fun TunerSettingsSheet(
             RepeatStepperRow(
                 label = "Reference pitch",
                 valueText = "${state.referencePitch} Hz",
-                onDelta = { delta ->
-                    viewModel.setReferencePitch(
-                        (state.referencePitch + delta)
-                            .coerceIn(REFERENCE_PITCH_MIN, REFERENCE_PITCH_MAX).toDouble(),
-                    )
-                },
+                onDelta = viewModel::changeReferencePitch,
             )
 
             // Tolerance
             RepeatStepperRow(
                 label = "In-tune tolerance",
                 valueText = "±${state.inTune.tolerance} ¢",
-                onDelta = { delta ->
-                    viewModel.setInTuneTolerance(
-                        (state.inTune.tolerance + delta)
-                            .coerceIn(TUNER_TOLERANCE_MIN, TUNER_TOLERANCE_MAX).toDouble(),
-                    )
-                },
+                onDelta = viewModel::changeInTuneTolerance,
             )
 
             // Hold time: smooth track, snapped to the 50 ms step in code

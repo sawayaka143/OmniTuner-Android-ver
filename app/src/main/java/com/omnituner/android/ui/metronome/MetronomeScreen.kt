@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.core.metronome.DENOMINATORS
 import com.omnituner.core.metronome.METER_PRESETS
 import com.omnituner.core.metronome.PATTERN_PRESETS
@@ -160,11 +161,10 @@ fun MetronomeScreen(
                     TextButton(onClick = { viewModel.setBpm(metronome.bpm + 1) }) { Text("+1") }
                     TextButton(onClick = { viewModel.setBpm(metronome.bpm + 5) }) { Text("+5") }
                 }
-                Slider(
-                    value = metronome.bpm.toFloat(),
-                    onValueChange = { viewModel.setBpm(it.toDouble()) },
-                    valueRange = 1f..800f,
-                    modifier = Modifier.semantics { contentDescription = "Beats per minute" },
+                BpmDial(
+                    bpm = metronome.bpm,
+                    onBpmChange = viewModel::setBpm,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
                 TapTempoRow(onBpm = viewModel::setBpm)
             }
@@ -196,15 +196,15 @@ fun MetronomeScreen(
                         )
                     }
                 }
-                StepperRow(
+                RepeatStepperRow(
                     label = "Numerator",
-                    value = metronome.timeSignature.numerator,
-                    onDelta = { viewModel.setTimeSignature(metronome.timeSignature.numerator + it, metronome.timeSignature.denominator) },
+                    valueText = "${metronome.timeSignature.numerator}",
+                    onDelta = viewModel::changeTimeSignatureNumerator,
                 )
-                StepperRow(
+                RepeatStepperRow(
                     label = "Divisions per beat",
-                    value = metronome.divisionsPerBeat,
-                    onDelta = { viewModel.setDivisionsPerBeat(metronome.divisionsPerBeat + it) },
+                    valueText = "${metronome.divisionsPerBeat}",
+                    onDelta = viewModel::changeDivisionsPerBeat,
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(SUBDIVISIONS) { option ->
@@ -286,10 +286,10 @@ fun MetronomeScreen(
                     )
                 }
                 if (metronome.poly.enabled) {
-                    StepperRow(
+                    RepeatStepperRow(
                         label = "Poly events",
-                        value = metronome.poly.events,
-                        onDelta = { viewModel.setPoly(events = metronome.poly.events + it) },
+                        valueText = "${metronome.poly.events}",
+                        onDelta = viewModel::changePolyEvents,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
@@ -374,15 +374,15 @@ fun MetronomeScreen(
                     )
                 }
                 if (metronome.ramp.enabled) {
-                    StepperRow(
+                    RepeatStepperRow(
                         label = "Target BPM",
-                        value = metronome.ramp.targetBpm.roundToInt(),
-                        onDelta = { viewModel.setRamp(targetBpm = metronome.ramp.targetBpm + it) },
+                        valueText = "${metronome.ramp.targetBpm.roundToInt()}",
+                        onDelta = viewModel::changeRampTargetBpm,
                     )
-                    StepperRow(
+                    RepeatStepperRow(
                         label = "Ramp bars",
-                        value = metronome.ramp.bars,
-                        onDelta = { viewModel.setRamp(bars = metronome.ramp.bars + it) },
+                        valueText = "${metronome.ramp.bars}",
+                        onDelta = viewModel::changeRampBars,
                     )
                 }
             }
@@ -449,27 +449,6 @@ fun MetronomeScreen(
                 TextButton(onClick = { showPresetDialog = false }) { Text("Cancel") }
             },
         )
-    }
-}
-
-@Composable
-private fun StepperRow(label: String, value: Int, onDelta: (Int) -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onDelta(-1) }) { Text("−") }
-            Text(
-                "$value",
-                modifier = Modifier.width(44.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                fontWeight = FontWeight.SemiBold,
-            )
-            TextButton(onClick = { onDelta(1) }) { Text("+") }
-        }
     }
 }
 

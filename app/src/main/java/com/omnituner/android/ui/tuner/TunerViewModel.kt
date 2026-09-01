@@ -254,6 +254,13 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         rebuildUi()
     }
 
+    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
+    fun changeReferencePitch(delta: Int) {
+        val current = prefs.tunerSettings.value.referencePitch
+        prefs.setReferencePitch(current.toDouble() + delta)
+        rebuildUi()
+    }
+
     fun setStartupMode(value: String) {
         prefs.setStartupMode(value)
         rebuildUi()
@@ -276,6 +283,13 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setInTuneTolerance(value: Double) {
         prefs.setInTuneTolerance(value)
+        rebuildUi()
+    }
+
+    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
+    fun changeInTuneTolerance(delta: Int) {
+        val current = prefs.tunerSettings.value.inTune.tolerance
+        prefs.setInTuneTolerance(current.toDouble() + delta)
         rebuildUi()
     }
 
