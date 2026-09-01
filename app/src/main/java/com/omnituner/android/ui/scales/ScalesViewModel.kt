@@ -133,11 +133,11 @@ class ScalesViewModel(
         val midiNotes = tuning.strings.map { com.omnituner.core.audio.frequencyToMidiNote(it.freq) ?: 69 }
         val scale = SCALES.find { it.id == prefsState.scaleId } ?: SCALES.first()
         val board = computeFretboard(
-            openPitchClasses = openMidi,
+            openPitchClasses = openMidi.reversed(),
             fretCount = prefsState.fretCount,
             intervals = scale.intervals,
             preferFlats = prefsState.accidental == "flat",
-            openMidiNotes = midiNotes,
+            openMidiNotes = midiNotes.reversed(),
         )
 
         _ui.value = ScalesUiState(

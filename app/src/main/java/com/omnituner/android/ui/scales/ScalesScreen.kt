@@ -23,7 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -31,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.R
@@ -38,6 +41,7 @@ import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.FretboardCanvas
 import com.omnituner.android.ui.common.InstrumentTuningPicker
+import com.omnituner.android.ui.common.RotateHint
 import com.omnituner.android.ui.common.SectionCard
 import com.omnituner.core.data.SCALES
 import com.omnituner.core.prefs.ACCIDENTAL_FLAT
@@ -62,6 +66,8 @@ fun ScalesScreen(app: OmniTunerApp) {
     val prefsState = state.prefs
     val scale = SCALES.find { it.id == prefsState.scaleId } ?: SCALES.first()
 
+    val rotateHintDismissed = rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -69,6 +75,9 @@ fun ScalesScreen(app: OmniTunerApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (!rotateHintDismissed.value) {
+            RotateHint(onDismiss = { rotateHintDismissed.value = true })
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -182,31 +191,27 @@ fun ScalesScreen(app: OmniTunerApp) {
                 )
             }
 
-            val board = if (prefsState.labelMode == LABEL_MODE_SCALE_DEGREES) {
-                // degree labels: cells already carry interval labels; canvas draws
-                // interval.label when showLabels is true, matching degree mode.
-                state.board
-            } else {
-                state.board
-            }
             FretboardCanvas(
-                board = board,
+                board = state.board,
                 showLabels = true,
+                useNoteNames = prefsState.labelMode == LABEL_MODE_NOTE_NAMES,
+                showOutside = prefsState.showOutsideScale,
                 onCellTap = {},
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
                     .pointerInput(state.board) {
                         detectTapGestures { offset ->
-                            val fretCount = state.board.firstOrNull()?.size?.minus(1) ?: return@detectTapGestures
+                            val fretCount = state.board.firstOrNull()?.size?.minus(1)
+                                ?: return@detectTapGestures
                             val strings = state.board.size
-                            val labelWidth = size.width * 0.09f
-                            val fretArea = size.width - labelWidth
-                            val rowHeight = size.height / strings
-                            val stringIndex = (offset.y / rowHeight).toInt().coerceIn(0, strings - 1)
-                            val fret = (((offset.x - labelWidth) / fretArea) * fretCount)
+                            val pad = 14.sp.toPx()
+                            val rowHeight = (size.height - 2 * pad) / strings
+                            val col = ((offset.x / size.width) * (fretCount + 1))
                                 .toInt().coerceIn(0, fretCount)
-                            state.board.getOrNull(stringIndex)?.getOrNull(fret)?.let(viewModel::playCell)
+                            val row = ((offset.y - pad) / rowHeight)
+                                .toInt().coerceIn(0, strings - 1)
+                            state.board.getOrNull(row)?.getOrNull(col)?.let(viewModel::playCell)
                         }
                     }
                     .semantics { contentDescription = "Fretboard diagram for ${scale.label}" },

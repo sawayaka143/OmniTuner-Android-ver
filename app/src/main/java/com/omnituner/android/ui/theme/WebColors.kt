@@ -37,6 +37,7 @@ data class WebPalette(
     val chordStageGlow: Color,
     val accentText: Color,
     val inTuneText: Color,
+    val fretboardNote: Color,
 )
 
 /** Compose equivalent of `color-mix(in srgb, from p%, to)`. */
@@ -98,6 +99,7 @@ object WebColors {
         chordStageGlow = Color(0xFFEDE8D0).copy(alpha = 0.22f),
         accentText = DARK_ACCENT_TEXT,
         inTuneText = Color(0xFFEDE8D0), // var(--in-tune-color)
+        fretboardNote = Color(0xFF3B3B3B), // scales fretboard non-root note cells
     )
 
     // html[data-theme='light']
@@ -130,6 +132,7 @@ object WebColors {
         chordStageGlow = Color(0xFFEDE8D0).copy(alpha = 0.18f),
         accentText = LIGHT_ACCENT_TEXT,
         inTuneText = LIGHT_IN_TUNE_TEXT,
+        fretboardNote = Color(0xFF3B3B3B), // same in both themes
     )
 }
 
@@ -137,6 +140,23 @@ val LocalWebPalette = staticCompositionLocalOf { WebColors.Dark }
 
 @Composable
 fun currentWebPalette(): WebPalette = LocalWebPalette.current
+
+/**
+ * Chords neck diagram degree colors (web neck-diagram tokens), keyed by
+ * semitone distance from the chord root:
+ * 0 -> root (accent-text), 3/4 -> third (good), 5/7 -> fifth (muted),
+ * 6/8/10/11 -> altered (warn), everything else (1/2/9) -> other (info).
+ */
+fun WebPalette.neckDegreeColor(semitonesFromRoot: Int): Color {
+    val d = ((semitonesFromRoot % 12) + 12) % 12
+    return when (d) {
+        0 -> accentText
+        3, 4 -> good
+        5, 7 -> muted
+        6, 8, 10, 11 -> warn
+        else -> info
+    }
+}
 
 /** Web quality colors (--good/--warn/--info/--danger), theme-aware. */
 @Composable
