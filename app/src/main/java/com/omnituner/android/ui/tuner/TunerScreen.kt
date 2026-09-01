@@ -1,7 +1,13 @@
 package com.omnituner.android.ui.tuner
 
+import android.Manifest
 import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
@@ -30,6 +36,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,7 +44,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -51,7 +57,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -62,10 +67,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,6 +91,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.core.audio.midiNoteLabel
@@ -148,15 +158,61 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
         }
     }
 
-    var permissionRequested by remember { mutableStateOf(false) }
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    var permanentlyDenied by rememberSaveable { mutableStateOf(false) }
+    var permissionAutoRequested by rememberSaveable { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        permissionRequested = true
         if (granted) {
+            hasPermission = true
             viewModel.startCapture()
         } else {
+            permanentlyDenied =
+                (context as? ComponentActivity)
+                    ?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false
             viewModel.onPermissionDenied()
+        }
+    }
+
+    LaunchedEffect(hasPermission) {
+        if (hasPermission) {
+            viewModel.startCapture()
+        } else if (!permissionAutoRequested) {
+            permissionAutoRequested = true
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Mic mirrors the app lifecycle: capture while the tuner is on screen, stop on pause.
+    DisposableEffect(context) {
+        val activity = context as? ComponentActivity
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) {
+                        if (!hasPermission) hasPermission = true
+                        viewModel.startCapture()
+                    }
+                }
+                Lifecycle.Event.ON_PAUSE -> viewModel.stopCapture()
+                else -> Unit
+            }
+        }
+        activity?.lifecycle?.addObserver(observer)
+        onDispose {
+            activity?.lifecycle?.removeObserver(observer)
+            viewModel.stopCapture()
         }
     }
 
@@ -170,7 +226,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Top bar: instrument/tuning selectors + settings + capture toggle
+        // Top bar: instrument/tuning selectors + settings
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -223,21 +279,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             ) {
                 Icon(Icons.Filled.Settings, contentDescription = null)
             }
-            CaptureButton(
-                isCapturing = state.isCapturing,
-                onToggle = {
-                    if (!state.isCapturing && !permissionRequested) {
-                        permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                    } else if (!state.isCapturing) {
-                        val error = viewModel.startCapture()
-                        if (error != null && error.contains("permission", ignoreCase = true)) {
-                            permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                        }
-                    } else {
-                        viewModel.toggleCapture()
-                    }
-                },
-            )
         }
 
         // Mode selector
@@ -278,6 +319,20 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
         )
 
         StringChips(state = state, onSelect = viewModel::selectString)
+
+        if (!hasPermission) {
+            MicPermissionBanner(
+                permanentDenial = permanentlyDenied,
+                onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                onOpenSettings = {
+                    val intent = Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    )
+                    context.startActivity(intent)
+                },
+            )
+        }
 
         if (state.captureError != null) {
             Text(
@@ -442,21 +497,36 @@ private fun blend(from: Color, to: Color, t: Float): Color = Color(
 )
 
 @Composable
-private fun CaptureButton(isCapturing: Boolean, onToggle: () -> Unit) {
-    OutlinedButton(
-        onClick = onToggle,
+private fun MicPermissionBanner(
+    permanentDenial: Boolean,
+    onAllow: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
         modifier = Modifier
-            .size(width = 120.dp, height = 48.dp)
-            .semantics {
-                contentDescription = if (isCapturing) "Stop tuning" else "Start tuning"
-            },
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.errorContainer,
+                RoundedCornerShape(12.dp),
+            )
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            if (isCapturing) Icons.Filled.MicOff else Icons.Filled.Mic,
+            Icons.Filled.Mic,
             contentDescription = null,
+            tint = MaterialTheme.colorScheme.onErrorContainer,
         )
-        Spacer(modifier = Modifier.size(6.dp))
-        Text(if (isCapturing) "Stop" else "Tune")
+        Spacer(modifier = Modifier.size(12.dp))
+        Text(
+            text = "Microphone needed to tune",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = if (permanentDenial) onOpenSettings else onAllow) {
+            Text(if (permanentDenial) "Open settings" else "Allow")
+        }
     }
 }
 

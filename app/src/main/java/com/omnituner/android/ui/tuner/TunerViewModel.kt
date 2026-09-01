@@ -119,15 +119,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     fun uiState(): TunerUiState = _ui.value
 
-    fun toggleCapture() {
-        haptics.light()
-        if (analysis.value.isCapturing) {
-            stopCapture()
-        } else {
-            startCapture()
-        }
-    }
-
     /** Returns null when capture started, or a user-facing error string. */
     fun startCapture(): String? {
         val error = engine.start { frequency, _, trackingState ->
