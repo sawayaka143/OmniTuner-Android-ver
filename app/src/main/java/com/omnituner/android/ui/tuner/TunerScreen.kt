@@ -87,6 +87,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.R
+import com.omnituner.android.ui.common.WebSelectOption
+import com.omnituner.android.ui.common.WebSelectRow
 import com.omnituner.android.ui.theme.LightTuneInk
 import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.audio.midiNoteLabel
@@ -620,101 +622,73 @@ private fun InstrumentTuningSelector(
     onManageInstruments: () -> Unit,
     onNewInstrument: () -> Unit,
 ) {
-    var instrumentMenuOpen by remember { mutableStateOf(false) }
-    var tuningMenuOpen by remember { mutableStateOf(false) }
-
-    Column {
-        TextButton(onClick = { instrumentMenuOpen = true }) {
-            Text("${state.instrumentLabel} ▾")
-        }
-        DropdownMenu(
-            expanded = instrumentMenuOpen,
-            onDismissRequest = { instrumentMenuOpen = false },
-        ) {
-            for (instrument in state.instruments) {
-                DropdownMenuItem(
-                    text = { Text(instrument.label) },
-                    onClick = {
-                        instrumentMenuOpen = false
-                        onSelectInstrument(instrument.id)
-                    },
-                )
-            }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("New instrument…") },
-                leadingIcon = { Icon(painterResource(R.drawable.tabler_plus), contentDescription = null) },
-                onClick = {
-                    instrumentMenuOpen = false
-                    onNewInstrument()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("Manage instruments…") },
-                onClick = {
-                    instrumentMenuOpen = false
-                    onManageInstruments()
-                },
-            )
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        WebSelectRow(
+            label = "Instrument",
+            value = state.instrumentLabel,
+            options = state.instruments.map { instrument ->
+                WebSelectOption(instrument.id, instrument.label)
+            },
+            selected = state.selectedInstrumentId,
+            onSelect = onSelectInstrument,
+            menuFooter = {
+                FooterAction(R.drawable.tabler_plus, "New instrument", onNewInstrument)
+                FooterAction(null, "Manage instruments", onManageInstruments)
+            },
+        )
+        WebSelectRow(
+            label = "Tuning",
+            value = state.tuningLabel,
+            options = state.tunings.map { tuning ->
+                WebSelectOption(tuning.id, tuning.label)
+            },
+            selected = state.selectedTuningId,
+            onSelect = onSelectTuning,
+            itemTrailing = { option ->
+                val tuning = state.tunings.firstOrNull { it.id == option.value }
+                if (tuning?.kind == "custom") {
+                    IconButton(
+                        onClick = { onEditTuning(tuning.id) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.tabler_pencil),
+                            contentDescription = "Edit tuning ${tuning.label}",
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = { onDeleteTuning(tuning.id) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.tabler_trash),
+                            contentDescription = "Delete tuning ${tuning.label}",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            },
+            menuFooter = {
+                FooterAction(R.drawable.tabler_plus, "New tuning", onNewTuning)
+            },
+        )
     }
-    Column {
-        TextButton(onClick = { tuningMenuOpen = true }) {
-            Text(state.tuningLabel)
-        }
-        DropdownMenu(
-            expanded = tuningMenuOpen,
-            onDismissRequest = { tuningMenuOpen = false },
-        ) {
-            for (tuning in state.tunings) {
-                DropdownMenuItem(
-                    text = { Text(tuning.label) },
-                    onClick = {
-                        tuningMenuOpen = false
-                        onSelectTuning(tuning.id)
-                    },
-                    trailingIcon = if (tuning.kind == "custom") {
-                        {
-                            Row {
-                                Icon(
-                                    painterResource(R.drawable.tabler_pencil),
-                                    contentDescription = "Edit tuning ${tuning.label}",
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .clickable {
-                                            tuningMenuOpen = false
-                                            onEditTuning(tuning.id)
-                                        },
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Icon(
-                                    painterResource(R.drawable.tabler_trash),
-                                    contentDescription = "Delete tuning ${tuning.label}",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .clickable {
-                                            tuningMenuOpen = false
-                                            onDeleteTuning(tuning.id)
-                                        },
-                                )
-                            }
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("New tuning…") },
-                leadingIcon = { Icon(painterResource(R.drawable.tabler_plus), contentDescription = null) },
-                onClick = {
-                    tuningMenuOpen = false
-                    onNewTuning()
-                },
+}
+
+@Composable
+private fun FooterAction(iconRes: Int?, label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        if (iconRes != null) {
+            Icon(
+                painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
             )
+            Spacer(modifier = Modifier.width(6.dp))
         }
+        Text(label)
     }
 }
 
