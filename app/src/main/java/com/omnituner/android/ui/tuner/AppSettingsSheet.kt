@@ -33,6 +33,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.omnituner.android.ui.common.RepeatStepperRow
+import com.omnituner.android.ui.theme.THEME_DARK
+import com.omnituner.android.ui.theme.THEME_LIGHT
+import com.omnituner.android.ui.theme.THEME_SYSTEM
 import com.omnituner.core.prefs.TUNER_MODE_AUTO
 import com.omnituner.core.prefs.TUNER_MODE_MANUAL
 import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
@@ -47,7 +50,9 @@ private val OUT_OF_TUNE_SWATCHES = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun TunerSettingsSheet(
+internal fun AppSettingsSheet(
+    themeMode: String,
+    onThemeModeChange: (String) -> Unit,
     state: TunerUiState,
     onDismiss: () -> Unit,
     viewModel: TunerViewModel,
@@ -62,9 +67,35 @@ internal fun TunerSettingsSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Tuner settings",
+                "Settings",
                 style = MaterialTheme.typography.titleLarge,
             )
+
+            // Appearance
+            Text("Appearance", style = MaterialTheme.typography.labelLarge)
+            Text("Theme", style = MaterialTheme.typography.bodyLarge)
+            val themeOptions = listOf(
+                THEME_SYSTEM to "System",
+                THEME_LIGHT to "Light",
+                THEME_DARK to "Dark",
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                themeOptions.forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = themeMode == value,
+                        onClick = { onThemeModeChange(value) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = themeOptions.size,
+                        ),
+                    ) { Text(label) }
+                }
+            }
+
+            HorizontalDivider()
+
+            // Tuner
+            Text("Tuner", style = MaterialTheme.typography.labelLarge)
 
             // Startup mode
             Text("Open tuner in", style = MaterialTheme.typography.labelLarge)

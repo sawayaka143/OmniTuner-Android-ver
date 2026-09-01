@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -42,11 +44,12 @@ import androidx.navigation.compose.rememberNavController
 import com.omnituner.android.ui.chords.ChordFinderScreen
 import com.omnituner.android.ui.metronome.MetronomeScreen
 import com.omnituner.android.ui.scales.ScalesScreen
-import com.omnituner.android.ui.settings.SettingsScreen
 import com.omnituner.android.ui.theme.OmniTunerTheme
 import com.omnituner.android.ui.theme.THEME_DARK
 import com.omnituner.android.ui.theme.THEME_LIGHT
+import com.omnituner.android.ui.tuner.AppSettingsSheet
 import com.omnituner.android.ui.tuner.TunerScreen
+import com.omnituner.android.ui.tuner.TunerViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,7 +100,11 @@ fun OmniTunerRoot(
     val currentRoute = backStackEntry?.destination?.route
     val app = LocalContext.current.applicationContext as OmniTunerApp
     val container = app.container
-    val showSettingsFab = currentRoute != "settings"
+
+    // Single tuner ViewModel shared by the Tuner tab and the settings sheet
+    val tunerViewModel: TunerViewModel = viewModel()
+    val tunerState by tunerViewModel.ui.collectAsState()
+    var settingsSheetOpen by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -138,39 +145,38 @@ fun OmniTunerRoot(
                     .fillMaxSize()
                     .padding(innerPadding)
                     // Keep clear space for the floating settings button
-                    .padding(top = if (showSettingsFab) 64.dp else 0.dp),
+                    .padding(top = 64.dp),
             ) {
-                composable("tuner") { TunerScreen() }
+                composable("tuner") { TunerScreen(viewModel = tunerViewModel) }
                 composable("scales") { ScalesScreen(app) }
                 composable("chords") { ChordFinderScreen(app) }
                 composable("metronome") { MetronomeScreen(container.metronomePreferences) }
-                composable("settings") {
-                    SettingsScreen(
-                        themeMode = themeMode,
-                        onThemeModeChange = onThemeModeChange,
-                        onBack = { navController.popBackStack() },
-                    )
-                }
             }
         }
 
-        if (showSettingsFab) {
-            SmallFloatingActionButton(
-                onClick = {
-                    navController.navigate("settings") { launchSingleTop = true }
-                },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(12.dp),
-            ) {
-                Icon(
-                    Icons.Filled.Settings,
-                    contentDescription = "Settings",
-                    modifier = Modifier.semantics { contentDescription = "Settings" },
-                )
-            }
+        SmallFloatingActionButton(
+            onClick = { settingsSheetOpen = true },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(12.dp),
+        ) {
+            Icon(
+                Icons.Filled.Settings,
+                contentDescription = "Settings",
+                modifier = Modifier.semantics { contentDescription = "Settings" },
+            )
         }
+    }
+
+    if (settingsSheetOpen) {
+        AppSettingsSheet(
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
+            state = tunerState,
+            onDismiss = { settingsSheetOpen = false },
+            viewModel = tunerViewModel,
+        )
     }
 }
 
