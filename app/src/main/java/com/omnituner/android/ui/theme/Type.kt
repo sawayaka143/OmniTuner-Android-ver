@@ -1,34 +1,54 @@
 package com.omnituner.android.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.omnituner.android.R
 
-// Set of Material typography styles to start with
-val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    )
-    /* Other default text styles to override
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    )
-    */
+/**
+ * Instrument Sans (web --font), bundled as a variable TTF (wght 400-700).
+ * Weights are exposed via FontVariation so every M3 style can use them.
+ */
+@OptIn(ExperimentalTextApi::class)
+private fun instrumentSans(weight: FontWeight) = Font(
+    resId = R.font.instrument_sans,
+    weight = weight,
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
 )
+
+val InstrumentSans = FontFamily(
+    instrumentSans(FontWeight.Normal),
+    instrumentSans(FontWeight.Medium),
+    instrumentSans(FontWeight.SemiBold),
+    instrumentSans(FontWeight.Bold),
+)
+
+// M3 defaults with InstrumentSans applied to every style (web sets --font globally).
+private val defaults = Typography()
+
+val Typography = Typography(
+    displayLarge = defaults.displayLarge.copy(fontFamily = InstrumentSans),
+    displayMedium = defaults.displayMedium.copy(fontFamily = InstrumentSans),
+    displaySmall = defaults.displaySmall.copy(fontFamily = InstrumentSans),
+    headlineLarge = defaults.headlineLarge.copy(fontFamily = InstrumentSans),
+    headlineMedium = defaults.headlineMedium.copy(fontFamily = InstrumentSans),
+    headlineSmall = defaults.headlineSmall.copy(fontFamily = InstrumentSans),
+    titleLarge = defaults.titleLarge.copy(fontFamily = InstrumentSans),
+    titleMedium = defaults.titleMedium.copy(fontFamily = InstrumentSans),
+    titleSmall = defaults.titleSmall.copy(fontFamily = InstrumentSans),
+    bodyLarge = defaults.bodyLarge.copy(fontFamily = InstrumentSans),
+    bodyMedium = defaults.bodyMedium.copy(fontFamily = InstrumentSans),
+    bodySmall = defaults.bodySmall.copy(fontFamily = InstrumentSans),
+    labelLarge = defaults.labelLarge.copy(fontFamily = InstrumentSans),
+    labelMedium = defaults.labelMedium.copy(fontFamily = InstrumentSans),
+    labelSmall = defaults.labelSmall.copy(fontFamily = InstrumentSans),
+)
+
+/** Convenience for ad-hoc TextStyles that need the app font. */
+fun appTextStyle(block: TextStyle.() -> Unit): TextStyle =
+    TextStyle(fontFamily = InstrumentSans).apply(block)
