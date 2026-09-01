@@ -841,13 +841,13 @@ private fun PitchMeterCanvas(
             val tickHeightMajor = size.height * 0.30f
             val tickHeightMinor = size.height * 0.18f
             val totalTicks = 41
-            // Theme-aware tick ink: the web meter uses SCSS tokens, not fixed white.
-            val tickColor = labelColor.copy(alpha = 0.45f)
-            val majorColor = labelColor.copy(alpha = 0.8f)
+            // Theme-aware tick ink; alphas from web tokens --meter-tick-minor/-major.
+            val tickColor = labelColor.copy(alpha = 0.15f)
+            val majorColor = labelColor.copy(alpha = 0.35f)
 
             // baseline
             drawLine(
-                color = tickColor.copy(alpha = 0.35f),
+                color = labelColor.copy(alpha = 0.10f),
                 start = Offset(width * 0.02f, centerY),
                 end = Offset(width * 0.98f, centerY),
                 strokeWidth = 2f,

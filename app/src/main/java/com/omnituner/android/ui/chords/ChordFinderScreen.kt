@@ -33,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +42,7 @@ import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.SectionCard
+import com.omnituner.android.ui.theme.webQualityColor
 import com.omnituner.core.data.PROGRESSION_PRESETS
 import com.omnituner.core.theory.VoicingShape
 
@@ -98,8 +98,8 @@ fun ChordFinderScreen(app: OmniTunerApp) {
                 Text(
                     badge.text,
                     color = when (badge.kind) {
-                        "good" -> Color(0xFF7ECBA8)
-                        "warn" -> Color(0xFFFFC163)
+                        "good" -> webQualityColor("good")
+                        "warn" -> webQualityColor("warn")
                         else -> MaterialTheme.colorScheme.error
                     },
                     style = MaterialTheme.typography.bodyMedium,
@@ -140,7 +140,7 @@ fun ChordFinderScreen(app: OmniTunerApp) {
                 Text(
                     "${key.tonicName} ${key.mode} · ${key.confidence}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF7ECBA8),
+                    color = webQualityColor("good"),
                 )
                 for (alt in key.alternatives) {
                     Text(
@@ -215,7 +215,7 @@ private fun VoicingRow(shape: VoicingShape, tuningSummary: String) {
                         modifier = Modifier
                             .size(26.dp)
                             .background(
-                                if (fret == 0) Color(0xFF7ECBA8) else MaterialTheme.colorScheme.surfaceVariant,
+                                if (fret == 0) webQualityColor("good") else MaterialTheme.colorScheme.surfaceVariant,
                                 CircleShape,
                             ),
                         contentAlignment = Alignment.Center,
