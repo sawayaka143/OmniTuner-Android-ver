@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.omnituner.android.prefs.DataStoreKeyValueStorage
+import com.omnituner.android.ui.theme.ThemePreferences
 import com.omnituner.core.prefs.InstrumentRegistry
 import com.omnituner.core.prefs.MetronomePreferences
 import com.omnituner.core.prefs.ScalePreferences
@@ -33,6 +34,7 @@ class OmniTunerApp : Application() {
             metronomePreferences = MetronomePreferences(
                 DataStoreKeyValueStorage(dataStore, appScope),
             ),
+            themePreferences = ThemePreferences(DataStoreKeyValueStorage(dataStore, appScope)),
         )
     }
 }
@@ -42,4 +44,5 @@ data class AppContainer(
     val instrumentRegistry: InstrumentRegistry,
     val scalePreferences: ScalePreferences,
     val metronomePreferences: MetronomePreferences,
+    val themePreferences: ThemePreferences,
 )
