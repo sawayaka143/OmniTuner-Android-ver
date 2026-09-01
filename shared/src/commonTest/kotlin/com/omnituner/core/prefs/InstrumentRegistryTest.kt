@@ -193,4 +193,43 @@ class InstrumentRegistryTest {
         val registry = InstrumentRegistry(storage)
         assertEquals(2, registry.instruments().size)
     }
+
+    @Test
+    fun generatesWebStyleUuidIds() {
+        val registry = InstrumentRegistry(MemoryKeyValueStorage())
+        val instrument = registry.createInstrument("Nashville", 6, List(6) { 40 })
+        val tuning = registry.createTuning("guitar", "Drop D", listOf(38, 45, 50, 55, 59, 64))
+
+        val uuidShape = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+        assertTrue(
+            Regex("^instr-$uuidShape$").matches(instrument.id),
+            "instrument id should match instr-<v4 uuid>: ${instrument.id}",
+        )
+        assertTrue(
+            Regex("^custom-$uuidShape$").matches(tuning.id),
+            "tuning id should match custom-<v4 uuid>: ${tuning.id}",
+        )
+    }
+
+    @Test
+    fun customInstrumentSelectionFallsBackToItsDefaultTuning() {
+        val storage = MemoryKeyValueStorage()
+        val registry = InstrumentRegistry(storage)
+        val instrument = registry.createInstrument("Weird", 4, listOf(40, 45, 50, 55))
+
+        // Persisted selection points at a tuning id that no longer exists while the
+        // selected instrument is custom: the fallback must resolve to its DEFAULT tuning.
+        storage.setItem(
+            INSTRUMENT_REGISTRY_STORAGE_KEY,
+            """{"version":1,""" +
+                "\"customInstruments\":[{\"id\":\"${instrument.id}\",\"name\":\"Weird\"," +
+                "\"stringCount\":4,\"defaultNotes\":[40,45,50,55]}]," +
+                "\"customTunings\":[],\"selectedInstrumentId\":\"${instrument.id}\"," +
+                "\"selectedTuningId\":\"standard\"}",
+        )
+
+        val reloaded = InstrumentRegistry(storage)
+        assertEquals(instrument.id, reloaded.selectedInstrumentIdFlow.value)
+        assertEquals("${instrument.id}-default", reloaded.selectedTuningIdFlow.value)
+    }
 }

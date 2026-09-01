@@ -10,6 +10,9 @@ import kotlin.math.sin
  * for lowpass/highpass the Q parameter is a resonance value in dB, converted to a
  * linear resonance of 10^(Q/20) before computing alpha = sin(w0) / (2 * resonance).
  * (This matches BiquadFilterNode; a classic DSP book would treat Q=0.7 as linear.)
+ *
+ * Like a Web Audio BiquadFilterNode, the delay line persists across process()
+ * calls so the filter can be fed chunk-by-chunk without boundary discontinuities.
  */
 class BiquadFilter {
 
@@ -27,6 +30,11 @@ class BiquadFilter {
     // Unnormalized alpha, exposed for spec-semantics tests.
     var rawAlpha = 0.0
         private set
+
+    private var x1 = 0.0
+    private var x2 = 0.0
+    private var y1 = 0.0
+    private var y2 = 0.0
 
     fun setLowpass(sampleRate: Double, frequency: Double, qDb: Double) {
         val w0 = 2.0 * PI * frequency / sampleRate
@@ -79,11 +87,15 @@ class BiquadFilter {
         a2 = (1.0 - alpha) / a0
     }
 
+    /** Clears the delay line; the engine calls this when (re)starting capture. */
+    fun reset() {
+        x1 = 0.0
+        x2 = 0.0
+        y1 = 0.0
+        y2 = 0.0
+    }
+
     fun process(input: FloatArray, output: FloatArray, count: Int = input.size) {
-        var x1 = 0.0
-        var x2 = 0.0
-        var y1 = 0.0
-        var y2 = 0.0
         val n = count.coerceAtMost(input.size).coerceAtMost(output.size)
         for (i in 0 until n) {
             val x0 = input[i].toDouble()

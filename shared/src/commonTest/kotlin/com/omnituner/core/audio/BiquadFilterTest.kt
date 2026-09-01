@@ -113,4 +113,55 @@ class BiquadFilterTest {
         val midIn = rms(tone(440.0, 1.0))
         assertTrue(abs(rms(midTone, midTone.size / 2) - midIn) < 0.05 * midIn, "440 Hz must pass HP 38")
     }
+
+    @Test
+    fun chunkedProcessingMatchesSinglePass() {
+        // Web Audio BiquadFilterNode keeps state for the life of the stream: feeding
+        // the same signal in 2048-sample chunks must equal one continuous pass.
+        val signal = tone(440.0, 0.5)
+
+        val single = BiquadFilter()
+        single.setLowpass(48000.0, 1250.0, 0.7)
+        val whole = signal.copyOf()
+        single.processInPlace(whole)
+
+        val chunked = BiquadFilter()
+        chunked.setLowpass(48000.0, 1250.0, 0.7)
+        val piecewise = signal.copyOf()
+        val tmp = FloatArray(2048)
+        var offset = 0
+        while (offset < piecewise.size) {
+            val len = minOf(tmp.size, piecewise.size - offset)
+            for (i in 0 until len) tmp[i] = signal[offset + i]
+            chunked.process(tmp, tmp, len)
+            for (i in 0 until len) piecewise[offset + i] = tmp[i]
+            offset += len
+        }
+
+        // Skip the filter's startup transient; the tails must agree bit-for-bit in theory.
+        for (i in signal.size - 256 until signal.size) {
+            assertEquals(whole[i], piecewise[i], 1e-4f)
+        }
+    }
+
+    @Test
+    fun resetClearsDelayLine() {
+        val signal = tone(220.0, 0.25)
+
+        val first = BiquadFilter()
+        first.setHighpass(48000.0, 38.0, 0.7)
+        val expected = signal.copyOf()
+        first.processInPlace(expected)
+
+        val reused = BiquadFilter()
+        reused.setHighpass(48000.0, 38.0, 0.7)
+        reused.processInPlace(signal.copyOf())
+        reused.reset()
+        val again = signal.copyOf()
+        reused.processInPlace(again)
+
+        for (i in signal.size - 256 until signal.size) {
+            assertEquals(expected[i], again[i], 1e-4f)
+        }
+    }
 }

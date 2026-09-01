@@ -14,7 +14,7 @@ data class PitchEstimate(
 )
 
 /**
- * Verbatim port of pitch-detector.worker.ts.
+ * Port of pitch-detector.worker.ts.
  * RMS gate -> DC-offset removal -> YIN (CMND) -> octave guard -> parabolic interpolation.
  */
 class PitchDetector {

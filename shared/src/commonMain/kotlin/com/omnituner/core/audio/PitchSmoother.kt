@@ -12,7 +12,7 @@ enum class PitchTrackingState {
 }
 
 /**
- * Verbatim port of the smoothing/tracking half of audio-capture-service.ts.
+ * Port of the smoothing/tracking half of audio-capture-service.ts.
  * Median-of-3 in log domain -> jump guard with pending-snap -> adaptive EMA ->
  * dropout holds (silent + audible) -> idle/listening/locked states.
  */
@@ -30,7 +30,7 @@ class PitchSmoother {
     private var missedFrames = 0
     private var pendingLogFreq: Double? = null
 
-    /** Mirror of the worker.onmessage dispatch (minus session/generation checks, which the engine owns). */
+    /** Mirror of the worker.onmessage dispatch (session/generation checks live in the engine). */
     fun onAnalysisResult(frequency: Double?, confidence: Double, inputLevel: Double) {
         if (frequency == null || confidence <= 0) {
             handleDropout(inputLevel)

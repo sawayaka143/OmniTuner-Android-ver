@@ -6,6 +6,7 @@ import com.omnituner.core.data.INSTRUMENTS
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.NamedFrequency
 import com.omnituner.core.data.Tuning
+import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +14,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.add
 
 const val INSTRUMENT_REGISTRY_STORAGE_KEY = "omnituner.instruments.v1"
@@ -346,17 +346,27 @@ class InstrumentRegistry(private val storage: KeyValueStorage?) {
         return notes.toList()
     }
 
-    private var idCounter = 0L
-
-    private fun createInstrumentId(): String {
-        idCounter += 1
-        return "instr-${idCounter.toString(36)}"
+    /** Matches the web's `instr-<crypto.randomUUID()>` / `custom-<...>` ID shape (v4 UUID). */
+    private fun randomUuid(): String {
+        val chars = CharArray(32) { UUID_HEX[Random.nextInt(16)] }
+        chars[12] = '4'
+        chars[16] = UUID_HEX[8 + Random.nextInt(4)]
+        return buildString {
+            append(chars, 0, 8)
+            append('-')
+            append(chars, 8, 4)
+            append('-')
+            append(chars, 12, 4)
+            append('-')
+            append(chars, 16, 4)
+            append('-')
+            append(chars, 20, 12)
+        }
     }
 
-    private fun createTuningId(): String {
-        idCounter += 1
-        return "custom-${idCounter.toString(36)}"
-    }
+    private fun createInstrumentId(): String = "instr-${randomUuid()}"
+
+    private fun createTuningId(): String = "custom-${randomUuid()}"
 
     private fun fallbackRegistry(): PersistedRegistry = PersistedRegistry(
         customInstruments = emptyList(),
@@ -405,9 +415,9 @@ class InstrumentRegistry(private val storage: KeyValueStorage?) {
             }
             val rawTuningId = parsed.field("selectedTuningId").asString() ?: "standard"
             val resolvedFallback = builtInTunings.firstOrNull()?.id
-                ?: customTunings
+                ?: (customTunings
                     .filter { it.instrumentId == selectedInstrumentIdValue }
-                    .map { it.id }
+                    .map { it.id } + validTuningIds)
                     .firstOrNull()
                 ?: "standard"
             val selectedTuningIdValue =
@@ -457,3 +467,5 @@ class InstrumentRegistry(private val storage: KeyValueStorage?) {
         }
     }
 }
+
+private const val UUID_HEX = "0123456789abcdef"
