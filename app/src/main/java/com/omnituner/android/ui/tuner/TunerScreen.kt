@@ -37,7 +37,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -47,23 +46,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -100,7 +92,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.prefs.MAX_CUSTOM_INSTRUMENT_NAME_LENGTH
@@ -116,13 +107,6 @@ import kotlin.math.roundToInt
 
 private val IN_TUNE_COLOR = Color(0xFF7ECBA8)
 private val OUT_OF_TUNE_COLOR = Color(0xFFFF8AAB)
-
-private val IN_TUNE_SWATCHES = listOf(
-    "#7ecba8", "#4cc38a", "#58c4dd", "#b18cf0", "#f2c14e", "#e5484d",
-)
-private val OUT_OF_TUNE_SWATCHES = listOf(
-    "#ff8aab", "#e5484d", "#f97316", "#f2c14e", "#a3a3a3", "#7ecba8",
-)
 
 private data class TuningEditorRequest(
     val editingId: String?,
@@ -223,7 +207,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
     var tuningEditor by remember { mutableStateOf<TuningEditorRequest?>(null) }
     var instrumentManager by remember { mutableStateOf<InstrumentManagerRequest?>(null) }
-    var settingsOpen by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -248,7 +231,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                 onSelectMode = { auto ->
                     viewModel.selectMode(if (auto) TUNER_MODE_AUTO else TUNER_MODE_MANUAL)
                 },
-                onOpenSettings = { settingsOpen = true },
             )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -416,14 +398,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             },
         )
     }
-
-    if (settingsOpen) {
-        TunerSettingsSheet(
-            state = state,
-            onDismiss = { settingsOpen = false },
-            viewModel = viewModel,
-        )
-    }
 }
 
 private fun midiNumberOf(string: com.omnituner.core.data.NamedFrequency): Int =
@@ -434,7 +408,6 @@ private fun WorkbenchHeader(
     state: TunerUiState,
     autoDetect: Boolean,
     onSelectMode: (Boolean) -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -471,12 +444,6 @@ private fun WorkbenchHeader(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             AutoDetectToggle(checked = autoDetect, onChange = onSelectMode)
-            IconButton(
-                onClick = onOpenSettings,
-                modifier = Modifier.semantics { contentDescription = "Tuner settings" },
-            ) {
-                Icon(Icons.Filled.Settings, contentDescription = null)
-            }
         }
     }
 }
@@ -1189,194 +1156,5 @@ private fun NoteStepperRow(
             modifier = Modifier.width(28.dp),
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-// ------------------------------------------------------------------- settings
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TunerSettingsSheet(
-    state: TunerUiState,
-    onDismiss: () -> Unit,
-    viewModel: TunerViewModel,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                "Tuner settings",
-                style = MaterialTheme.typography.titleLarge,
-            )
-
-            // Startup mode
-            Text("Open tuner in", style = MaterialTheme.typography.labelLarge)
-            val startupOptions = listOf(
-                TUNER_STARTUP_REMEMBER to "Remember",
-                TUNER_MODE_AUTO to "Auto",
-                TUNER_MODE_MANUAL to "Manual",
-            )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                startupOptions.forEachIndexed { index, (value, label) ->
-                    SegmentedButton(
-                        selected = state.startupMode == value,
-                        onClick = { viewModel.setStartupMode(value) },
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = startupOptions.size,
-                        ),
-                    ) { Text(label) }
-                }
-            }
-
-            // Reference pitch
-            RepeatStepperRow(
-                label = "Reference pitch",
-                valueText = "${state.referencePitch} Hz",
-                onDelta = viewModel::changeReferencePitch,
-            )
-
-            // Tolerance
-            RepeatStepperRow(
-                label = "In-tune tolerance",
-                valueText = "±${state.inTune.tolerance} ¢",
-                onDelta = viewModel::changeInTuneTolerance,
-            )
-
-            // Hold time: smooth track, snapped to the 50 ms step in code
-            SettingSliderRow(
-                label = "Hold to confirm",
-                valueText = "${state.inTune.holdMs} ms",
-                value = state.inTune.holdMs.toFloat(),
-                valueRange = 0f..1500f,
-                onValueChange = { raw ->
-                    viewModel.setInTuneHoldMs(((raw / 50f).roundToInt() * 50).toDouble())
-                },
-            )
-
-            HorizontalDivider()
-
-            // In-tune feedback
-            Text("In-tune feedback", style = MaterialTheme.typography.labelLarge)
-            SettingSwitchRow(
-                label = "Show in-tune feedback",
-                checked = state.inTune.enabled,
-                onCheckedChange = viewModel::setInTuneEnabled,
-            )
-            SettingSwitchRow(
-                label = "Play chime",
-                checked = state.inTune.sound,
-                onCheckedChange = viewModel::setInTuneSound,
-            )
-            SettingSwitchRow(
-                label = "Glow pulse",
-                checked = state.inTune.glow,
-                onCheckedChange = viewModel::setInTuneGlow,
-            )
-
-            HorizontalDivider()
-
-            // Colors
-            ColorSwatchRow(
-                label = "In-tune color",
-                swatches = IN_TUNE_SWATCHES,
-                selected = state.inTune.color,
-                onSelect = viewModel::setInTuneColor,
-            )
-            ColorSwatchRow(
-                label = "Out-of-tune color",
-                swatches = OUT_OF_TUNE_SWATCHES,
-                selected = state.inTune.outOfTuneColor,
-                onSelect = viewModel::setOutOfTuneColor,
-            )
-
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text("Done")
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingSliderRow(
-    label: String,
-    valueText: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    onValueChange: (Float) -> Unit,
-) {
-    Column {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Text(
-                valueText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-        )
-    }
-}
-
-@Composable
-private fun SettingSwitchRow(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-@Composable
-private fun ColorSwatchRow(
-    label: String,
-    swatches: List<String>,
-    selected: String,
-    onSelect: (String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (hex in swatches) {
-                val color = parseHex(hex) ?: continue
-                val isSelected = hex.equals(selected, ignoreCase = true)
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(color, CircleShape)
-                        .then(
-                            if (isSelected) {
-                                Modifier.border(
-                                    width = 3.dp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    shape = CircleShape,
-                                )
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .clickable { onSelect(hex) }
-                        .semantics {
-                            contentDescription = "$label ${hex}${if (isSelected) ", selected" else ""}"
-                        },
-                )
-            }
-        }
     }
 }
