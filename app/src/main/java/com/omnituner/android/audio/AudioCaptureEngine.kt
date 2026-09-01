@@ -20,7 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * - getUserMedia (EC/NS/AGC off)          -> AudioRecord with AudioSource.UNPROCESSED
  * - AudioContext 48 kHz                   -> fixed 48 kHz mono 16-bit capture
  * - highpass 38 Hz Q 0.7 -> lowpass 1250  -> two shared-core BiquadFilters with
- *   continuous state across chunks (Web Audio spec Q semantics)
+ *   continuous state across chunks (Web Audio spec Q semantics); state resets at
+ *   start, mirroring the fresh AudioContext the web service creates per capture
  * - AnalyserNode fftSize 8192             -> 8192-sample window from a ring buffer
  * - rAF + worker every 45 ms              -> synchronous analysis on this dedicated
  *   urgent-audio thread every 45 ms (the 500 ms stale-analysis timeout collapses
@@ -92,6 +93,9 @@ class AudioCaptureEngine(private val context: Context) {
 
         highpass.setHighpass(SAMPLE_RATE.toDouble(), 38.0, 0.7)
         lowpass.setLowpass(SAMPLE_RATE.toDouble(), 1250.0, 0.7)
+        // A fresh AudioContext starts with clean filter state; mirror that per capture.
+        highpass.reset()
+        lowpass.reset()
 
         smoother.reset()
         smoother.markListening()
