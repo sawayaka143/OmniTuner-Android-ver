@@ -1,4 +1,4 @@
-package com.omnituner.android.ui.scales
+﻿package com.omnituner.android.ui.scales
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -14,8 +14,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -29,11 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.OmniTunerApp
+import com.omnituner.android.R
 import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.FretboardCanvas
@@ -89,7 +89,7 @@ fun ScalesScreen(app: OmniTunerApp) {
                 },
             ) {
                 Icon(
-                    Icons.Filled.PlayArrow,
+                    painterResource(R.drawable.tabler_player_play),
                     contentDescription = null,
                     tint = if (state.isPlaying) {
                         MaterialTheme.colorScheme.primary
@@ -103,7 +103,7 @@ fun ScalesScreen(app: OmniTunerApp) {
         SectionCard {
             Text("Scale", style = MaterialTheme.typography.titleMedium)
             Text(
-                "${scale.label}${scale.aka?.let { " ($it)" } ?: ""} · ${prefsState.rootPitchClass}",
+                "${scale.label}${scale.aka?.let { " ($it)" } ?: ""} Â· ${prefsState.rootPitchClass}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -11,12 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -31,8 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -41,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.omnituner.android.R
 import com.omnituner.android.ui.chords.ChordFinderScreen
 import com.omnituner.android.ui.metronome.MetronomeScreen
 import com.omnituner.android.ui.scales.ScalesScreen
@@ -80,14 +75,14 @@ class MainActivity : ComponentActivity() {
 private data class Tab(
     val route: String,
     val label: String,
-    val icon: ImageVector,
+    val iconRes: Int,
 )
 
 private val TABS = listOf(
-    Tab("tuner", "Tuner", Icons.Filled.RadioButtonChecked),
-    Tab("scales", "Scales", Icons.Filled.LibraryMusic),
-    Tab("chords", "Chords", Icons.Filled.Tune),
-    Tab("metronome", "Metronome", Icons.Filled.MusicNote),
+    Tab("tuner", "Tuner", R.drawable.tabler_circle_dot),
+    Tab("scales", "Scales", R.drawable.tabler_playlist),
+    Tab("chords", "Chords", R.drawable.tabler_guitar_pick),
+    Tab("metronome", "Metronome", R.drawable.tabler_music),
 )
 
 @Composable
@@ -127,7 +122,7 @@ fun OmniTunerRoot(
                             },
                             icon = {
                                 Icon(
-                                    tab.icon,
+                                    painterResource(tab.iconRes),
                                     contentDescription = null,
                                     modifier = Modifier.semantics { contentDescription = tab.label },
                                 )
@@ -162,7 +157,7 @@ fun OmniTunerRoot(
                 .padding(12.dp),
         ) {
             Icon(
-                Icons.Filled.Settings,
+                painterResource(R.drawable.tabler_settings),
                 contentDescription = "Settings",
                 modifier = Modifier.semantics { contentDescription = "Settings" },
             )

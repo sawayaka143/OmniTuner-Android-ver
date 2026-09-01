@@ -1,4 +1,4 @@
-package com.omnituner.android.ui.tuner
+﻿package com.omnituner.android.ui.tuner
 
 import android.Manifest
 import android.app.Activity
@@ -39,13 +39,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -79,6 +72,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -92,6 +86,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.R
 import com.omnituner.android.ui.theme.LightTuneInk
 import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.audio.midiNoteLabel
@@ -213,7 +208,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             .padding(16.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
-        // Workbench card (web: .workbench — bordered rounded card, max 480px on phones)
+        // Workbench card (web: .workbench â€” bordered rounded card, max 480px on phones)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -234,7 +229,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Controls row (web: .tuner-controls — centered instrument selector)
+            // Controls row (web: .tuner-controls â€” centered instrument selector)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -286,7 +281,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Stage (web: .tuner-stage — centered column)
+            // Stage (web: .tuner-stage â€” centered column)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -296,7 +291,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             ) {
                 TunePrompt(state = state)
 
-                // Needle meter: ±50 cents, 41 ticks, center at index 20
+                // Needle meter: Â±50 cents, 41 ticks, center at index 20
                 PitchMeterCanvas(
                     needlePercent = state.needlePercent.toFloat(),
                     needleColor = needleColor(state) ?: currentWebPalette().needleColor,
@@ -433,7 +428,7 @@ private fun WorkbenchHeader(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${state.instrumentLabel} · ${state.tuningSummary}",
+                text = "${state.instrumentLabel} Â· ${state.tuningSummary}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -519,7 +514,7 @@ private fun PitchDisplay(state: TunerUiState, color: Color) {
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = state.noteName ?: "—",
+                text = state.noteName ?: "â€”",
                 fontSize = 72.sp,
                 fontWeight = FontWeight.Bold,
                 color = color,
@@ -597,7 +592,7 @@ private fun MicPermissionBanner(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Filled.Mic,
+            painterResource(R.drawable.tabler_microphone),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onErrorContainer,
         )
@@ -630,7 +625,7 @@ private fun InstrumentTuningSelector(
 
     Column {
         TextButton(onClick = { instrumentMenuOpen = true }) {
-            Text("${state.instrumentLabel} ▾")
+            Text("${state.instrumentLabel} â–¾")
         }
         DropdownMenu(
             expanded = instrumentMenuOpen,
@@ -647,15 +642,15 @@ private fun InstrumentTuningSelector(
             }
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("New instrument…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("New instrumentâ€¦") },
+                leadingIcon = { Icon(painterResource(R.drawable.tabler_plus), contentDescription = null) },
                 onClick = {
                     instrumentMenuOpen = false
                     onNewInstrument()
                 },
             )
             DropdownMenuItem(
-                text = { Text("Manage instruments…") },
+                text = { Text("Manage instrumentsâ€¦") },
                 onClick = {
                     instrumentMenuOpen = false
                     onManageInstruments()
@@ -682,7 +677,7 @@ private fun InstrumentTuningSelector(
                         {
                             Row {
                                 Icon(
-                                    Icons.Filled.Edit,
+                                    painterResource(R.drawable.tabler_pencil),
                                     contentDescription = "Edit tuning ${tuning.label}",
                                     modifier = Modifier
                                         .size(18.dp)
@@ -693,7 +688,7 @@ private fun InstrumentTuningSelector(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Icon(
-                                    Icons.Filled.Delete,
+                                    painterResource(R.drawable.tabler_trash),
                                     contentDescription = "Delete tuning ${tuning.label}",
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier
@@ -712,8 +707,8 @@ private fun InstrumentTuningSelector(
             }
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("New tuning…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("New tuningâ€¦") },
+                leadingIcon = { Icon(painterResource(R.drawable.tabler_plus), contentDescription = null) },
                 onClick = {
                     tuningMenuOpen = false
                     onNewTuning()
@@ -737,7 +732,7 @@ private fun StringChips(state: TunerUiState, onSelect: (Int) -> Unit) {
                 leadingIcon = if (inAutoSet || isTuned) {
                     {
                         Icon(
-                            Icons.Filled.Check,
+                            painterResource(R.drawable.tabler_check),
                             contentDescription = null,
                             tint = tunedColor(state),
                             modifier = Modifier.size(18.dp),
@@ -917,7 +912,7 @@ private fun TuningEditorDialog(
 
                 Box {
                     TextButton(onClick = { presetOpen = true }) {
-                        Text("Start from preset ▾")
+                        Text("Start from preset â–¾")
                     }
                     DropdownMenu(
                         expanded = presetOpen,
@@ -1010,13 +1005,13 @@ private fun InstrumentManagerDialog(
                             }
                             IconButton(onClick = { onEdit(instrument) }) {
                                 Icon(
-                                    Icons.Filled.Edit,
+                                    painterResource(R.drawable.tabler_pencil),
                                     contentDescription = "Edit ${instrument.label}",
                                 )
                             }
                             IconButton(onClick = { onDelete(instrument.id) }) {
                                 Icon(
-                                    Icons.Filled.Delete,
+                                    painterResource(R.drawable.tabler_trash),
                                     contentDescription = "Delete ${instrument.label}",
                                     tint = MaterialTheme.colorScheme.error,
                                 )
@@ -1074,7 +1069,7 @@ private fun InstrumentManagerDialog(
                                 notes = notes.take(stringCount)
                             }
                         },
-                    ) { Icon(Icons.Filled.Remove, contentDescription = "Fewer strings") }
+                    ) { Icon(painterResource(R.drawable.tabler_minus), contentDescription = "Fewer strings") }
                     Text("$stringCount", modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
                     IconButton(
                         onClick = {
@@ -1083,7 +1078,7 @@ private fun InstrumentManagerDialog(
                                 notes = notes + MIN_TUNER_MIDI_NOTE
                             }
                         },
-                    ) { Icon(Icons.Filled.Add, contentDescription = "More strings") }
+                    ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "More strings") }
                 }
 
                 notes.forEachIndexed { index, midi ->
@@ -1137,7 +1132,7 @@ private fun NoteStepperRow(
         IconButton(
             onClick = { onChange((midi - 1).coerceIn(MIN_TUNER_MIDI_NOTE, MAX_TUNER_MIDI_NOTE)) },
             modifier = Modifier.size(32.dp),
-        ) { Icon(Icons.Filled.Remove, contentDescription = "$label down a semitone") }
+        ) { Icon(painterResource(R.drawable.tabler_minus), contentDescription = "$label down a semitone") }
         Text(
             midiNoteLabel(midi),
             style = MaterialTheme.typography.bodyLarge,
@@ -1148,7 +1143,7 @@ private fun NoteStepperRow(
         IconButton(
             onClick = { onChange((midi + 1).coerceIn(MIN_TUNER_MIDI_NOTE, MAX_TUNER_MIDI_NOTE)) },
             modifier = Modifier.size(32.dp),
-        ) { Icon(Icons.Filled.Add, contentDescription = "$label up a semitone") }
+        ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "$label up a semitone") }
         Text(
             "$midi",
             style = MaterialTheme.typography.labelSmall,
