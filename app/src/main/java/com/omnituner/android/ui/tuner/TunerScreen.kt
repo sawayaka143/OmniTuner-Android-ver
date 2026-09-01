@@ -92,6 +92,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.ui.theme.LightTuneInk
 import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
@@ -553,7 +554,7 @@ private fun needleColor(state: TunerUiState): Color? {
     // Adapt ink for light backgrounds (web: LIGHT_TUNE_INK blend).
     val surfaceLuminance = MaterialTheme.colorScheme.surface.luminance()
     return if (surfaceLuminance > 0.5f) {
-        blend(color, Color(0xFF1A1A18), 0.3f)
+        blend(color, LightTuneInk, 0.3f)
     } else {
         color
     }

@@ -3,6 +3,7 @@ package com.omnituner.android.ui.theme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 /**
  * Design tokens ported 1:1 from the web reference (tests/styles/styles.scss):
@@ -48,6 +49,19 @@ internal fun colorMix(from: Color, percent: Int, to: Color): Color {
         alpha = 1f,
     )
 }
+
+/**
+ * Web audio-monitor LIGHT_TUNE_INK: blend target when adapting a tune color
+ * onto light surfaces (happens to equal the light --text value).
+ */
+val LightTuneInk = Color(0xFF1A1A18)
+
+/**
+ * Web textColorOn: fixed-contrast label ink for arbitrary cell colors
+ * (theme-independent by design — dark ink on light cells, light ink on dark).
+ */
+fun textColorOn(color: Color): Color =
+    if (color.luminance() > 0.45f) Color(0xFF121211) else Color(0xFFF5F5F3)
 
 object WebColors {
 

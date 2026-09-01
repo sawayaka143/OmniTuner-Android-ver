@@ -31,6 +31,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omnituner.android.ui.theme.currentWebPalette
+import com.omnituner.android.ui.theme.textColorOn
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.Tuning
 import com.omnituner.core.theory.FretCell
@@ -42,10 +43,6 @@ fun parseHexColor(hex: String, fallback: Color): Color {
         fallback
     }
 }
-
-/** Web textColorOn: ink that contrasts with an arbitrary interval cell color. */
-private fun inkOn(color: Color): Color =
-    if (color.luminance() > 0.45f) Color(0xFF121211) else Color(0xFFF5F5F3)
 
 /**
  * Shared fretboard renderer for the scales explorer (interval cells) and the
@@ -131,7 +128,7 @@ fun FretboardCanvas(
                         val text = interval.label
                         val measured = textMeasurer.measure(
                             text,
-                            TextStyle(fontSize = 10.sp, color = inkOn(cellColor)),
+                            TextStyle(fontSize = 10.sp, color = textColorOn(cellColor)),
                         )
                         drawText(
                             measured,

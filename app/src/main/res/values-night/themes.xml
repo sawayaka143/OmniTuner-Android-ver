@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Night launch theme. Colors mirror web tokens (tests/styles/styles.scss):
+  windowBackground = canvas token, dark root block.
+-->
+<resources>
+
+    <style name="Theme.OmniTuner" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#121211</item>
+    </style>
+</resources>
