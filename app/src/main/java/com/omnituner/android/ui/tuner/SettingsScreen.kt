@@ -1,25 +1,31 @@
 package com.omnituner.android.ui.tuner
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
+import com.omnituner.android.R
 import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.android.ui.common.WebSelectOption
 import com.omnituner.android.ui.common.WebSelectRow
@@ -49,16 +55,37 @@ private val OUT_OF_TUNE_SWATCHES = listOf(
     "#7ecba8" to "Sage",
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Full-screen settings page (ChatGPT pattern): pushed as a nav route that
+ *  slides in from the right; back arrow pops it. */
 @Composable
-internal fun AppSettingsSheet(
+internal fun SettingsScreen(
     themeMode: String,
     onThemeModeChange: (String) -> Unit,
     state: TunerUiState,
-    onDismiss: () -> Unit,
+    onBack: () -> Unit,
     viewModel: TunerViewModel,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    painterResource(R.drawable.tabler_arrow_left),
+                    contentDescription = "Back",
+                )
+            }
+            Text("Settings", style = MaterialTheme.typography.titleLarge)
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -67,11 +94,6 @@ internal fun AppSettingsSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                "Settings",
-                style = MaterialTheme.typography.titleLarge,
-            )
-
             // Appearance
             Text("Appearance", style = MaterialTheme.typography.labelLarge)
             val themeOptions = listOf(
@@ -171,10 +193,6 @@ internal fun AppSettingsSheet(
                 selected = state.inTune.outOfTuneColor,
                 onSelect = viewModel::setOutOfTuneColor,
             )
-
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                Text("Done")
-            }
         }
     }
 }
