@@ -39,7 +39,7 @@ private fun darkScheme(p: WebPalette) = darkColorScheme(
     onError = p.scaleAccentInk,
     errorContainer = p.surfaceHigh,
     onErrorContainer = p.danger,
-    scrim = p.scaleAccentInk,
+    scrim = p.backdrop,
 )
 
 private fun lightScheme(p: WebPalette) = lightColorScheme(
@@ -69,7 +69,7 @@ private fun lightScheme(p: WebPalette) = lightColorScheme(
     onError = Color.White,
     errorContainer = p.surfaceHigh,
     onErrorContainer = p.danger,
-    scrim = p.scaleAccentInk,
+    scrim = p.backdrop,
 )
 
 @Composable
