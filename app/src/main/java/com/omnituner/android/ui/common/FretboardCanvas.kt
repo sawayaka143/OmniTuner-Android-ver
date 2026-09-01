@@ -228,14 +228,3 @@ fun InstrumentTuningPicker(
     }
 }
 
-@Composable
-fun SectionCard(content: @Composable () -> Unit) {
-    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-        ) {
-            content()
-        }
-    }
-}

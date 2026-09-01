@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -54,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.R
 import com.omnituner.android.ui.common.RepeatStepperRow
+import com.omnituner.android.ui.common.WebCard
 import com.omnituner.core.metronome.DENOMINATORS
 import com.omnituner.core.metronome.METER_PRESETS
 import com.omnituner.core.metronome.PATTERN_PRESETS
@@ -84,7 +84,7 @@ fun MetronomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Transport header
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -149,7 +149,7 @@ fun MetronomeScreen(
         }
 
         // BPM controls
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -172,7 +172,7 @@ fun MetronomeScreen(
         }
 
         // Meter
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Meter", style = MaterialTheme.typography.titleMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -220,7 +220,7 @@ fun MetronomeScreen(
         }
 
         // Bar pattern
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Bar mute pattern", style = MaterialTheme.typography.titleMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -273,7 +273,7 @@ fun MetronomeScreen(
         }
 
         // Polyrhythm
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -304,7 +304,7 @@ fun MetronomeScreen(
         }
 
         // Sounds
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sounds", style = MaterialTheme.typography.titleMedium)
                 for (role in listOf("downbeat", "beat", "subdivision", "poly")) {
@@ -353,7 +353,7 @@ fun MetronomeScreen(
         }
 
         // Count-in + ramp
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -390,7 +390,7 @@ fun MetronomeScreen(
         }
 
         // Presets
-        Card(modifier = Modifier.fillMaxWidth()) {
+        WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
