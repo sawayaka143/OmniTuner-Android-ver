@@ -22,7 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +30,9 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -54,6 +57,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.R
 import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.android.ui.common.WebCard
+import com.omnituner.android.ui.common.WebSelectOption
+import com.omnituner.android.ui.common.WebSelectRow
 import com.omnituner.core.metronome.DENOMINATORS
 import com.omnituner.core.metronome.METER_PRESETS
 import com.omnituner.core.metronome.PATTERN_PRESETS
@@ -65,6 +70,7 @@ import com.omnituner.core.timing.getTempoMarking
 import com.omnituner.core.timing.tapBpm
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MetronomeScreen(
     prefs: com.omnituner.core.prefs.MetronomePreferences,
@@ -175,26 +181,36 @@ fun MetronomeScreen(
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Meter", style = MaterialTheme.typography.titleMedium)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(METER_PRESETS) { preset ->
-                        FilterChip(
-                            selected = metronome.timeSignature == preset,
-                            onClick = {
-                                viewModel.setTimeSignature(preset.numerator, preset.denominator)
+                WebSelectRow(
+                    label = "Preset",
+                    value = "${metronome.timeSignature.numerator}/${metronome.timeSignature.denominator}",
+                    options = METER_PRESETS.map { preset ->
+                        WebSelectOption(
+                            preset,
+                            "${preset.numerator}/${preset.denominator}",
+                            alt = when (preset.denominator) {
+                                8 -> "compound feel"
+                                16 -> "fast"
+                                else -> "simple"
                             },
-                            label = { Text("${preset.numerator}/${preset.denominator}") },
                         )
-                    }
-                }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(DENOMINATORS) { den ->
-                        FilterChip(
+                    },
+                    selected = METER_PRESETS.firstOrNull {
+                        it == metronome.timeSignature
+                    },
+                    onSelect = { preset ->
+                        viewModel.setTimeSignature(preset.numerator, preset.denominator)
+                    },
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    DENOMINATORS.forEachIndexed { index, den ->
+                        SegmentedButton(
                             selected = metronome.timeSignature.denominator == den,
                             onClick = {
                                 viewModel.setTimeSignature(metronome.timeSignature.numerator, den)
                             },
-                            label = { Text("/$den") },
-                        )
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = DENOMINATORS.size),
+                        ) { Text("/$den") }
                     }
                 }
                 RepeatStepperRow(
@@ -207,15 +223,16 @@ fun MetronomeScreen(
                     valueText = "${metronome.divisionsPerBeat}",
                     onDelta = viewModel::changeDivisionsPerBeat,
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(SUBDIVISIONS) { option ->
-                        FilterChip(
-                            selected = metronome.divisionsPerBeat == option.n,
-                            onClick = { viewModel.setDivisionsPerBeat(option.n) },
-                            label = { Text(option.shortLabel) },
-                        )
-                    }
-                }
+                WebSelectRow(
+                    label = "Divisions",
+                    value = SUBDIVISIONS.firstOrNull { it.n == metronome.divisionsPerBeat }?.shortLabel
+                        ?: "${metronome.divisionsPerBeat}",
+                    options = SUBDIVISIONS.map { option ->
+                        WebSelectOption(option.n, option.label)
+                    },
+                    selected = metronome.divisionsPerBeat,
+                    onSelect = viewModel::setDivisionsPerBeat,
+                )
             }
         }
 
@@ -223,15 +240,24 @@ fun MetronomeScreen(
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Bar mute pattern", style = MaterialTheme.typography.titleMedium)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(PATTERN_PRESETS) { preset ->
-                        FilterChip(
-                            selected = metronome.barPattern == preset.bars,
-                            onClick = { viewModel.setBarPattern(preset.bars) },
-                            label = { Text(preset.label) },
+                WebSelectRow(
+                    label = "Preset",
+                    value = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label
+                        ?: "Custom",
+                    options = PATTERN_PRESETS.map { preset ->
+                        WebSelectOption(
+                            preset.label,
+                            preset.label,
+                            alt = "${preset.bars.count { it == 1 }} bars",
                         )
-                    }
-                }
+                    },
+                    selected = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label,
+                    onSelect = { label ->
+                        PATTERN_PRESETS.firstOrNull { it.label == label }?.let { preset ->
+                            viewModel.setBarPattern(preset.bars)
+                        }
+                    },
+                )
                 // 16 pads; tapping pad 1..n sets pattern length, toggling beyond truncates
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items((1..16).toList()) { bar ->
@@ -314,29 +340,19 @@ fun MetronomeScreen(
                         "subdivision" -> metronome.sounds.subdivision
                         else -> metronome.sounds.poly
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            role.replaceFirstChar { it.uppercase() },
-                            modifier = Modifier.width(96.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            items(MetronomeVoices.options()) { option ->
-                                FilterChip(
-                                    selected = roleState.id == option.id,
-                                    onClick = {
-                                        viewModel.setSoundRole(role, option.id)
-                                        viewModel.previewVoice(option.id, roleState.vol)
-                                    },
-                                    label = { Text(option.label) },
-                                )
-                            }
-                        }
-                    }
+                    val voices = MetronomeVoices.options()
+                    WebSelectRow(
+                        label = role.replaceFirstChar { it.uppercase() },
+                        value = voices.firstOrNull { it.id == roleState.id }?.label ?: roleState.id,
+                        options = voices.map { option ->
+                            WebSelectOption(option.id, option.label)
+                        },
+                        selected = roleState.id,
+                        onSelect = { id ->
+                            viewModel.setSoundRole(role, id)
+                            viewModel.previewVoice(id, roleState.vol)
+                        },
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Master volume", modifier = Modifier.width(96.dp))
