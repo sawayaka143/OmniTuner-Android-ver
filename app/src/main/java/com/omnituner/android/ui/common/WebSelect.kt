@@ -1,6 +1,7 @@
 package com.omnituner.android.ui.common
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,16 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,13 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -50,7 +51,7 @@ import com.omnituner.android.R
 import com.omnituner.android.ui.theme.currentWebPalette
 
 /**
- * One selectable entry in a WebSelectSheet (web .dropdown-item).
+ * One selectable entry in a WebSelectMenu (web .dropdown-item).
  * [alt] renders as the trailing muted text (.item-alt), [dotColor] as the
  * leading color swatch dot.
  */
@@ -61,14 +62,14 @@ data class WebSelectOption<T>(
     val dotColor: Color? = null,
 )
 
-private val MenuShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+private val MenuShape = RoundedCornerShape(16.dp)
 private val ItemShape = RoundedCornerShape(8.dp)
 
 /**
  * Web dropdown pill trigger + menu (web .dropdown-trigger / .dropdown-menu):
- * kicker label + semibold value + rotating chevron, opening the phone
- * presentation of the web menu (web .dropdown-menu @media max-width 760px:
- * bottom sheet, 20px top radius, drag handle, items capped at 60dvh).
+ * kicker label + semibold value + rotating chevron, opening an anchored
+ * popover menu pinned under the row (ChatGPT-Android pattern: rounded surface,
+ * checkmark on the selected entry, no scrim dimming the page behind it).
  */
 @Composable
 fun <T> WebSelectRow(
@@ -93,22 +94,21 @@ fun <T> WebSelectRow(
         enabled = enabled,
     )
 
-    if (open) {
-        WebSelectSheet(
-            options = options,
-            selected = selected,
-            onSelect = {
-                open = false
-                onSelect(it)
-            },
-            onDismiss = { open = false },
-            itemTrailing = itemTrailing,
-            footer = menuFooter,
-        )
-    }
+    WebSelectMenu(
+        expanded = open,
+        options = options,
+        selected = selected,
+        onSelect = {
+            open = false
+            onSelect(it)
+        },
+        onDismiss = { open = false },
+        itemTrailing = itemTrailing,
+        footer = menuFooter,
+    )
 }
 
-/** The pill trigger alone, for callers that host the sheet themselves. */
+/** The pill trigger alone, for callers that host the menu themselves. */
 @Composable
 fun WebSelectTrigger(
     label: String,
@@ -170,10 +170,14 @@ fun WebSelectTrigger(
     }
 }
 
-/** The bottom-sheet menu itself, usable directly for custom pickers. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The anchored popover menu itself (web .dropdown-menu desktop presentation):
+ * rounded surface-container-low panel with a hairline border and soft shadow,
+ * items capped at 320dp with internal scrolling, footer slot for actions.
+ */
 @Composable
-fun <T> WebSelectSheet(
+fun <T> WebSelectMenu(
+    expanded: Boolean,
     options: List<WebSelectOption<T>>,
     selected: T?,
     onSelect: (T) -> Unit,
@@ -184,30 +188,23 @@ fun <T> WebSelectSheet(
     footer: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val palette = currentWebPalette()
-    val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.6f
 
-    ModalBottomSheet(
+    DropdownMenu(
+        expanded = expanded,
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        offset = DpOffset(x = 0.dp, y = 4.dp),
         shape = MenuShape,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 8.dp, bottom = 4.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.outline),
-            )
-        },
-        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 6.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier.widthIn(min = 220.dp),
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                .padding(bottom = 16.dp)
-                .verticalScroll(rememberScrollState())
-                .heightIn(max = maxHeight),
+                .padding(8.dp)
+                .heightIn(max = 320.dp)
+                .verticalScroll(rememberScrollState()),
         ) {
             if (title != null) {
                 Text(
@@ -216,7 +213,7 @@ fun <T> WebSelectSheet(
                     fontWeight = FontWeight.Medium,
                     color = palette.dim,
                     letterSpacing = 0.08.em,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp),
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 8.dp),
                 )
             }
             options.forEach { option ->
@@ -234,7 +231,7 @@ fun <T> WebSelectSheet(
                             },
                         )
                         .clickable { onSelect(option.value) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
