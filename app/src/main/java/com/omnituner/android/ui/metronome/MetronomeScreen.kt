@@ -30,9 +30,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -59,9 +56,12 @@ import com.omnituner.android.R
 import com.omnituner.android.ui.common.RepeatStepperButton
 import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.android.ui.common.WebCard
-import com.omnituner.android.ui.common.WebSelectOption
-import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WebSegmented
+import com.omnituner.android.ui.common.WebSegmentedOption
 import com.omnituner.android.ui.common.WebTextButton
+import com.omnituner.android.ui.common.WheelOption
+import com.omnituner.android.ui.common.WheelSelectRow
+import com.omnituner.android.ui.common.WheelSelectSheet
 import com.omnituner.core.metronome.DENOMINATORS
 import com.omnituner.core.metronome.METER_PRESETS
 import com.omnituner.core.metronome.PATTERN_PRESETS
@@ -191,38 +191,45 @@ fun MetronomeScreen(
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Meter", style = MaterialTheme.typography.titleMedium)
-                WebSelectRow(
+                var meterSheetOpen by rememberSaveable { mutableStateOf(false) }
+                WheelSelectRow(
                     label = "Preset",
                     value = "${metronome.timeSignature.numerator}/${metronome.timeSignature.denominator}",
-                    options = METER_PRESETS.map { preset ->
-                        WebSelectOption(
-                            preset,
-                            "${preset.numerator}/${preset.denominator}",
-                            alt = when (preset.denominator) {
-                                8 -> "compound feel"
-                                16 -> "fast"
-                                else -> "simple"
-                            },
-                        )
-                    },
-                    selected = METER_PRESETS.firstOrNull {
-                        it == metronome.timeSignature
-                    },
-                    onSelect = { preset ->
-                        viewModel.setTimeSignature(preset.numerator, preset.denominator)
+                    onClick = { meterSheetOpen = true },
+                )
+                if (meterSheetOpen) {
+                    WheelSelectSheet(
+                        title = "Meter preset",
+                        options = METER_PRESETS.map { preset ->
+                            WheelOption(
+                                "${preset.numerator}/${preset.denominator}",
+                                when (preset.denominator) {
+                                    8 -> "compound feel"
+                                    16 -> "fast"
+                                    else -> "simple"
+                                },
+                            )
+                        },
+                        selectedIndex = METER_PRESETS
+                            .indexOfFirst { it == metronome.timeSignature }
+                            .coerceAtLeast(0),
+                        onConfirm = { index ->
+                            viewModel.setTimeSignature(
+                                METER_PRESETS[index].numerator,
+                                METER_PRESETS[index].denominator,
+                            )
+                            meterSheetOpen = false
+                        },
+                        onDismiss = { meterSheetOpen = false },
+                    )
+                }
+                WebSegmented(
+                    options = DENOMINATORS.map { WebSegmentedOption("/$it", it) },
+                    selectedKey = metronome.timeSignature.denominator,
+                    onSelect = { den ->
+                        viewModel.setTimeSignature(metronome.timeSignature.numerator, den)
                     },
                 )
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    DENOMINATORS.forEachIndexed { index, den ->
-                        SegmentedButton(
-                            selected = metronome.timeSignature.denominator == den,
-                            onClick = {
-                                viewModel.setTimeSignature(metronome.timeSignature.numerator, den)
-                            },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = DENOMINATORS.size),
-                        ) { Text("/$den") }
-                    }
-                }
                 RepeatStepperRow(
                     label = "Numerator",
                     valueText = "${metronome.timeSignature.numerator}",
@@ -233,16 +240,27 @@ fun MetronomeScreen(
                     valueText = "${metronome.divisionsPerBeat}",
                     onDelta = viewModel::changeDivisionsPerBeat,
                 )
-                WebSelectRow(
+                var divisionsSheetOpen by rememberSaveable { mutableStateOf(false) }
+                WheelSelectRow(
                     label = "Divisions",
                     value = SUBDIVISIONS.firstOrNull { it.n == metronome.divisionsPerBeat }?.shortLabel
                         ?: "${metronome.divisionsPerBeat}",
-                    options = SUBDIVISIONS.map { option ->
-                        WebSelectOption(option.n, option.label)
-                    },
-                    selected = metronome.divisionsPerBeat,
-                    onSelect = viewModel::setDivisionsPerBeat,
+                    onClick = { divisionsSheetOpen = true },
                 )
+                if (divisionsSheetOpen) {
+                    WheelSelectSheet(
+                        title = "Divisions",
+                        options = SUBDIVISIONS.map { WheelOption(it.label) },
+                        selectedIndex = SUBDIVISIONS
+                            .indexOfFirst { it.n == metronome.divisionsPerBeat }
+                            .coerceAtLeast(0),
+                        onConfirm = { index ->
+                            viewModel.setDivisionsPerBeat(SUBDIVISIONS[index].n)
+                            divisionsSheetOpen = false
+                        },
+                        onDismiss = { divisionsSheetOpen = false },
+                    )
+                }
             }
         }
 
@@ -257,24 +275,29 @@ fun MetronomeScreen(
                     Switch(checked = showBarPattern, onCheckedChange = { showBarPattern = it })
                 }
                 if (showBarPattern) {
-                    WebSelectRow(
+                    var patternSheetOpen by rememberSaveable { mutableStateOf(false) }
+                    WheelSelectRow(
                         label = "Preset",
                         value = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label
                             ?: "Custom",
-                        options = PATTERN_PRESETS.map { preset ->
-                            WebSelectOption(
-                                preset.label,
-                                preset.label,
-                                alt = "${preset.bars.count { it == 1 }} bars",
-                            )
-                        },
-                        selected = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label,
-                        onSelect = { label ->
-                            PATTERN_PRESETS.firstOrNull { it.label == label }?.let { preset ->
-                                viewModel.setBarPattern(preset.bars)
-                            }
-                        },
+                        onClick = { patternSheetOpen = true },
                     )
+                    if (patternSheetOpen) {
+                        WheelSelectSheet(
+                            title = "Pattern preset",
+                            options = PATTERN_PRESETS.map { preset ->
+                                WheelOption(preset.label, "${preset.bars.count { it == 1 }} bars")
+                            },
+                            selectedIndex = PATTERN_PRESETS
+                                .indexOfFirst { it.bars == metronome.barPattern }
+                                .coerceAtLeast(0),
+                            onConfirm = { index ->
+                                viewModel.setBarPattern(PATTERN_PRESETS[index].bars)
+                                patternSheetOpen = false
+                            },
+                            onDismiss = { patternSheetOpen = false },
+                        )
+                    }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items((1..16).toList()) { bar ->
                             val active = metronome.barPattern.getOrNull(bar - 1) == 1
@@ -356,18 +379,27 @@ fun MetronomeScreen(
                         else -> metronome.sounds.poly
                     }
                     val voices = MetronomeVoices.options()
-                    WebSelectRow(
+                    var roleSheetOpen by rememberSaveable { mutableStateOf(false) }
+                    WheelSelectRow(
                         label = role.replaceFirstChar { it.uppercase() },
                         value = voices.firstOrNull { it.id == roleState.id }?.label ?: roleState.id,
-                        options = voices.map { option ->
-                            WebSelectOption(option.id, option.label)
-                        },
-                        selected = roleState.id,
-                        onSelect = { id ->
-                            viewModel.setSoundRole(role, id)
-                            viewModel.previewVoice(id, roleState.vol)
-                        },
+                        onClick = { roleSheetOpen = true },
                     )
+                    if (roleSheetOpen) {
+                        WheelSelectSheet(
+                            title = role.replaceFirstChar { it.uppercase() },
+                            options = voices.map { WheelOption(it.label) },
+                            selectedIndex = voices
+                                .indexOfFirst { it.id == roleState.id }
+                                .coerceAtLeast(0),
+                            onConfirm = { index ->
+                                viewModel.setSoundRole(role, voices[index].id)
+                                viewModel.previewVoice(voices[index].id, roleState.vol)
+                                roleSheetOpen = false
+                            },
+                            onDismiss = { roleSheetOpen = false },
+                        )
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Master volume", modifier = Modifier.width(96.dp))

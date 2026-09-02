@@ -14,9 +14,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,8 +37,11 @@ import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.FretboardCanvas
 import com.omnituner.android.ui.common.SectionCard
+import com.omnituner.android.ui.common.WebSegmented
+import com.omnituner.android.ui.common.WebSegmentedOption
 import com.omnituner.android.ui.common.WebToggleRow
 import com.omnituner.android.ui.common.WheelOption
+import com.omnituner.android.ui.common.WheelSection
 import com.omnituner.android.ui.common.WheelSelectRow
 import com.omnituner.android.ui.common.WheelSelectSheet
 import com.omnituner.core.data.FLAT_NAMES
@@ -156,14 +156,21 @@ fun ScalesScreen(app: OmniTunerApp) {
                 onClick = { scaleSheetOpen = true },
             )
             if (scaleSheetOpen) {
+                val groupedScales = remember { SCALES.groupBy { it.group } }
+                val scaleSections = remember(groupedScales) {
+                    groupedScales.map { (group, scales) ->
+                        WheelSection(group, scales.map { WheelOption(it.label) })
+                    }
+                }
+                val flatScales = remember(groupedScales) { groupedScales.values.flatten() }
                 WheelSelectSheet(
                     title = "Scale",
-                    options = SCALES.map { item -> WheelOption(item.label, item.group) },
-                    selectedIndex = SCALES
+                    sections = scaleSections,
+                    selectedIndex = flatScales
                         .indexOfFirst { it.id == prefsState.scaleId }
                         .coerceAtLeast(0),
                     onConfirm = { index ->
-                        viewModel.setScaleId(SCALES[index].id)
+                        viewModel.setScaleId(flatScales[index].id)
                         scaleSheetOpen = false
                     },
                     onDismiss = { scaleSheetOpen = false },
@@ -187,46 +194,31 @@ fun ScalesScreen(app: OmniTunerApp) {
                     onDismiss = { rootSheetOpen = false },
                 )
             }
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                val accidentals = listOf(
-                    ACCIDENTAL_SHARP to "Sharps",
-                    ACCIDENTAL_FLAT to "Flats",
-                )
-                accidentals.forEachIndexed { index, (value, label) ->
-                    SegmentedButton(
-                        selected = prefsState.accidental == value,
-                        onClick = { viewModel.setAccidental(value) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = accidentals.size),
-                    ) { Text(label) }
-                }
-            }
+            WebSegmented(
+                options = listOf(
+                    WebSegmentedOption("Sharps", ACCIDENTAL_SHARP),
+                    WebSegmentedOption("Flats", ACCIDENTAL_FLAT),
+                ),
+                selectedKey = prefsState.accidental,
+                onSelect = viewModel::setAccidental,
+            )
         }
 
         SectionCard {
             Text("Fretboard", style = MaterialTheme.typography.titleMedium)
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                val fretCounts = listOf(12, 15, 21)
-                fretCounts.forEachIndexed { index, frets ->
-                    SegmentedButton(
-                        selected = prefsState.fretCount == frets,
-                        onClick = { viewModel.setFretCount(frets) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = fretCounts.size),
-                    ) { Text("$frets") }
-                }
-            }
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                val labelModes = listOf(
-                    LABEL_MODE_NOTE_NAMES to "Notes",
-                    LABEL_MODE_SCALE_DEGREES to "Degrees",
-                )
-                labelModes.forEachIndexed { index, (value, label) ->
-                    SegmentedButton(
-                        selected = prefsState.labelMode == value,
-                        onClick = { viewModel.setLabelMode(value) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = labelModes.size),
-                    ) { Text(label) }
-                }
-            }
+            WebSegmented(
+                options = listOf(12, 15, 21).map { WebSegmentedOption("$it", it) },
+                selectedKey = prefsState.fretCount,
+                onSelect = viewModel::setFretCount,
+            )
+            WebSegmented(
+                options = listOf(
+                    WebSegmentedOption("Notes", LABEL_MODE_NOTE_NAMES),
+                    WebSegmentedOption("Degrees", LABEL_MODE_SCALE_DEGREES),
+                ),
+                selectedKey = prefsState.labelMode,
+                onSelect = viewModel::setLabelMode,
+            )
             WebToggleRow(
                 label = "Show outside scale",
                 checked = prefsState.showOutsideScale,

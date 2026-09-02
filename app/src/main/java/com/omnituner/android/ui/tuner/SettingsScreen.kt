@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,11 +37,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import com.omnituner.android.R
 import com.omnituner.android.ui.common.RepeatStepperRow
-import com.omnituner.android.ui.common.WebSelectOption
-import com.omnituner.android.ui.common.WebSelectRow
 import com.omnituner.android.ui.common.WebSettingDivider
 import com.omnituner.android.ui.common.WebSettingGroup
 import com.omnituner.android.ui.common.WebToggleRow
+import com.omnituner.android.ui.common.WheelOption
+import com.omnituner.android.ui.common.WheelSelectRow
+import com.omnituner.android.ui.common.WheelSelectSheet
 import com.omnituner.android.ui.theme.THEME_DARK
 import com.omnituner.android.ui.theme.THEME_LIGHT
 import com.omnituner.android.ui.theme.THEME_SYSTEM
@@ -92,35 +94,65 @@ internal fun SettingsScreen(
         ) {
             SettingsSection(label = "Appearance") {
                 WebSettingGroup(dimmed = expandedGroup != null && expandedGroup != "appearance") {
-                    WebSelectRow(
+                    var themeSheetOpen by rememberSaveable { mutableStateOf(false) }
+                    WheelSelectRow(
                         label = "Theme",
                         value = themeOptionLabel(themeMode),
-                        options = THEME_OPTIONS.map { (value, label) ->
-                            WebSelectOption(value, label)
-                        },
-                        selected = themeMode,
-                        onSelect = onThemeModeChange,
-                        onExpandedChange = { open ->
-                            expandedGroup = if (open) "appearance" else null
+                        onClick = {
+                            expandedGroup = "appearance"
+                            themeSheetOpen = true
                         },
                     )
+                    if (themeSheetOpen) {
+                        WheelSelectSheet(
+                            title = "Theme",
+                            options = THEME_OPTIONS.map { WheelOption(it.second) },
+                            selectedIndex = THEME_OPTIONS
+                                .indexOfFirst { it.first == themeMode }
+                                .coerceAtLeast(0),
+                            onConfirm = { index ->
+                                onThemeModeChange(THEME_OPTIONS[index].first)
+                                themeSheetOpen = false
+                                expandedGroup = null
+                            },
+                            onDismiss = {
+                                themeSheetOpen = false
+                                expandedGroup = null
+                            },
+                        )
+                    }
                 }
             }
 
             SettingsSection(label = "Tuner") {
                 WebSettingGroup(dimmed = expandedGroup != null && expandedGroup != "tuner") {
-                    WebSelectRow(
+                    var startupSheetOpen by rememberSaveable { mutableStateOf(false) }
+                    WheelSelectRow(
                         label = "Open tuner in",
                         value = startupOptionLabel(state.startupMode),
-                        options = STARTUP_OPTIONS.map { (value, label) ->
-                            WebSelectOption(value, label)
-                        },
-                        selected = state.startupMode,
-                        onSelect = viewModel::setStartupMode,
-                        onExpandedChange = { open ->
-                            expandedGroup = if (open) "tuner" else null
+                        onClick = {
+                            expandedGroup = "tuner"
+                            startupSheetOpen = true
                         },
                     )
+                    if (startupSheetOpen) {
+                        WheelSelectSheet(
+                            title = "Open tuner in",
+                            options = STARTUP_OPTIONS.map { WheelOption(it.second) },
+                            selectedIndex = STARTUP_OPTIONS
+                                .indexOfFirst { it.first == state.startupMode }
+                                .coerceAtLeast(0),
+                            onConfirm = { index ->
+                                viewModel.setStartupMode(STARTUP_OPTIONS[index].first)
+                                startupSheetOpen = false
+                                expandedGroup = null
+                            },
+                            onDismiss = {
+                                startupSheetOpen = false
+                                expandedGroup = null
+                            },
+                        )
+                    }
                     WebSettingDivider()
                     RepeatStepperRow(
                         label = "Reference pitch",
@@ -300,16 +332,35 @@ private fun ColorSelectRow(
     onExpandedChange: (Boolean) -> Unit,
 ) {
     val selectedEntry = swatches.firstOrNull { it.first.equals(selected, ignoreCase = true) }
-    WebSelectRow(
+    val entries = swatches.mapNotNull { (hex, name) ->
+        parseHex(hex)?.let { color -> Triple(hex, name, color) }
+    }
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    WheelSelectRow(
         label = label,
         value = selectedEntry?.second ?: selected,
         valueDotColor = selectedEntry?.let { parseHex(it.first) },
-        options = swatches.mapNotNull { (hex, name) ->
-            val color = parseHex(hex) ?: return@mapNotNull null
-            WebSelectOption(hex, name, dotColor = color)
+        onClick = {
+            sheetOpen = true
+            onExpandedChange(true)
         },
-        selected = selectedEntry?.first,
-        onSelect = onSelect,
-        onExpandedChange = onExpandedChange,
     )
+    if (sheetOpen) {
+        WheelSelectSheet(
+            title = label,
+            options = entries.map { WheelOption(it.second, dotColor = it.third) },
+            selectedIndex = entries
+                .indexOfFirst { it.first.equals(selected, ignoreCase = true) }
+                .coerceAtLeast(0),
+            onConfirm = { index ->
+                onSelect(entries[index].first)
+                sheetOpen = false
+                onExpandedChange(false)
+            },
+            onDismiss = {
+                sheetOpen = false
+                onExpandedChange(false)
+            },
+        )
+    }
 }

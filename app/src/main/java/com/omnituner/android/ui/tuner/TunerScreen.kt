@@ -39,8 +39,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,8 +82,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.R
-import com.omnituner.android.ui.common.WebSelectOption
-import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WheelOption
+import com.omnituner.android.ui.common.WheelSelectRow
+import com.omnituner.android.ui.common.WheelSelectSheet
 import com.omnituner.android.ui.common.WebTextButton
 import com.omnituner.android.ui.theme.LightTuneInk
 import com.omnituner.android.ui.theme.currentWebPalette
@@ -616,57 +615,81 @@ private fun InstrumentTuningSelector(
     onNewInstrument: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        WebSelectRow(
+        var instrumentSheetOpen by rememberSaveable { mutableStateOf(false) }
+        WheelSelectRow(
             label = "Instrument",
             value = state.instrumentLabel,
-            options = state.instruments.map { instrument ->
-                WebSelectOption(instrument.id, instrument.label)
-            },
-            selected = state.selectedInstrumentId,
-            onSelect = onSelectInstrument,
-            footer = {
-                FooterAction(R.drawable.tabler_plus, "New instrument", onNewInstrument)
-                FooterAction(null, "Manage instruments", onManageInstruments)
-            },
+            onClick = { instrumentSheetOpen = true },
         )
-        WebSelectRow(
+        if (instrumentSheetOpen) {
+            WheelSelectSheet(
+                title = "Instrument",
+                options = state.instruments.map { WheelOption(it.label) },
+                selectedIndex = state.instruments
+                    .indexOfFirst { it.id == state.selectedInstrumentId }
+                    .coerceAtLeast(0),
+                onConfirm = { index ->
+                    onSelectInstrument(state.instruments[index].id)
+                    instrumentSheetOpen = false
+                },
+                onDismiss = { instrumentSheetOpen = false },
+                footer = {
+                    FooterAction(R.drawable.tabler_plus, "New instrument", onNewInstrument)
+                    FooterAction(null, "Manage instruments", onManageInstruments)
+                },
+            )
+        }
+        var tuningSheetOpen by rememberSaveable { mutableStateOf(false) }
+        WheelSelectRow(
             label = "Tuning",
             value = state.tuningLabel,
-            options = state.tunings.map { tuning ->
-                WebSelectOption(tuning.id, tuning.label)
-            },
-            selected = state.selectedTuningId,
-            onSelect = onSelectTuning,
-            itemTrailing = { option ->
-                val tuning = state.tunings.firstOrNull { it.id == option.value }
-                if (tuning?.kind == "custom") {
-                    IconButton(
-                        onClick = { onEditTuning(tuning.id) },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.tabler_pencil),
-                            contentDescription = "Edit tuning ${tuning.label}",
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    IconButton(
-                        onClick = { onDeleteTuning(tuning.id) },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.tabler_trash),
-                            contentDescription = "Delete tuning ${tuning.label}",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            },
-            footer = {
-                FooterAction(R.drawable.tabler_plus, "New tuning", onNewTuning)
-            },
+            onClick = { tuningSheetOpen = true },
         )
+        if (tuningSheetOpen) {
+            WheelSelectSheet(
+                title = "Tuning",
+                options = state.tunings.map { WheelOption(it.label) },
+                selectedIndex = state.tunings
+                    .indexOfFirst { it.id == state.selectedTuningId }
+                    .coerceAtLeast(0),
+                onConfirm = { index ->
+                    onSelectTuning(state.tunings[index].id)
+                    tuningSheetOpen = false
+                },
+                onDismiss = { tuningSheetOpen = false },
+                itemTrailing = { index ->
+                    val tuning = state.tunings[index]
+                    if (tuning.kind == "custom") {
+                        Row {
+                            IconButton(
+                                onClick = { onEditTuning(tuning.id) },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.tabler_pencil),
+                                    contentDescription = "Edit tuning ${tuning.label}",
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                            IconButton(
+                                onClick = { onDeleteTuning(tuning.id) },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.tabler_trash),
+                                    contentDescription = "Delete tuning ${tuning.label}",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+                },
+                footer = {
+                    FooterAction(R.drawable.tabler_plus, "New tuning", onNewTuning)
+                },
+            )
+        }
     }
 }
 
@@ -878,34 +901,17 @@ private fun TuningEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Box {
-                    WebTextButton(onClick = { presetOpen = true }) {
-                        Text(
-                            text = presetName ?: "Start from preset",
-                            fontWeight = if (presetName != null) FontWeight.SemiBold else null,
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            painterResource(R.drawable.tabler_chevron_down),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = presetOpen,
-                        onDismissRequest = { presetOpen = false },
-                    ) {
-                        for (preset in presets) {
-                            DropdownMenuItem(
-                                text = { Text(preset.name) },
-                                onClick = {
-                                    presetOpen = false
-                                    presetName = preset.name
-                                    notes = preset.notes
-                                },
-                            )
-                        }
-                    }
+                WebTextButton(onClick = { presetOpen = true }) {
+                    Text(
+                        text = presetName ?: "Start from preset",
+                        fontWeight = if (presetName != null) FontWeight.SemiBold else null,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        painterResource(R.drawable.tabler_chevron_down),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
                 }
 
                 for (displayIndex in notes.indices) {
@@ -937,6 +943,20 @@ private fun TuningEditorDialog(
             WebTextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+
+    if (presetOpen) {
+        WheelSelectSheet(
+            title = "Start from preset",
+            options = presets.map { WheelOption(it.name) },
+            selectedIndex = presets.indexOfFirst { it.name == presetName }.coerceAtLeast(0),
+            onConfirm = { index ->
+                presetName = presets[index].name
+                notes = presets[index].notes
+                presetOpen = false
+            },
+            onDismiss = { presetOpen = false },
+        )
+    }
 }
 
 @Composable

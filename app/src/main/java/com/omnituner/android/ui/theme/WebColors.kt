@@ -37,6 +37,8 @@ data class WebPalette(
     val accentText: Color,
     val inTuneText: Color,
     val fretboardNote: Color,
+    val segTrackBg: Color,
+    val segPillBg: Color,
 )
 
 internal fun colorMix(from: Color, percent: Int, to: Color): Color {
@@ -92,6 +94,8 @@ object WebColors {
         accentText = DARK_ACCENT_TEXT,
         inTuneText = Color(0xFFEDE8D0),
         fretboardNote = Color(0xFF3B3B3B),
+        segTrackBg = Color(0xFF181817),
+        segPillBg = Color(0xFF2C2C29),
     )
 
     val Light = WebPalette(
@@ -126,6 +130,8 @@ object WebColors {
         accentText = LIGHT_ACCENT_TEXT,
         inTuneText = LIGHT_IN_TUNE_TEXT,
         fretboardNote = Color(0xFF3B3B3B),
+        segTrackBg = Color(0xFFE9E7E2),
+        segPillBg = Color(0xFFFFFFFF),
     )
 }
 
