@@ -41,7 +41,7 @@ fun RepeatStepperRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        StepperButton(iconRes = R.drawable.tabler_minus, description = "Decrease $label") { onDelta(-1) }
+        RepeatStepperButton(iconRes = R.drawable.tabler_minus, description = "Decrease $label") { onDelta(-1) }
         Text(
             valueText,
             style = MaterialTheme.typography.bodyLarge,
@@ -49,12 +49,17 @@ fun RepeatStepperRow(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(min = 72.dp),
         )
-        StepperButton(iconRes = R.drawable.tabler_plus, description = "Increase $label") { onDelta(1) }
+        RepeatStepperButton(iconRes = R.drawable.tabler_plus, description = "Increase $label") { onDelta(1) }
     }
 }
 
+/**
+ * Icon stepper button with press-and-hold auto-repeat.
+ * A tap steps once (press); holding steps once immediately, then repeats after
+ * [HOLD_DELAY_MS] every [REPEAT_INTERVAL_MS] until release.
+ */
 @Composable
-private fun StepperButton(
+fun RepeatStepperButton(
     iconRes: Int,
     description: String,
     onStep: () -> Unit,

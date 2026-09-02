@@ -36,7 +36,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.R
+import com.omnituner.android.ui.common.RepeatStepperButton
 import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.android.ui.common.WebCard
 import com.omnituner.android.ui.common.WebSelectOption
@@ -96,11 +96,24 @@ fun MetronomeScreen(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    text = "${metronome.bpm.roundToInt()}",
-                    fontSize = 64.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    RepeatStepperButton(
+                        iconRes = R.drawable.tabler_minus,
+                        description = "Decrease BPM",
+                    ) { viewModel.changeBpm(-1) }
+                    Text(
+                        text = "${metronome.bpm.roundToInt()}",
+                        fontSize = 64.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    RepeatStepperButton(
+                        iconRes = R.drawable.tabler_plus,
+                        description = "Increase BPM",
+                    ) { viewModel.changeBpm(1) }
+                }
                 Text(
                     text = "${getTempoMarking(metronome.bpm)} · " +
                         "${metronome.timeSignature.numerator}/${metronome.timeSignature.denominator}",
@@ -158,17 +171,7 @@ fun MetronomeScreen(
         // BPM controls
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Tempo", style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { viewModel.setBpm(metronome.bpm - 5) }) { Text("−5") }
-                    TextButton(onClick = { viewModel.setBpm(metronome.bpm - 1) }) { Text("−1") }
-                    TextButton(onClick = { viewModel.setBpm(metronome.bpm + 1) }) { Text("+1") }
-                    TextButton(onClick = { viewModel.setBpm(metronome.bpm + 5) }) { Text("+5") }
-                }
+                Text("Tempo", style = MaterialTheme.typography.titleMedium)
                 BpmDial(
                     bpm = metronome.bpm,
                     onBpmChange = viewModel::setBpm,

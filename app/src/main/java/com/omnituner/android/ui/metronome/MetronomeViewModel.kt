@@ -78,6 +78,11 @@ class MetronomeViewModel(private val prefs: MetronomePreferences) : ViewModel() 
         update { it.copy(bpm = bpm.coerceIn(1.0, 800.0)) }
     }
 
+    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
+    fun changeBpm(delta: Int) {
+        setBpm(_ui.value.state.bpm + delta)
+    }
+
     fun setTimeSignature(numerator: Int, denominator: Int) {
         update { it.copy(timeSignature = TimeSignature(numerator, denominator)) }
     }
