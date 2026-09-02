@@ -13,28 +13,9 @@ import com.omnituner.core.audio.PitchSmoother
 import com.omnituner.core.audio.PitchTrackingState
 import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Native capture engine — the Android counterpart of AudioCaptureService.
- *
- * Mapping from the web pipeline:
- * - getUserMedia (EC/NS/AGC off)          -> AudioRecord with AudioSource.UNPROCESSED
- * - AudioContext 48 kHz                   -> fixed 48 kHz mono 16-bit capture
- * - highpass 38 Hz Q 0.7 -> lowpass 1250  -> two shared-core BiquadFilters with
- *   continuous state across chunks (Web Audio spec Q semantics); state resets at
- *   start, mirroring the fresh AudioContext the web service creates per capture
- * - AnalyserNode fftSize 8192             -> 8192-sample window from a ring buffer
- * - rAF + worker every 45 ms              -> synchronous analysis on this dedicated
- *   urgent-audio thread every 45 ms (the 500 ms stale-analysis timeout collapses
- *   away because there is no cross-thread in-flight state)
- * - sessionId                             -> generation counter; stale emissions dropped
- */
 class AudioCaptureEngine(private val context: Context) {
 
     fun interface Listener {
-        /**
-         * Called after every analysis pass on the capture thread.
-         * frequency is null for dropouts; inputLevel is the raw RMS.
-         */
         fun onAnalysis(frequency: Double?, inputLevel: Double, trackingState: PitchTrackingState)
     }
 
@@ -187,8 +168,6 @@ class AudioCaptureEngine(private val context: Context) {
     }
 
     private fun unprocessedSupported(): Boolean {
-        // UNPROCESSED requires API 29+; minSdk guarantees it. An explicit "false"
-        // device property means unsupported; absent means assume supported.
         return try {
             val audioManager =
                 context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager

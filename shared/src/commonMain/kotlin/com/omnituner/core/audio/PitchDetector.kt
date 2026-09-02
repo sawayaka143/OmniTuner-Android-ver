@@ -13,10 +13,6 @@ data class PitchEstimate(
     val inputLevel: Double,
 )
 
-/**
- * Port of pitch-detector.worker.ts.
- * RMS gate -> DC-offset removal -> YIN (CMND) -> octave guard -> parabolic interpolation.
- */
 class PitchDetector {
     private var yinBuffer = DoubleArray(0)
 
