@@ -21,7 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,9 +40,10 @@ import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.FretboardCanvas
 import com.omnituner.android.ui.common.SectionCard
-import com.omnituner.android.ui.common.WebSelectOption
-import com.omnituner.android.ui.common.WebSelectRow
 import com.omnituner.android.ui.common.WebToggleRow
+import com.omnituner.android.ui.common.WheelOption
+import com.omnituner.android.ui.common.WheelSelectRow
+import com.omnituner.android.ui.common.WheelSelectSheet
 import com.omnituner.core.data.FLAT_NAMES
 import com.omnituner.core.data.SCALES
 import com.omnituner.core.data.SHARP_NAMES
@@ -84,24 +88,46 @@ fun ScalesScreen(app: OmniTunerApp) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                WebSelectRow(
+                var instrumentSheetOpen by rememberSaveable { mutableStateOf(false) }
+                WheelSelectRow(
                     label = "Instrument",
                     value = state.instrumentLabel,
-                    options = state.instruments.map { instrument ->
-                        WebSelectOption(instrument.id, instrument.label)
-                    },
-                    selected = state.instrumentId,
-                    onSelect = viewModel::selectInstrument,
+                    onClick = { instrumentSheetOpen = true },
                 )
-                WebSelectRow(
+                if (instrumentSheetOpen) {
+                    WheelSelectSheet(
+                        title = "Instrument",
+                        options = state.instruments.map { WheelOption(it.label) },
+                        selectedIndex = state.instruments
+                            .indexOfFirst { it.id == state.instrumentId }
+                            .coerceAtLeast(0),
+                        onConfirm = { index ->
+                            viewModel.selectInstrument(state.instruments[index].id)
+                            instrumentSheetOpen = false
+                        },
+                        onDismiss = { instrumentSheetOpen = false },
+                    )
+                }
+                var tuningSheetOpen by rememberSaveable { mutableStateOf(false) }
+                WheelSelectRow(
                     label = "Tuning",
                     value = state.tuningLabel,
-                    options = state.tunings.map { tuning ->
-                        WebSelectOption(tuning.id, tuning.label)
-                    },
-                    selected = state.tuningId,
-                    onSelect = viewModel::selectTuning,
+                    onClick = { tuningSheetOpen = true },
                 )
+                if (tuningSheetOpen) {
+                    WheelSelectSheet(
+                        title = "Tuning",
+                        options = state.tunings.map { WheelOption(it.label) },
+                        selectedIndex = state.tunings
+                            .indexOfFirst { it.id == state.tuningId }
+                            .coerceAtLeast(0),
+                        onConfirm = { index ->
+                            viewModel.selectTuning(state.tunings[index].id)
+                            tuningSheetOpen = false
+                        },
+                        onDismiss = { tuningSheetOpen = false },
+                    )
+                }
             }
             IconButton(
                 onClick = { viewModel.playScale(down = false) },
@@ -123,22 +149,44 @@ fun ScalesScreen(app: OmniTunerApp) {
 
         SectionCard {
             Text("Scale", style = MaterialTheme.typography.titleMedium)
-            WebSelectRow(
+            var scaleSheetOpen by rememberSaveable { mutableStateOf(false) }
+            WheelSelectRow(
                 label = "Scale",
                 value = "${scale.label}${scale.aka?.let { " ($it)" } ?: ""}",
-                options = SCALES.map { item ->
-                    WebSelectOption(item.id, item.label, alt = item.group)
-                },
-                selected = prefsState.scaleId,
-                onSelect = viewModel::setScaleId,
+                onClick = { scaleSheetOpen = true },
             )
-            WebSelectRow(
+            if (scaleSheetOpen) {
+                WheelSelectSheet(
+                    title = "Scale",
+                    options = SCALES.map { item -> WheelOption(item.label, item.group) },
+                    selectedIndex = SCALES
+                        .indexOfFirst { it.id == prefsState.scaleId }
+                        .coerceAtLeast(0),
+                    onConfirm = { index ->
+                        viewModel.setScaleId(SCALES[index].id)
+                        scaleSheetOpen = false
+                    },
+                    onDismiss = { scaleSheetOpen = false },
+                )
+            }
+            var rootSheetOpen by rememberSaveable { mutableStateOf(false) }
+            WheelSelectRow(
                 label = "Root",
                 value = noteName(prefsState.rootPitchClass, prefsState.accidental == ACCIDENTAL_FLAT),
-                options = rootNames.mapIndexed { pc, name -> WebSelectOption(pc, name) },
-                selected = prefsState.rootPitchClass,
-                onSelect = viewModel::setRootPitchClass,
+                onClick = { rootSheetOpen = true },
             )
+            if (rootSheetOpen) {
+                WheelSelectSheet(
+                    title = "Root",
+                    options = rootNames.map { WheelOption(it) },
+                    selectedIndex = prefsState.rootPitchClass.coerceIn(0, rootNames.lastIndex),
+                    onConfirm = { index ->
+                        viewModel.setRootPitchClass(index)
+                        rootSheetOpen = false
+                    },
+                    onDismiss = { rootSheetOpen = false },
+                )
+            }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 val accidentals = listOf(
                     ACCIDENTAL_SHARP to "Sharps",

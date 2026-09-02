@@ -88,8 +88,8 @@ private data class Tab(
 
 private val TABS = listOf(
     Tab("tuner", "Tuner", R.drawable.tabler_circle_dot),
-    Tab("scales", "Scales", R.drawable.tabler_playlist),
     Tab("chords", "Chords", R.drawable.tabler_guitar_pick),
+    Tab("scales", "Scales", R.drawable.tabler_playlist),
     Tab("metronome", "Metronome", R.drawable.tabler_music),
 )
 
@@ -104,7 +104,6 @@ fun OmniTunerRoot(
     val app = LocalContext.current.applicationContext as OmniTunerApp
     val container = app.container
 
-    // Single tuner ViewModel shared by the Tuner tab and the settings page
     val tunerViewModel: TunerViewModel = viewModel()
     val tunerState by tunerViewModel.ui.collectAsState()
 
@@ -148,12 +147,11 @@ fun OmniTunerRoot(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    // Keep clear space for the floating settings button
                     .padding(top = 64.dp),
             ) {
                 composable("tuner") { TunerScreen(viewModel = tunerViewModel) }
-                composable("scales") { ScalesScreen(app) }
                 composable("chords") { ChordFinderScreen(app) }
+                composable("scales") { ScalesScreen(app) }
                 composable("metronome") { MetronomeScreen(container.metronomePreferences) }
                 composable(
                     "settings",

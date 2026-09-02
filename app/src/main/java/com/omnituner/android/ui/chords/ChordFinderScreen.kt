@@ -24,7 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -36,8 +39,9 @@ import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.SectionCard
-import com.omnituner.android.ui.common.WebSelectOption
-import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WheelOption
+import com.omnituner.android.ui.common.WheelSelectRow
+import com.omnituner.android.ui.common.WheelSelectSheet
 import com.omnituner.android.ui.common.WebTextButton
 import com.omnituner.android.ui.theme.webQualityColor
 import com.omnituner.core.data.PROGRESSION_PRESETS
@@ -66,7 +70,6 @@ fun ChordFinderScreen(app: OmniTunerApp) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
 
-        // Chord input
         SectionCard {
             Text("Chord finder", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
@@ -104,17 +107,29 @@ fun ChordFinderScreen(app: OmniTunerApp) {
                 )
             }
 
-            val tonicChips = listOf("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
-            WebSelectRow(
+            val tonicNotes = remember {
+                listOf("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
+            }
+            var tonicSheetOpen by rememberSaveable { mutableStateOf(false) }
+            WheelSelectRow(
                 label = "Tonic",
                 value = state.tonicInput,
-                options = tonicChips.map { tonic -> WebSelectOption(tonic, tonic) },
-                selected = state.tonicInput,
-                onSelect = viewModel::setTonic,
+                onClick = { tonicSheetOpen = true },
             )
+            if (tonicSheetOpen) {
+                WheelSelectSheet(
+                    title = "Tonic",
+                    options = tonicNotes.map { WheelOption(it) },
+                    selectedIndex = tonicNotes.indexOf(state.tonicInput).coerceAtLeast(0),
+                    onConfirm = { index ->
+                        viewModel.setTonic(tonicNotes[index])
+                        tonicSheetOpen = false
+                    },
+                    onDismiss = { tonicSheetOpen = false },
+                )
+            }
         }
 
-        // Key finder
         SectionCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -163,23 +178,30 @@ fun ChordFinderScreen(app: OmniTunerApp) {
             }
         }
 
-        // Progression presets
         SectionCard {
             Text("Progressions", style = MaterialTheme.typography.titleMedium)
-            WebSelectRow(
+            var presetSheetOpen by rememberSaveable { mutableStateOf(false) }
+            WheelSelectRow(
                 label = "Progression preset",
                 value = "Load a preset",
-                options = PROGRESSION_PRESETS.map { preset ->
-                    WebSelectOption(preset.id, preset.name, alt = preset.degrees.joinToString(" "))
-                },
-                selected = null,
-                onSelect = { id ->
-                    PROGRESSION_PRESETS.firstOrNull { it.id == id }?.let(viewModel::applyPreset)
-                },
+                onClick = { presetSheetOpen = true },
             )
+            if (presetSheetOpen) {
+                WheelSelectSheet(
+                    title = "Progression preset",
+                    options = PROGRESSION_PRESETS.map { preset ->
+                        WheelOption(preset.name, preset.degrees.joinToString(" "))
+                    },
+                    selectedIndex = 0,
+                    onConfirm = { index ->
+                        viewModel.applyPreset(PROGRESSION_PRESETS[index])
+                        presetSheetOpen = false
+                    },
+                    onDismiss = { presetSheetOpen = false },
+                )
+            }
         }
 
-        // Voicings
         SectionCard {
             Text("Voicings", style = MaterialTheme.typography.titleMedium)
             if (state.parsedChord == null) {
