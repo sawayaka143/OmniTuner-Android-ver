@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,6 +86,7 @@ fun MetronomeScreen(
     var presetName by remember { mutableStateOf("") }
     // Bar-mute controls are a collapsed disclosure; the pattern keeps applying while hidden.
     var showBarPattern by rememberSaveable { mutableStateOf(false) }
+    val tapTempo = rememberTapTempo(viewModel::setBpm)
 
     Column(
         modifier = Modifier
@@ -178,9 +180,9 @@ fun MetronomeScreen(
                 BpmDial(
                     bpm = metronome.bpm,
                     onBpmChange = viewModel::setBpm,
+                    onTap = tapTempo,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
-                TapTempoRow(onBpm = viewModel::setBpm)
             }
         }
 
@@ -485,29 +487,23 @@ fun MetronomeScreen(
     }
 }
 
+/** Tap-tempo interval collection (2s timeout, last 6 taps), fired from the dial's center button. */
 @Composable
-private fun TapTempoRow(onBpm: (Double) -> Unit) {
+private fun rememberTapTempo(onBpm: (Double) -> Unit): () -> Unit {
     val taps = remember { mutableStateListOf<Long>() }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text("Tap tempo", style = MaterialTheme.typography.bodyMedium)
-        Button(
-            onClick = {
-                val now = android.os.SystemClock.elapsedRealtime()
-                if (taps.isNotEmpty() && now - taps.last() > 2000) taps.clear()
-                taps.add(now)
-                while (taps.size > 6) taps.removeAt(0)
-                if (taps.size >= 2) {
-                    val intervals = buildList {
-                        for (i in 1 until taps.size) add((taps[i] - taps[i - 1]).toDouble())
-                    }
-                    tapBpm(intervals)?.let(onBpm)
+    val latestOnBpm by rememberUpdatedState(onBpm)
+    return remember(taps) {
+        {
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (taps.isNotEmpty() && now - taps.last() > 2000) taps.clear()
+            taps.add(now)
+            while (taps.size > 6) taps.removeAt(0)
+            if (taps.size >= 2) {
+                val intervals = buildList {
+                    for (i in 1 until taps.size) add((taps[i] - taps[i - 1]).toDouble())
                 }
-            },
-            modifier = Modifier.semantics { contentDescription = "Tap tempo" },
-        ) { Text("TAP") }
+                tapBpm(intervals)?.let(latestOnBpm)
+            }
+        }
     }
 }

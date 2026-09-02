@@ -34,6 +34,9 @@ data class WebPalette(
     val inTuneColor: Color,
     val outOfTuneColor: Color,
     val dialWell: Color,
+    val dialFace: Color,
+    val dialSheen: Color,
+    val dialShadow: Color,
     val chordStageGlow: Color,
     val accentText: Color,
     val inTuneText: Color,
@@ -96,6 +99,9 @@ object WebColors {
         inTuneColor = Color(0xFFEDE8D0), // var(--scale-accent)
         outOfTuneColor = Color(0xFFFF8AAB),
         dialWell = Color(0xFF000000),
+        dialFace = Color(0xFF1F1F1E), // hardware-knob body raised inside the well
+        dialSheen = Color(0xFFFFFFFF), // top rim light on raised dial parts
+        dialShadow = Color(0xFF000000), // recess/rim shadows on dial parts
         chordStageGlow = Color(0xFFEDE8D0).copy(alpha = 0.22f),
         accentText = DARK_ACCENT_TEXT,
         inTuneText = Color(0xFFEDE8D0), // var(--in-tune-color)
@@ -129,6 +135,9 @@ object WebColors {
         inTuneColor = Color(0xFFEDE8D0), // var(--scale-accent)
         outOfTuneColor = Color(0xFFB01645),
         dialWell = Color(0xFFDEDBD4), // var(--surface-container-high)
+        dialFace = Color(0xFFFBFAF8), // var(--surface-container-low)
+        dialSheen = Color(0xFFFFFFFF),
+        dialShadow = Color(0xFF000000),
         chordStageGlow = Color(0xFFEDE8D0).copy(alpha = 0.18f),
         accentText = LIGHT_ACCENT_TEXT,
         inTuneText = LIGHT_IN_TUNE_TEXT,
