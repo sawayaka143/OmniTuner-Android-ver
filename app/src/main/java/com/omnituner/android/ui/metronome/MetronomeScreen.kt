@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +83,8 @@ fun MetronomeScreen(
 
     var showPresetDialog by remember { mutableStateOf(false) }
     var presetName by remember { mutableStateOf("") }
+    // Bar-mute controls are a collapsed disclosure; the pattern keeps applying while hidden.
+    var showBarPattern by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -243,59 +246,68 @@ fun MetronomeScreen(
         // Bar pattern
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Bar mute pattern", style = MaterialTheme.typography.titleMedium)
-                WebSelectRow(
-                    label = "Preset",
-                    value = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label
-                        ?: "Custom",
-                    options = PATTERN_PRESETS.map { preset ->
-                        WebSelectOption(
-                            preset.label,
-                            preset.label,
-                            alt = "${preset.bars.count { it == 1 }} bars",
-                        )
-                    },
-                    selected = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label,
-                    onSelect = { label ->
-                        PATTERN_PRESETS.firstOrNull { it.label == label }?.let { preset ->
-                            viewModel.setBarPattern(preset.bars)
-                        }
-                    },
-                )
-                // 16 pads; tapping pad 1..n sets pattern length, toggling beyond truncates
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items((1..16).toList()) { bar ->
-                        val active = metronome.barPattern.getOrNull(bar - 1) == 1
-                        val within = bar <= metronome.barPattern.size
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(
-                                    when {
-                                        active -> MaterialTheme.colorScheme.primary
-                                        within -> MaterialTheme.colorScheme.surfaceVariant
-                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                    },
-                                    RoundedCornerShape(8.dp),
-                                )
-                                .clickable {
-                                    val current = metronome.barPattern.toMutableList()
-                                    if (bar <= current.size) {
-                                        current[bar - 1] = if (current[bar - 1] == 1) 0 else 1
-                                        viewModel.setBarPattern(current)
-                                    } else {
-                                        while (current.size < bar) current.add(0)
-                                        current[bar - 1] = 1
-                                        viewModel.setBarPattern(current)
-                                    }
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                "$bar",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Bar mute pattern", style = MaterialTheme.typography.titleMedium)
+                    Switch(checked = showBarPattern, onCheckedChange = { showBarPattern = it })
+                }
+                if (showBarPattern) {
+                    WebSelectRow(
+                        label = "Preset",
+                        value = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label
+                            ?: "Custom",
+                        options = PATTERN_PRESETS.map { preset ->
+                            WebSelectOption(
+                                preset.label,
+                                preset.label,
+                                alt = "${preset.bars.count { it == 1 }} bars",
                             )
+                        },
+                        selected = PATTERN_PRESETS.firstOrNull { it.bars == metronome.barPattern }?.label,
+                        onSelect = { label ->
+                            PATTERN_PRESETS.firstOrNull { it.label == label }?.let { preset ->
+                                viewModel.setBarPattern(preset.bars)
+                            }
+                        },
+                    )
+                    // 16 pads; tapping pad 1..n sets pattern length, toggling beyond truncates
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items((1..16).toList()) { bar ->
+                            val active = metronome.barPattern.getOrNull(bar - 1) == 1
+                            val within = bar <= metronome.barPattern.size
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(
+                                        when {
+                                            active -> MaterialTheme.colorScheme.primary
+                                            within -> MaterialTheme.colorScheme.surfaceVariant
+                                            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        },
+                                        RoundedCornerShape(8.dp),
+                                    )
+                                    .clickable {
+                                        val current = metronome.barPattern.toMutableList()
+                                        if (bar <= current.size) {
+                                            current[bar - 1] = if (current[bar - 1] == 1) 0 else 1
+                                            viewModel.setBarPattern(current)
+                                        } else {
+                                            while (current.size < bar) current.add(0)
+                                            current[bar - 1] = 1
+                                            viewModel.setBarPattern(current)
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "$bar",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
