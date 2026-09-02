@@ -127,6 +127,9 @@ private data class TuningPreset(
     val notes: List<Int>,
 )
 
+/** E standard guitar (E2 A2 D3 G3 B3 E4) — the starting point for new custom instruments. */
+private val GUITAR_STANDARD_NOTES = listOf(40, 45, 50, 55, 59, 64)
+
 @Composable
 fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     val state by viewModel.ui.collectAsState()
@@ -273,8 +276,8 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                             initialForm = InstrumentFormState(
                                 editingId = null,
                                 name = "",
-                                stringCount = 6,
-                                notes = List(6) { 40 },
+                                stringCount = GUITAR_STANDARD_NOTES.size,
+                                notes = GUITAR_STANDARD_NOTES,
                             ),
                         )
                     },
@@ -377,8 +380,8 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                     initialForm = InstrumentFormState(
                         editingId = null,
                         name = "",
-                        stringCount = 6,
-                        notes = List(6) { 40 },
+                        stringCount = GUITAR_STANDARD_NOTES.size,
+                        notes = GUITAR_STANDARD_NOTES,
                     ),
                 )
             },
@@ -863,6 +866,7 @@ private fun TuningEditorDialog(
     var notes by remember(request) { mutableStateOf(request.initialNotes) }
     var error by remember(request) { mutableStateOf<String?>(null) }
     var presetOpen by remember { mutableStateOf(false) }
+    var presetName by remember(request) { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -886,7 +890,16 @@ private fun TuningEditorDialog(
 
                 Box {
                     TextButton(onClick = { presetOpen = true }) {
-                        Text("Start from preset ▾")
+                        Text(
+                            text = presetName ?: "Start from preset",
+                            fontWeight = if (presetName != null) FontWeight.SemiBold else null,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            painterResource(R.drawable.tabler_chevron_down),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
                     }
                     DropdownMenu(
                         expanded = presetOpen,
@@ -897,6 +910,7 @@ private fun TuningEditorDialog(
                                 text = { Text(preset.name) },
                                 onClick = {
                                     presetOpen = false
+                                    presetName = preset.name
                                     notes = preset.notes
                                 },
                             )
@@ -904,12 +918,14 @@ private fun TuningEditorDialog(
                     }
                 }
 
-                notes.forEachIndexed { index, midi ->
+                // Head-stock order: String 1 (highest note) first, low strings below.
+                for (displayIndex in notes.indices) {
+                    val noteIndex = notes.lastIndex - displayIndex
                     NoteStepperRow(
-                        label = "String ${index + 1}",
-                        midi = midi,
+                        label = "String ${displayIndex + 1}",
+                        midi = notes[noteIndex],
                         onChange = { next ->
-                            notes = notes.toMutableList().also { it[index] = next }
+                            notes = notes.toMutableList().also { it[noteIndex] = next }
                         },
                     )
                 }
@@ -1048,19 +1064,23 @@ private fun InstrumentManagerDialog(
                     IconButton(
                         onClick = {
                             if (stringCount < MAX_STRING_COUNT) {
+                                // Extra strings join on the low end (7-string style), above MIN.
+                                val lowest = notes.firstOrNull() ?: MIN_TUNER_MIDI_NOTE
                                 stringCount += 1
-                                notes = notes + MIN_TUNER_MIDI_NOTE
+                                notes = listOf((lowest - 5).coerceAtLeast(MIN_TUNER_MIDI_NOTE)) + notes
                             }
                         },
                     ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "More strings") }
                 }
 
-                notes.forEachIndexed { index, midi ->
+                // Head-stock order: String 1 (highest note) first, low strings below.
+                for (displayIndex in notes.indices) {
+                    val noteIndex = notes.lastIndex - displayIndex
                     NoteStepperRow(
-                        label = "String ${index + 1}",
-                        midi = midi,
+                        label = "String ${displayIndex + 1}",
+                        midi = notes[noteIndex],
                         onChange = { next ->
-                            notes = notes.toMutableList().also { it[index] = next }
+                            notes = notes.toMutableList().also { it[noteIndex] = next }
                         },
                     )
                 }
@@ -1101,7 +1121,13 @@ private fun NoteStepperRow(
         Text(
             label,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(60.dp),
+        )
+        StringGauge(
+            midi = midi,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 6.dp),
         )
         IconButton(
             onClick = { onChange((midi - 1).coerceIn(MIN_TUNER_MIDI_NOTE, MAX_TUNER_MIDI_NOTE)) },
@@ -1118,12 +1144,22 @@ private fun NoteStepperRow(
             onClick = { onChange((midi + 1).coerceIn(MIN_TUNER_MIDI_NOTE, MAX_TUNER_MIDI_NOTE)) },
             modifier = Modifier.size(32.dp),
         ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "$label up a semitone") }
-        Text(
-            "$midi",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(28.dp),
-            textAlign = TextAlign.Center,
+    }
+}
+
+/** String line whose gauge grows toward lower pitches (real string sets: low = thick). */
+@Composable
+private fun StringGauge(midi: Int, modifier: Modifier = Modifier) {
+    val lineColor = currentWebPalette().muted
+    val span = (midi - MIN_TUNER_MIDI_NOTE).toFloat() / (MAX_TUNER_MIDI_NOTE - MIN_TUNER_MIDI_NOTE)
+    val thickness = 1.dp + 4.dp * (1f - span.coerceIn(0f, 1f))
+    Canvas(modifier.height(14.dp)) {
+        drawLine(
+            color = lineColor,
+            start = Offset(0f, size.height / 2f),
+            end = Offset(size.width, size.height / 2f),
+            strokeWidth = thickness.toPx(),
+            cap = StrokeCap.Round,
         )
     }
 }
