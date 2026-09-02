@@ -21,9 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -38,7 +36,6 @@ import com.omnituner.android.R
 import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.FretboardCanvas
-import com.omnituner.android.ui.common.RotateHint
 import com.omnituner.android.ui.common.SectionCard
 import com.omnituner.android.ui.common.WebSelectOption
 import com.omnituner.android.ui.common.WebSelectRow
@@ -71,8 +68,6 @@ fun ScalesScreen(app: OmniTunerApp) {
     val scale = SCALES.find { it.id == prefsState.scaleId } ?: SCALES.first()
     val rootNames = if (prefsState.accidental == ACCIDENTAL_FLAT) FLAT_NAMES else SHARP_NAMES
 
-    val rotateHintDismissed = rememberSaveable { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -80,9 +75,6 @@ fun ScalesScreen(app: OmniTunerApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (!rotateHintDismissed.value) {
-            RotateHint(onDismiss = { rotateHintDismissed.value = true })
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

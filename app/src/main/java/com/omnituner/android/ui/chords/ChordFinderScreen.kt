@@ -25,9 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -38,7 +36,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.GuitarSamplePlayer
 import com.omnituner.android.audio.NotePlayer
-import com.omnituner.android.ui.common.RotateHint
 import com.omnituner.android.ui.common.SectionCard
 import com.omnituner.android.ui.common.WebSelectOption
 import com.omnituner.android.ui.common.WebSelectRow
@@ -60,7 +57,6 @@ fun ChordFinderScreen(app: OmniTunerApp) {
         ),
     )
     val state by viewModel.ui.collectAsState()
-    val rotateHintDismissed = rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -69,9 +65,6 @@ fun ChordFinderScreen(app: OmniTunerApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (!rotateHintDismissed.value) {
-            RotateHint(onDismiss = { rotateHintDismissed.value = true })
-        }
 
         // Chord input
         SectionCard {
