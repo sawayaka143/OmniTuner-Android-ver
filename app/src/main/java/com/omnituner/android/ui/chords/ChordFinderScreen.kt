@@ -21,7 +21,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,6 +38,7 @@ import com.omnituner.android.audio.NotePlayer
 import com.omnituner.android.ui.common.SectionCard
 import com.omnituner.android.ui.common.WebSelectOption
 import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WebTextButton
 import com.omnituner.android.ui.theme.webQualityColor
 import com.omnituner.core.data.PROGRESSION_PRESETS
 import com.omnituner.core.theory.VoicingShape
@@ -122,7 +122,7 @@ fun ChordFinderScreen(app: OmniTunerApp) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Key", style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = viewModel::playProgression) { Text("Play progression") }
+                WebTextButton(onClick = viewModel::playProgression) { Text("Play progression") }
             }
             OutlinedTextField(
                 value = state.progressionInput,

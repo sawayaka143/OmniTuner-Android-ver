@@ -51,7 +51,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -89,6 +88,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.R
 import com.omnituner.android.ui.common.WebSelectOption
 import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WebTextButton
 import com.omnituner.android.ui.theme.LightTuneInk
 import com.omnituner.android.ui.theme.currentWebPalette
 import com.omnituner.core.audio.midiNoteLabel
@@ -608,7 +608,7 @@ private fun MicPermissionBanner(
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = if (permanentDenial) onOpenSettings else onAllow) {
+        WebTextButton(onClick = if (permanentDenial) onOpenSettings else onAllow) {
             Text(if (permanentDenial) "Open settings" else "Allow")
         }
     }
@@ -682,7 +682,7 @@ private fun InstrumentTuningSelector(
 
 @Composable
 private fun FooterAction(iconRes: Int?, label: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
+    WebTextButton(onClick = onClick) {
         if (iconRes != null) {
             Icon(
                 painterResource(iconRes),
@@ -889,7 +889,7 @@ private fun TuningEditorDialog(
                 )
 
                 Box {
-                    TextButton(onClick = { presetOpen = true }) {
+                    WebTextButton(onClick = { presetOpen = true }) {
                         Text(
                             text = presetName ?: "Start from preset",
                             fontWeight = if (presetName != null) FontWeight.SemiBold else null,
@@ -940,12 +940,12 @@ private fun TuningEditorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            WebTextButton(onClick = {
                 error = onSave(name.trim(), notes)
             }) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            WebTextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }
@@ -1011,10 +1011,10 @@ private fun InstrumentManagerDialog(
                 }
             },
             confirmButton = {
-                TextButton(onClick = onNew) { Text("New instrument") }
+                WebTextButton(onClick = onNew) { Text("New instrument") }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) { Text("Close") }
+                WebTextButton(onClick = onDismiss) { Text("Close") }
             },
         )
         return
@@ -1095,14 +1095,14 @@ private fun InstrumentManagerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            WebTextButton(onClick = {
                 error = onSave(
                     InstrumentFormState(form.editingId, name.trim(), stringCount, notes),
                 )
             }) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            WebTextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
 }

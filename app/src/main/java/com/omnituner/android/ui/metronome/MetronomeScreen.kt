@@ -59,6 +59,7 @@ import com.omnituner.android.ui.common.RepeatStepperRow
 import com.omnituner.android.ui.common.WebCard
 import com.omnituner.android.ui.common.WebSelectOption
 import com.omnituner.android.ui.common.WebSelectRow
+import com.omnituner.android.ui.common.WebTextButton
 import com.omnituner.core.metronome.DENOMINATORS
 import com.omnituner.core.metronome.METER_PRESETS
 import com.omnituner.core.metronome.PATTERN_PRESETS
@@ -414,7 +415,7 @@ fun MetronomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("Presets (${state.presets.size}/$PRESETS_MAX)", style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { showPresetDialog = true }) { Text("Save current") }
+                    WebTextButton(onClick = { showPresetDialog = true }) { Text("Save current") }
                 }
                 for (preset in state.presets) {
                     Row(
@@ -463,7 +464,7 @@ fun MetronomeScreen(
                 ) { Text("Save") }
             },
             dismissButton = {
-                TextButton(onClick = { showPresetDialog = false }) { Text("Cancel") }
+                WebTextButton(onClick = { showPresetDialog = false }) { Text("Cancel") }
             },
         )
     }
