@@ -6,7 +6,6 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 
-/** Haptics: light tap for toggles, success waveform for in-tune confirmation. */
 class Haptics(context: Context) {
 
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

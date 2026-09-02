@@ -12,13 +12,6 @@ import com.omnituner.core.sound.MetronomeVoices
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
-/**
- * Native metronome engine: the AudioTrack counterpart of metronome-audio.service.
- * A dedicated high-priority thread drives the shared [MetronomeScheduler] with a
- * 25 ms tick, renders due voices to PCM ahead of the playhead (the look-ahead
- * pattern) and streams them into an AudioTrack. Master gain + compressor mirror
- * the web master chain.
- */
 class MetronomeAudioEngine {
 
     fun interface TransportListener {
@@ -96,7 +89,6 @@ class MetronomeAudioEngine {
         running = true
 
         newTrack.play()
-        // Track frame 0 becomes audible now; clock-to-frame mapping uses this anchor.
         playStartClock = clockSeconds()
         track = newTrack
 
@@ -135,7 +127,6 @@ class MetronomeAudioEngine {
     }
 
     fun previewVoice(id: String, vol: Double) {
-        // One-shot preview through a short-lived track.
         val buffer = MetronomeVoices.render(id, SAMPLE_RATE.toDouble(), vol, renderRandom)
         compressor.processInPlace(buffer)
         val track = AudioTrack.Builder()
@@ -181,7 +172,6 @@ class MetronomeAudioEngine {
             val lookahead =
                 if (background) MetronomeScheduler.LOOKAHEAD_HIDDEN_S else MetronomeScheduler.LOOKAHEAD_VISIBLE_S
 
-            // Schedule due events and pre-render their PCM into the mix-ahead list.
             val due = scheduler.tick(lookahead, now)
             for (event in due) {
                 val frame = clockToTrackFrame(event.time)
@@ -189,7 +179,6 @@ class MetronomeAudioEngine {
                 pendingMix.add(frame to pcm)
             }
 
-            // Write chunks up to the write-ahead horizon.
             val targetFrames = ((now - playStartClock) * SAMPLE_RATE).toLong() + WRITE_AHEAD_FRAMES
             while (running && writeCursorFrames < targetFrames) {
                 val chunk = mixChunk(writeCursorFrames, CHUNK_FRAMES)
@@ -200,10 +189,8 @@ class MetronomeAudioEngine {
                 writeCursorFrames += CHUNK_FRAMES
             }
 
-            // Trim consumed mix events.
             pendingMix.removeAll { it.first + it.second.size <= writeCursorFrames }
 
-            // Publish transport at ~25 Hz.
             if (transportListener != null && now - lastTransportEmit > 0.04) {
                 lastTransportEmit = (now * 1000).toLong()
                 val snapshot = scheduler.getTransport(now)
@@ -248,8 +235,8 @@ class MetronomeAudioEngine {
 
     companion object {
         const val SAMPLE_RATE = 48000
-        const val CHUNK_FRAMES = 1200 // 25 ms
-        const val WRITE_AHEAD_FRAMES = 4800L // 100 ms of pre-written PCM
+        const val CHUNK_FRAMES = 1200
+        const val WRITE_AHEAD_FRAMES = 4800L
         const val JOIN_TIMEOUT_MS = 400L
     }
 }

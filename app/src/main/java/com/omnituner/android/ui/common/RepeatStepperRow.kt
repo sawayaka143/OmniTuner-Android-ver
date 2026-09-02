@@ -23,12 +23,6 @@ import androidx.compose.ui.unit.dp
 import com.omnituner.android.R
 import kotlinx.coroutines.delay
 
-/**
- * Label + value + stepper buttons with press-and-hold auto-repeat.
- * A tap steps once (press); holding steps once immediately, then repeats after
- * [HOLD_DELAY_MS] every [REPEAT_INTERVAL_MS] until release.
- * onDelta receives +1/-1; clamping is the caller's responsibility.
- */
 @Composable
 fun RepeatStepperRow(
     label: String,
@@ -53,11 +47,6 @@ fun RepeatStepperRow(
     }
 }
 
-/**
- * Icon stepper button with press-and-hold auto-repeat.
- * A tap steps once (press); holding steps once immediately, then repeats after
- * [HOLD_DELAY_MS] every [REPEAT_INTERVAL_MS] until release.
- */
 @Composable
 fun RepeatStepperButton(
     iconRes: Int,

@@ -41,7 +41,6 @@ class PitchSmootherTest {
         repeat(3) { detect(smoother, 440.0) }
 
         detect(smoother, 460.0)
-        // median of [440, 440, 460] is still 440 -> EMA target unchanged
         assertEquals(440.0, smoother.frequency!!, 1e-6)
     }
 
@@ -68,7 +67,6 @@ class PitchSmootherTest {
         val smoother = PitchSmoother()
         repeat(3) { detect(smoother, 440.0) }
 
-        // 700 Hz is ~802 cents from 440 -> above the 380-cent guard
         detect(smoother, 700.0)
         assertEquals(440.0, smoother.frequency!!, 0.01)
         assertEquals(PitchTrackingState.LOCKED, smoother.trackingState)
@@ -85,7 +83,6 @@ class PitchSmootherTest {
         assertEquals(700.0, smoother.frequency!!, 1e-6)
         assertEquals(PitchTrackingState.LOCKED, smoother.trackingState)
 
-        // window was reseeded [c,c,c]: the old 440 history is gone
         detect(smoother, 702.0)
         assertEquals(700.0, smoother.frequency!!, 3.0)
     }
@@ -156,7 +153,6 @@ class PitchSmootherTest {
         repeat(3) { detect(smoother, 440.0) }
 
         smoother.resetTracking()
-        // Web behavior: resetTracking clears the buffers but not the displayed signal.
         assertEquals(440.0, smoother.frequency!!, 1e-6)
     }
 
@@ -169,7 +165,6 @@ class PitchSmootherTest {
         assertNull(smoother.frequency)
         assertEquals(PitchTrackingState.IDLE, smoother.trackingState)
 
-        // If smoothedFrequency had leaked, a silent dropout would still hold the old pitch.
         dropout(smoother, inputLevel = 0.0)
         assertNull(smoother.frequency)
         assertEquals(PitchTrackingState.LISTENING, smoother.trackingState)

@@ -5,12 +5,6 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-/**
- * Feed-forward dynamics compressor mirroring the web master chain's
- * DynamicsCompressorNode: threshold -10 dB, knee 8 dB, ratio 4,
- * attack 2 ms, release 150 ms. Applied per mixed PCM chunk with
- * continuous envelope state across chunks.
- */
 class DynamicsCompressor(
     private val sampleRate: Double,
     val thresholdDb: Double = -10.0,
@@ -22,7 +16,6 @@ class DynamicsCompressor(
 
     private var envelopeDb = 0.0
 
-    // First-order detector averaging (web spec uses ~10 ms RMS-ish window).
     private val detectorCoef = exp(-1.0 / (DETECTOR_SECONDS * sampleRate))
     private var detectorLevel = 0.0
     private val attackCoef = exp(-1.0 / (attackSeconds * sampleRate))
@@ -33,19 +26,16 @@ class DynamicsCompressor(
         detectorLevel = 0.0
     }
 
-    /** Processes input in place; state persists across chunks. */
     fun processInPlace(buffer: FloatArray, count: Int = buffer.size) {
         val n = count.coerceAtMost(buffer.size)
         for (i in 0 until n) {
             val x = buffer[i].toDouble()
 
-            // Envelope detector on the rectified signal.
             val rectified = if (x < 0) -x else x
             detectorLevel = rectified + detectorCoef * (detectorLevel - rectified)
 
             val inputDb = 20.0 * log10(max(detectorLevel, MIN_LEVEL))
 
-            // Soft-knee gain computer.
             val kneeHalf = kneeDb / 2.0
             val over = inputDb - thresholdDb
             val targetDb = when {
@@ -57,7 +47,6 @@ class DynamicsCompressor(
                 }
             }
 
-            // Attack/release smoothing toward the target gain.
             envelopeDb = if (targetDb < envelopeDb) {
                 targetDb + attackCoef * (envelopeDb - targetDb)
             } else {

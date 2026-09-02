@@ -5,15 +5,6 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 
-/**
- * RBJ cookbook biquad with Web Audio spec Q semantics:
- * for lowpass/highpass the Q parameter is a resonance value in dB, converted to a
- * linear resonance of 10^(Q/20) before computing alpha = sin(w0) / (2 * resonance).
- * (This matches BiquadFilterNode; a classic DSP book would treat Q=0.7 as linear.)
- *
- * Like a Web Audio BiquadFilterNode, the delay line persists across process()
- * calls so the filter can be fed chunk-by-chunk without boundary discontinuities.
- */
 class BiquadFilter {
 
     var b0 = 0.0
@@ -27,7 +18,6 @@ class BiquadFilter {
     var a2 = 0.0
         private set
 
-    // Unnormalized alpha, exposed for spec-semantics tests.
     var rawAlpha = 0.0
         private set
 
@@ -62,10 +52,6 @@ class BiquadFilter {
         normalize(alpha, cosW0)
     }
 
-    /**
-     * Web Audio "bandpass": Q in linear units, constant 0 dB peak gain form
-     * (b0 = alpha, b2 = -alpha), matching BiquadFilterNode/Chromium.
-     */
     fun setBandpass(sampleRate: Double, frequency: Double, qLinear: Double) {
         val w0 = 2.0 * PI * frequency / sampleRate
         val cosW0 = cos(w0)
@@ -87,7 +73,6 @@ class BiquadFilter {
         a2 = (1.0 - alpha) / a0
     }
 
-    /** Clears the delay line; the engine calls this when (re)starting capture. */
     fun reset() {
         x1 = 0.0
         x2 = 0.0

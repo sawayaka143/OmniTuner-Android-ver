@@ -10,10 +10,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.omnituner.android.R
 
-/**
- * Instrument Sans (web --font), bundled as a variable TTF (wght 400-700).
- * Weights are exposed via FontVariation so every M3 style can use them.
- */
 @OptIn(ExperimentalTextApi::class)
 private fun instrumentSans(weight: FontWeight) = Font(
     resId = R.font.instrument_sans,
@@ -28,7 +24,6 @@ val InstrumentSans = FontFamily(
     instrumentSans(FontWeight.Bold),
 )
 
-// M3 defaults with InstrumentSans applied to every style (web sets --font globally).
 private val defaults = Typography()
 
 val Typography = Typography(
@@ -49,6 +44,5 @@ val Typography = Typography(
     labelSmall = defaults.labelSmall.copy(fontFamily = InstrumentSans),
 )
 
-/** Convenience for ad-hoc TextStyles that need the app font. */
 fun appTextStyle(block: TextStyle.() -> Unit): TextStyle =
     TextStyle(fontFamily = InstrumentSans).apply(block)

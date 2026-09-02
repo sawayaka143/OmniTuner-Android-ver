@@ -64,9 +64,6 @@ class PitchDetectorTest {
 
     @Test
     fun octaveGuardPrefersLowerFundamentalWhenSecondHarmonicDominates() {
-        // 220 Hz fundamental with a much louder 440 Hz second harmonic:
-        // YIN's first dip lands at 440 (an octave too high); the guard must
-        // drop to the sub-octave when yin[2t] is 0.05 better.
         assertDetects(sine(220.0, amplitude = 0.2, harmonics = listOf(440.0 to 0.8)), 220.0, 1.0)
     }
 
@@ -108,7 +105,6 @@ class PitchDetectorTest {
 
     @Test
     fun detectableWindowBoundariesHold() {
-        // Lowest and highest in-range pitches round-trip through the lag bounds.
         assertDetects(sine(50.5), 50.5, 2.0)
         assertDetects(sine(1150.0), 1150.0, 2.0)
     }

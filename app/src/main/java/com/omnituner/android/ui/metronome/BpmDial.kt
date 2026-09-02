@@ -51,12 +51,10 @@ private const val TICKS_PER_ROTATION = 55
 private const val DEG_PER_TICK = 360.0 / TICKS_PER_ROTATION
 private const val POINTER_DEG = 270.0
 
-// Web dial face coordinates (bpm-dial.ts): center 150,150; tick band 116-124.
 private const val FACE = 300f
 private const val TICK_INNER = 116f
 private const val TICK_OUTER = 124f
 
-// Hardware-knob styling radii, same 300-unit FACE space.
 private val DIAL_SIZE = 220.dp
 private const val WELL_RADIUS = 138f
 private const val KNOB_RADIUS = 128f
@@ -71,16 +69,6 @@ private fun rotationFor(bpm: Double): Double = (bpm - 1.0) * DEG_PER_TICK
 private fun bpmFor(rotation: Double): Double =
     ((rotation / DEG_PER_TICK).roundToInt() + 1).coerceIn(BPM_MIN, BPM_MAX).toDouble()
 
-/**
- * Port of tests/bpm-dial.ts: a rotary tempo dial with 55 ticks per rotation
- * (one BPM per tick). Dragging spins the tick ring; the value snaps to the
- * nearest tick on release. Live-emits BPM changes during the drag.
- *
- * Rendered as a physical hardware knob (tokens --dial-well/-face/-sheen/-shadow):
- * recessed well, raised knurled body carrying the rotating tick ring on its
- * rim, fixed pointer triangle at 12 o'clock, and a centered TAP button that
- * reports taps through [onTap] (drawn but not clickable when null).
- */
 @Composable
 fun BpmDial(
     bpm: Double,
@@ -110,7 +98,6 @@ fun BpmDial(
         )
     }
 
-    // TAP hit target mirrors the painted center button (radius 62 in FACE units).
     val tapHitDiameter = DIAL_SIZE * (TAP_RADIUS * 2f / FACE)
 
     Box(modifier = modifier.size(DIAL_SIZE), contentAlignment = Alignment.Center) {
@@ -172,8 +159,6 @@ fun BpmDial(
             val cy = size.height / 2f
             val center = Offset(cx, cy)
 
-            // 1) Recessed outer well (--dial-well): falls off into shadow
-            //    toward the edge, with an inner-shadow rim just inside it.
             val wellRadius = WELL_RADIUS * scale
             drawCircle(color = palette.dialWell, radius = wellRadius, center = center)
             drawCircle(
@@ -192,8 +177,6 @@ fun BpmDial(
                 style = Stroke(width = 3f * scale),
             )
 
-            // 2) Raised knob body (the ticks sit on its rim): convex vertical
-            //    shading plus top rim highlight / bottom rim shadow arcs.
             val knobRadius = KNOB_RADIUS * scale
             drawCircle(color = palette.dialFace, radius = knobRadius, center = center)
             drawCircle(
@@ -230,7 +213,6 @@ fun BpmDial(
                 style = Stroke(width = 3f * scale, cap = StrokeCap.Round),
             )
 
-            // 3) Rotating tick ring (web: faceTransform rotate(rotation cx cy)).
             rotate(degrees = displayRotation.toFloat(), pivot = center) {
                 for (i in 0 until TICKS_PER_ROTATION) {
                     val angle = (POINTER_DEG + i * DEG_PER_TICK) * PI / 180.0
@@ -246,8 +228,6 @@ fun BpmDial(
                 }
             }
 
-            // 4) Fixed pointer triangle at 12 o'clock: base corners sit just
-            //    outside the tick band, apex pointing down toward the ticks.
             val pointerAngle = POINTER_DEG * PI / 180.0
             val dirX = cos(pointerAngle).toFloat()
             val dirY = sin(pointerAngle).toFloat()
@@ -269,7 +249,6 @@ fun BpmDial(
                 color = inkColor,
             )
 
-            // 5) Machined step ring between the knob face and the center cap.
             val stepRadius = STEP_RADIUS * scale
             drawCircle(color = palette.dialFace, radius = stepRadius, center = center)
             drawCircle(
@@ -284,8 +263,6 @@ fun BpmDial(
                 style = Stroke(width = 2f * scale),
             )
 
-            // 6) Center TAP button: convex like the knob body but a step
-            //    lighter than the step ring, subtler rim light/shadow.
             val tapRadius = TAP_RADIUS * scale
             drawCircle(color = palette.dialFace, radius = tapRadius, center = center)
             drawCircle(
@@ -330,8 +307,6 @@ fun BpmDial(
             )
         }
 
-        // TAP hit target, layered above the canvas so it receives its own
-        // taps; the drag gesture keeps working everywhere outside this circle.
         Box(
             modifier = Modifier
                 .size(tapHitDiameter)

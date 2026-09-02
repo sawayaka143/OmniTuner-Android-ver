@@ -12,10 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Every colorScheme slot must derive from the web palette — an unmapped slot
-// falls back to the Material baseline (e.g. dark surfaceContainerHighest
-// #36343B) and leaks off-token colors into the UI.
-
 private fun darkScheme(p: WebPalette) = darkColorScheme(
     primary = p.scaleAccent,
     onPrimary = p.scaleAccentInk,

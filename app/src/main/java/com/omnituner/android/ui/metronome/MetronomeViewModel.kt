@@ -78,7 +78,6 @@ class MetronomeViewModel(private val prefs: MetronomePreferences) : ViewModel() 
         update { it.copy(bpm = bpm.coerceIn(1.0, 800.0)) }
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeBpm(delta: Int) {
         setBpm(_ui.value.state.bpm + delta)
     }
@@ -87,7 +86,6 @@ class MetronomeViewModel(private val prefs: MetronomePreferences) : ViewModel() 
         update { it.copy(timeSignature = TimeSignature(numerator, denominator)) }
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeTimeSignatureNumerator(delta: Int) {
         update {
             it.copy(
@@ -103,7 +101,6 @@ class MetronomeViewModel(private val prefs: MetronomePreferences) : ViewModel() 
         update { it.copy(divisionsPerBeat = value.coerceIn(1, 12)) }
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeDivisionsPerBeat(delta: Int) {
         setDivisionsPerBeat(_ui.value.state.divisionsPerBeat + delta)
     }
@@ -125,7 +122,6 @@ class MetronomeViewModel(private val prefs: MetronomePreferences) : ViewModel() 
         }
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changePolyEvents(delta: Int) {
         setPoly(events = _ui.value.state.poly.events + delta)
     }
@@ -175,12 +171,10 @@ class MetronomeViewModel(private val prefs: MetronomePreferences) : ViewModel() 
         }
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeRampTargetBpm(delta: Int) {
         setRamp(targetBpm = _ui.value.state.ramp.targetBpm + delta)
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeRampBars(delta: Int) {
         setRamp(bars = _ui.value.state.ramp.bars + delta)
     }

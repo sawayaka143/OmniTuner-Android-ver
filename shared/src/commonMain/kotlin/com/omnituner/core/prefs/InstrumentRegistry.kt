@@ -346,7 +346,6 @@ class InstrumentRegistry(private val storage: KeyValueStorage?) {
         return notes.toList()
     }
 
-    /** Matches the web's `instr-<crypto.randomUUID()>` / `custom-<...>` ID shape (v4 UUID). */
     private fun randomUuid(): String {
         val chars = CharArray(32) { UUID_HEX[Random.nextInt(16)] }
         chars[12] = '4'

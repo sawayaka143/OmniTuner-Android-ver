@@ -274,7 +274,6 @@ class MetronomePreferences(private val storage: KeyValueStorage?) {
         persist()
     }
 
-    /** Bulk state replacement for UI-view-model driven stores. */
     fun replaceState(state: MetronomeState) {
         this.state.value = state
         persist()
@@ -398,7 +397,6 @@ class MetronomePreferences(private val storage: KeyValueStorage?) {
     companion object {
         private var counter = 0L
 
-        /** Common-main has no clock; the Android layer can inject richer ids via [savePreset]. */
         fun defaultPresetId(): String {
             counter += 1
             return "$METRONOME_PRESET_ID_PREFIX${counter.toString(36)}"

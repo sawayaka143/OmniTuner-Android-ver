@@ -9,11 +9,6 @@ data class ParsedWav(
     override fun hashCode(): Int = samples.contentHashCode()
 }
 
-/**
- * Minimal RIFF/WAVE parser for the bundled guitar samples
- * (PCM format 1, mono, 44.1 kHz, 24-bit). Converts 24-bit PCM to FloatArray
- * in [-1, 1] the same way Web Audio's decodeAudioData does.
- */
 object WavParser {
 
     fun parse(bytes: ByteArray): ParsedWav {

@@ -33,7 +33,6 @@ class MetronomeSchedulerTest {
         assertTrue(transport != null && transport.countIn)
         assertEquals(-1, transport.barIndex)
 
-        // 4/4 @ 60bpm = 4s per bar; step past the count-in bar + start delay
         clock.now += 4.5
         scheduler.tick(MetronomeScheduler.LOOKAHEAD_VISIBLE_S)
 
@@ -68,7 +67,6 @@ class MetronomeSchedulerTest {
         var transport = scheduler.getTransport()
         assertTrue(transport != null && transport.bpm == 100)
 
-        // bar 0 @100, bar 1 @150, bar 2 @200 → ~5.2s; step well past it
         clock.now += 8.2
         scheduler.tick(MetronomeScheduler.LOOKAHEAD_VISIBLE_S)
 
@@ -98,38 +96,33 @@ class MetronomeSchedulerTest {
         val scheduler = configured(clock) { copy(bpm = 60.0) }
 
         scheduler.start(clock.now)
-        clock.now += 2.0 // exactly 2 beats in at 60bpm (spb = 1s)
+        clock.now += 2.0
         scheduler.configure(DEFAULT_METRONOME_STATE.copy(bpm = 120.0))
 
         val transport = scheduler.getTransport()
-        // elapsed beats must survive the tempo change (2.0 beats + start delay offset)
         val expectedElapsedBeats = 0.0 + (2.0 - MetronomeScheduler.START_DELAY_S) / 1.0 + 0.0
-        val barStart = clock.now // re-anchored at now
+        val barStart = clock.now
         assertTrue(transport != null)
         val beatsFromBarStart = (barStart - (clock.now)) / 0.5
         assertEquals(0.0, beatsFromBarStart, 1e-9)
-        // and future events now use the new spb of 0.5s
         val events = scheduler.tick(MetronomeScheduler.LOOKAHEAD_VISIBLE_S)
         assertTrue(events.isNotEmpty())
         scheduler.stop()
-        // sanity: expected elapsed beats is finite
         assertTrue(expectedElapsedBeats > 0)
     }
 
     @Test
     fun barPatternStagingAppliesAtBarBoundary() {
         val clock = FakeClock()
-        val scheduler = configured(clock) { copy(bpm = 600.0) } // 0.1s per beat, 0.4s per bar
+        val scheduler = configured(clock) { copy(bpm = 600.0) }
 
         scheduler.start(clock.now)
-        // flip pattern mid-bar: current bar (index 0) stays audible
         scheduler.configure(DEFAULT_METRONOME_STATE.copy(bpm = 600.0, barPattern = listOf(1, 0)))
 
         val eventsNow = scheduler.tick(MetronomeScheduler.LOOKAHEAD_VISIBLE_S)
         assertEquals(0, scheduler.getTransport()?.patternPos)
         assertTrue(eventsNow.isNotEmpty())
 
-        // cross into bar 1: pattern [1,0] -> muted
         clock.now += 0.5
         scheduler.tick(MetronomeScheduler.LOOKAHEAD_VISIBLE_S)
         assertEquals(1, scheduler.getTransport()?.patternPos)

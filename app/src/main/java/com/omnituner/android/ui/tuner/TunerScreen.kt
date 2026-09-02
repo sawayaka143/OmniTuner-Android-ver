@@ -33,15 +33,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -127,7 +125,6 @@ private data class TuningPreset(
     val notes: List<Int>,
 )
 
-/** E standard guitar (E2 A2 D3 G3 B3 E4) — the starting point for new custom instruments. */
 private val GUITAR_STANDARD_NOTES = listOf(40, 45, 50, 55, 59, 64)
 
 @Composable
@@ -135,7 +132,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     val state by viewModel.ui.collectAsState()
     val context = LocalContext.current
 
-    // Keep the screen on while capturing (web: keep-awake plugin).
     DisposableEffect(state.isCapturing) {
         val window = (context as? Activity)?.window
         if (state.isCapturing) {
@@ -178,7 +174,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
         }
     }
 
-    // Mic mirrors the app lifecycle: capture while the tuner is on screen, stop on pause.
     DisposableEffect(context) {
         val activity = context as? ComponentActivity
         val observer = LifecycleEventObserver { _, event ->
@@ -213,7 +208,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             .padding(16.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
-        // Workbench card (web: .workbench — bordered rounded card, max 480px on phones)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -234,7 +228,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Controls row (web: .tuner-controls — centered instrument selector)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -286,7 +279,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Stage (web: .tuner-stage — centered column)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -296,7 +288,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             ) {
                 TunePrompt(state = state)
 
-                // Needle meter: ±50 cents, 41 ticks, center at index 20
                 PitchMeterCanvas(
                     needlePercent = state.needlePercent.toFloat(),
                     needleColor = needleColor(state) ?: currentWebPalette().needleColor,
@@ -551,7 +542,6 @@ private fun needleColor(state: TunerUiState): Color? {
     if (tuned) return tunedColor(state)
     val hex = state.tuneColorHex ?: return null
     val color = parseHex(hex) ?: return null
-    // Adapt ink for light backgrounds (web: LIGHT_TUNE_INK blend).
     val surfaceLuminance = MaterialTheme.colorScheme.surface.luminance()
     return if (surfaceLuminance > 0.5f) {
         blend(color, LightTuneInk, 0.3f)
@@ -697,46 +687,52 @@ private fun FooterAction(iconRes: Int?, label: String, onClick: () -> Unit) {
 
 @Composable
 private fun StringChips(state: TunerUiState, onSelect: (Int) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(state.strings) { string ->
-            val index = state.strings.indexOf(string)
+    val palette = currentWebPalette()
+    val tuned = tunedColor(state)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        state.strings.forEachIndexed { index, string ->
             val isActive = state.activeString == string.name
-            val isTuned = state.isTuned && isActive
             val inAutoSet = string.name in state.autoTuned
-            AssistChip(
-                onClick = { onSelect(index) },
-                label = { Text(string.name) },
-                leadingIcon = if (inAutoSet || isTuned) {
-                    {
-                        Icon(
-                            painterResource(R.drawable.tabler_check),
-                            contentDescription = null,
-                            tint = tunedColor(state),
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                } else {
-                    null
-                },
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = when {
-                        isTuned -> tunedColor(state).copy(alpha = 0.25f)
-                        isActive -> MaterialTheme.colorScheme.secondaryContainer
-                        else -> MaterialTheme.colorScheme.surface
+            val isTuned = (state.isTuned && isActive) || inAutoSet
+            val background = when {
+                isTuned -> tuned.copy(alpha = 0.25f)
+                isActive -> palette.surfaceHigh
+                else -> palette.surface
+            }
+            val textColor = when {
+                isTuned -> tuned
+                isActive -> palette.text
+                else -> palette.muted
+            }
+            val borderColor = when {
+                isTuned -> tuned.copy(alpha = 0.5f)
+                isActive -> palette.borderActive
+                else -> palette.borderSubtle
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 40.dp)
+                    .clip(CircleShape)
+                    .background(background)
+                    .border(1.dp, borderColor, CircleShape)
+                    .clickable(role = Role.Button) { onSelect(index) }
+                    .semantics {
+                        contentDescription = "String ${string.name}${if (inAutoSet) ", tuned" else ""}"
                     },
-                ),
-                border = AssistChipDefaults.assistChipBorder(
-                    enabled = true,
-                    borderColor = if (isActive) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.outline
-                    },
-                ),
-                modifier = Modifier.semantics {
-                    contentDescription = "String ${string.name}${if (inAutoSet) ", tuned" else ""}"
-                },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = string.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = textColor,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
@@ -759,7 +755,6 @@ private fun PitchMeterCanvas(
         label = "glowAlpha",
     )
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    // Theme-aware tick ink from web tokens --meter-tick-minor/-major.
     val tickColor = currentWebPalette().meterTickMinor
     val majorColor = currentWebPalette().meterTickMajor
 
@@ -784,7 +779,6 @@ private fun PitchMeterCanvas(
             val tickHeightMinor = size.height * 0.18f
             val totalTicks = 41
 
-            // baseline
             drawLine(
                 color = labelColor.copy(alpha = 0.10f),
                 start = Offset(width * 0.02f, centerY),
@@ -810,7 +804,6 @@ private fun PitchMeterCanvas(
                 )
             }
 
-            // needle
             val needleX = width * (needlePercent / 100f).coerceIn(0f, 1f)
             if (glow) {
                 drawCircle(
@@ -833,7 +826,6 @@ private fun PitchMeterCanvas(
                 style = Stroke(width = 3f),
             )
 
-            // numeric labels (web PitchMeter: -50/-25/0/+25/+50 at 0/25/50/75/100%)
             drawIntoCanvas { canvas ->
                 val paint = android.graphics.Paint().apply {
                     isAntiAlias = true
@@ -852,8 +844,6 @@ private fun PitchMeterCanvas(
         }
     }
 }
-
-// ------------------------------------------------------------------- dialogs
 
 @Composable
 private fun TuningEditorDialog(
@@ -918,7 +908,6 @@ private fun TuningEditorDialog(
                     }
                 }
 
-                // Head-stock order: String 1 (highest note) first, low strings below.
                 for (displayIndex in notes.indices) {
                     val noteIndex = notes.lastIndex - displayIndex
                     NoteStepperRow(
@@ -1064,7 +1053,6 @@ private fun InstrumentManagerDialog(
                     IconButton(
                         onClick = {
                             if (stringCount < MAX_STRING_COUNT) {
-                                // Extra strings join on the low end (7-string style), above MIN.
                                 val lowest = notes.firstOrNull() ?: MIN_TUNER_MIDI_NOTE
                                 stringCount += 1
                                 notes = listOf((lowest - 5).coerceAtLeast(MIN_TUNER_MIDI_NOTE)) + notes
@@ -1073,7 +1061,6 @@ private fun InstrumentManagerDialog(
                     ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "More strings") }
                 }
 
-                // Head-stock order: String 1 (highest note) first, low strings below.
                 for (displayIndex in notes.indices) {
                     val noteIndex = notes.lastIndex - displayIndex
                     NoteStepperRow(
@@ -1147,7 +1134,6 @@ private fun NoteStepperRow(
     }
 }
 
-/** String line whose gauge grows toward lower pitches (real string sets: low = thick). */
 @Composable
 private fun StringGauge(midi: Int, modifier: Modifier = Modifier) {
     val lineColor = currentWebPalette().muted

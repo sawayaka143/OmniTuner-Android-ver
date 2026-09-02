@@ -44,10 +44,6 @@ import androidx.compose.ui.unit.sp
 import com.omnituner.android.R
 import com.omnituner.android.ui.theme.currentWebPalette
 
-/**
- * One selectable entry in an expanded WebSelectRow.
- * [alt] renders as trailing muted text, [dotColor] as a leading color dot.
- */
 data class WebSelectOption<T>(
     val value: T,
     val label: String,
@@ -55,11 +51,6 @@ data class WebSelectOption<T>(
     val dotColor: Color? = null,
 )
 
-/**
- * Flat setting group (ChatGPT settings): rounded surface-container-high panel,
- * rows separated by hairline dividers. [dimmed] fades the whole group while
- * another group's row is expanded.
- */
 @Composable
 fun WebSettingGroup(
     modifier: Modifier = Modifier,
@@ -80,7 +71,6 @@ fun WebSettingGroup(
     )
 }
 
-/** Hairline between rows inside a WebSettingGroup. */
 @Composable
 fun WebSettingDivider() {
     HorizontalDivider(
@@ -89,12 +79,6 @@ fun WebSettingDivider() {
     )
 }
 
-/**
- * Flat expandable select row (ChatGPT settings pattern — no popup menus):
- * title + value subtitle + chevron. Tapping expands the options inline,
- * directly below the pressed row; the chevron flips up while expanded.
- * [onExpandedChange] lets the host page fade other content while open.
- */
 @Composable
 fun <T> WebSelectRow(
     label: String,
@@ -237,7 +221,6 @@ fun <T> WebSelectRow(
     }
 }
 
-/** Labeled switch row inside a WebSettingGroup. */
 @Composable
 fun WebToggleRow(
     label: String,

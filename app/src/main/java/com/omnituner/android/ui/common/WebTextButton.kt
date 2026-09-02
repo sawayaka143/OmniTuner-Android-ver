@@ -7,10 +7,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
-/**
- * Web-style text button (web .btn): default text ink instead of the M3
- * accent primary, which is near-invisible on light surfaces.
- */
 @Composable
 fun WebTextButton(
     onClick: () -> Unit,

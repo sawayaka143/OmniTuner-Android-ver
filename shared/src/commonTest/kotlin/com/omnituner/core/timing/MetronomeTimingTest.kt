@@ -31,10 +31,8 @@ class MetronomeTimingTest {
         assertTrue(nineEight.compound)
         assertEquals(3, nineEight.beatsPerBar)
 
-        // 3/8 is compound-ish (numerator % 3 == 0) but numerator < 6 -> simple
         assertFalse(meterModel(3, 8).compound)
 
-        // 6/4: denominator < 8 -> simple
         assertFalse(meterModel(6, 4).compound)
     }
 
@@ -54,7 +52,6 @@ class MetronomeTimingTest {
         )
         val beats = events.map { it.beats }
         assertEquals(beats, beats.sorted())
-        // poly events evenly spread across 2 beats: 0, 2/3, 4/3
         assertTrue(events.any { it.layer == "poly" && abs(it.beats - 2.0 / 3.0) < 1e-9 })
         assertEquals("downbeat", events.first { it.beats == 0.0 && it.layer == "meter" }.role)
         assertTrue(events.any { it.layer == "poly" && it.role == "polyAccent" })
@@ -114,7 +111,6 @@ class MetronomeTimingTest {
         assertNull(tapBpm(listOf(50.0, 3000.0)))
         assertEquals(120.0, tapBpm(listOf(500.0, 500.0, 500.0))!!, 1e-9)
         assertEquals(150.0, tapBpm(listOf(400.0))!!, 1e-9)
-        // resets handled by caller: invalid gaps filtered
         assertEquals(120.0, tapBpm(listOf(119.0, 500.0, 2500.1, 500.0))!!, 1e-9)
     }
 

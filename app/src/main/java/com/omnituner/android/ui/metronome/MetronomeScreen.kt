@@ -84,7 +84,6 @@ fun MetronomeScreen(
 
     var showPresetDialog by remember { mutableStateOf(false) }
     var presetName by remember { mutableStateOf("") }
-    // Bar-mute controls are a collapsed disclosure; the pattern keeps applying while hidden.
     var showBarPattern by rememberSaveable { mutableStateOf(false) }
     val tapTempo = rememberTapTempo(viewModel::setBpm)
 
@@ -95,7 +94,6 @@ fun MetronomeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Transport header
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -173,9 +171,13 @@ fun MetronomeScreen(
             }
         }
 
-        // BPM controls
         WebCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text("Tempo", style = MaterialTheme.typography.titleMedium)
                 BpmDial(
                     bpm = metronome.bpm,
@@ -186,7 +188,6 @@ fun MetronomeScreen(
             }
         }
 
-        // Meter
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Meter", style = MaterialTheme.typography.titleMedium)
@@ -245,7 +246,6 @@ fun MetronomeScreen(
             }
         }
 
-        // Bar pattern
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -275,7 +275,6 @@ fun MetronomeScreen(
                             }
                         },
                     )
-                    // 16 pads; tapping pad 1..n sets pattern length, toggling beyond truncates
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items((1..16).toList()) { bar ->
                             val active = metronome.barPattern.getOrNull(bar - 1) == 1
@@ -316,7 +315,6 @@ fun MetronomeScreen(
             }
         }
 
-        // Polyrhythm
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -347,7 +345,6 @@ fun MetronomeScreen(
             }
         }
 
-        // Sounds
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sounds", style = MaterialTheme.typography.titleMedium)
@@ -386,7 +383,6 @@ fun MetronomeScreen(
             }
         }
 
-        // Count-in + ramp
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -423,7 +419,6 @@ fun MetronomeScreen(
             }
         }
 
-        // Presets
         WebCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
@@ -487,7 +482,6 @@ fun MetronomeScreen(
     }
 }
 
-/** Tap-tempo interval collection (2s timeout, last 6 taps), fired from the dial's center button. */
 @Composable
 private fun rememberTapTempo(onBpm: (Double) -> Unit): () -> Unit {
     val taps = remember { mutableStateListOf<Long>() }

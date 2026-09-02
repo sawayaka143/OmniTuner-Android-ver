@@ -13,10 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/**
- * Web-style card (web .workbench/.panel): surface-container-low background,
- * subtle border, 8dp radius. Content supplies its own padding/arrangement.
- */
 @Composable
 fun WebCard(
     modifier: Modifier = Modifier,
@@ -34,7 +30,6 @@ fun WebCard(
     }
 }
 
-/** WebCard with the standard section padding/spacing used across screens. */
 @Composable
 fun SectionCard(content: @Composable () -> Unit) {
     WebCard(modifier = Modifier.fillMaxWidth()) {

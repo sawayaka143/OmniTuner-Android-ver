@@ -66,10 +66,6 @@ private val OUT_OF_TUNE_SWATCHES = listOf(
     "#7ecba8" to "Sage",
 )
 
-/** Full-screen settings page (ChatGPT pattern): pushed as a nav route that
- *  slides in from the right; a floating back button overlaps the content and
- *  everything scrolls away under a top fade. Rows are flat and grouped; an
- *  expanded select fades the other groups. */
 @Composable
 internal fun SettingsScreen(
     themeMode: String,
@@ -140,7 +136,6 @@ internal fun SettingsScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                     WebSettingDivider()
-                    // Hold time: smooth track, snapped to the 50 ms step in code
                     SettingSliderRow(
                         label = "Hold to confirm",
                         valueText = "${state.inTune.holdMs} ms",
@@ -200,7 +195,6 @@ internal fun SettingsScreen(
             }
         }
 
-        // Content scrolling out the top fades away under the floating back button
         Box(
             modifier = Modifier
                 .fillMaxWidth()

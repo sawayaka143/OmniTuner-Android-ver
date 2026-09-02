@@ -184,18 +184,15 @@ class ChordTheoryTest {
         assertTrue(badge != null && badge.kind == "good")
         assertTrue(badge.text.contains("V"))
 
-        // F#m is not diatonic to C Ionian -> chromatic
         val fsm = chord("F#m")
         val bad = computeBadgeForPc(fsm, 0, ModeName.Ionian, false, false)
         assertTrue(bad != null && bad.kind == "bad")
 
-        // Em (minor) is the diatonic iii in C Ionian
         val em = chord("Em")
         val good = computeBadgeForPc(em, 0, ModeName.Ionian, false, false)
         assertTrue(good != null && good.kind == "good")
         assertTrue(good.text.contains("iii"))
 
-        // E major is borrowed in C Ionian (mode expects min on iii)
         val e = chord("E")
         val warn = computeBadgeForPc(e, 0, ModeName.Ionian, false, false)
         assertTrue(warn != null && warn.kind == "warn")

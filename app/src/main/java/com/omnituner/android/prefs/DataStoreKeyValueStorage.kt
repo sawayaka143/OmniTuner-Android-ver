@@ -12,13 +12,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Synchronous facade over DataStore for the shared preference schemas.
- * Reads are served from an in-memory mirror (hydrated once); writes update the
- * mirror immediately and persist through a single ordered writer so successive
- * setItem calls reach disk in call order (DataStore edits launched directly on a
- * multi-threaded dispatcher can otherwise land out of order and lose updates).
- */
 class DataStoreKeyValueStorage(
     private val dataStore: DataStore<Preferences>,
     private val scope: CoroutineScope,

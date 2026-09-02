@@ -9,12 +9,6 @@ import com.omnituner.core.data.GuitarSample
 import com.omnituner.core.data.guitarSamplePlaybackRate
 import com.omnituner.core.data.nearestGuitarSample
 
-/**
- * Guitar sample playback: decodes the bundled 24-bit WAVs via the shared
- * [WavParser], caches the decoded float buffers and plays with a playback-rate
- * shift (the AudioTrack equivalent of AudioBufferSourceNode.playbackRate).
- * Falls back to the triangle synth when a sample is unavailable.
- */
 class GuitarSamplePlayer(private val context: Context) {
 
     private val cache = mutableMapOf<String, DecodedSample>()
@@ -31,10 +25,6 @@ class GuitarSamplePlayer(private val context: Context) {
 
     fun hasSample(midi: Int): Boolean = nearestGuitarSample(midi) != null
 
-    /**
-     * Plays the nearest sample for [midi]; returns false when the caller should
-     * fall back to the synth note.
-     */
     fun playSampleNote(midi: Int, durationSeconds: Double = defaultDuration()): Boolean {
         val sample = nearestGuitarSample(midi) ?: return false
         val decoded = load(sample) ?: return false

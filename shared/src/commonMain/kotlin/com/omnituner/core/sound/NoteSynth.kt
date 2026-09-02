@@ -6,12 +6,6 @@ import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sin
 
-/**
- * Pure PCM renderers for scale playback, mirroring scale-playback.ts:
- * triangle osc -> lowpass 2600 Hz -> envelope (12 ms attack to 0.22,
- * exponential decay, min duration 0.08 s). The in-tune chime is
- * A4 (0.12 s, 0.65) + E5 (+60 ms, 0.08 s, 0.7).
- */
 object NoteSynth {
 
     const val ATTACK_SECONDS = 0.012
@@ -73,7 +67,6 @@ object NoteSynth {
         return FloatArray(total) { out[it].toFloat() }
     }
 
-    /** 14 ms linear attack, exponential decay to 0.0001, no lowpass (chime path). */
     private fun renderPlainTone(
         frequency: Double,
         sampleRate: Double,

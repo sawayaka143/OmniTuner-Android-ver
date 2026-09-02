@@ -127,7 +127,6 @@ class ScalesViewModel(
         val tuning = registry.selectedTuning()
         val openMidi = tuning.strings.map { string ->
             parseNote(string.name)?.let { pc -> pc } ?: run {
-                // derive pitch class from frequency when the label is unusual
                 val midi = com.omnituner.core.audio.frequencyToMidiNote(string.freq) ?: 69
                 ((midi % 12) + 12) % 12
             }

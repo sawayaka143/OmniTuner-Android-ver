@@ -1,9 +1,5 @@
 package com.omnituner.core.prefs
 
-/**
- * Minimal storage abstraction so the preference schemas stay platform-free.
- * Android binds this to DataStore-backed preferences; tests use an in-memory map.
- */
 interface KeyValueStorage {
     fun getItem(key: String): String?
     fun setItem(key: String, value: String)

@@ -24,11 +24,6 @@ data class TransportSnapshot(
     val bpm: Int,
 )
 
-/**
- * Pure port of the metronome-audio.service.ts scheduling state machine.
- * The platform engine (AudioTrack on Android) drives the clock, consumes
- * [tick] events and owns gain/compressor rendering; all grid math lives here.
- */
 class MetronomeScheduler(
     private val clock: () -> Double,
 ) {
@@ -128,10 +123,6 @@ class MetronomeScheduler(
         )
     }
 
-    /**
-     * Schedules events up to `lookaheadSeconds` ahead of the current clock time.
-     * Returns the sounds the platform engine must write into its timeline.
-     */
     fun tick(lookaheadSeconds: Double, now: Double = clock()): List<ScheduledSound> {
         if (!isPlaying) return emptyList()
         val horizon = now + lookaheadSeconds

@@ -40,8 +40,6 @@ class BiquadFilterTest {
 
     @Test
     fun highpassAlphaUsesWebAudioDbSemantics() {
-        // Web Audio: alpha = sin(w0) / (2 * 10^(Q/20)).
-        // A classic DSP book would treat Q=0.7 as linear -> alpha = 3.5529e-3. Must NOT be that.
         val filter = BiquadFilter()
         filter.setHighpass(48000.0, 38.0, 0.7)
         assertEquals(2.294456e-3, filter.rawAlpha, 1e-6)
@@ -116,8 +114,6 @@ class BiquadFilterTest {
 
     @Test
     fun chunkedProcessingMatchesSinglePass() {
-        // Web Audio BiquadFilterNode keeps state for the life of the stream: feeding
-        // the same signal in 2048-sample chunks must equal one continuous pass.
         val signal = tone(440.0, 0.5)
 
         val single = BiquadFilter()
@@ -138,7 +134,6 @@ class BiquadFilterTest {
             offset += len
         }
 
-        // Skip the filter's startup transient; the tails must agree bit-for-bit in theory.
         for (i in signal.size - 256 until signal.size) {
             assertEquals(whole[i], piecewise[i], 1e-4f)
         }

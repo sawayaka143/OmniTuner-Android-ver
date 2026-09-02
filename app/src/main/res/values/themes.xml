@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Launch theme pre-Compose. Colors mirror web tokens (tests/styles/styles.scss):
-  windowBackground = canvas token, light block.
--->
 <resources>
 
     <style name="Theme.OmniTuner" parent="android:Theme.Material.Light.NoActionBar">

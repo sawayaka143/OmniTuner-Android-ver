@@ -6,10 +6,6 @@ import android.media.AudioTrack
 import com.omnituner.core.sound.NoteSynth
 import java.util.concurrent.Executors
 
-/**
- * One-shot AudioTrack player for the note synth and the in-tune chime.
- * Sample playback (guitar WAVs) is added in M5; this covers the synth paths.
- */
 class NotePlayer {
 
     private val releaseExecutor = Executors.newSingleThreadExecutor { runnable ->

@@ -169,7 +169,6 @@ class InstrumentRegistryTest {
         val registry = InstrumentRegistry(storage)
         assertEquals(1, registry.tuningsForInstrument("guitar").size)
         assertEquals("Legacy", registry.tuningsForInstrument("guitar")[0].name)
-        // migration persisted to the new key
         assertTrue(storage.getItem(INSTRUMENT_REGISTRY_STORAGE_KEY) != null)
     }
 
@@ -217,8 +216,6 @@ class InstrumentRegistryTest {
         val registry = InstrumentRegistry(storage)
         val instrument = registry.createInstrument("Weird", 4, listOf(40, 45, 50, 55))
 
-        // Persisted selection points at a tuning id that no longer exists while the
-        // selected instrument is custom: the fallback must resolve to its DEFAULT tuning.
         storage.setItem(
             INSTRUMENT_REGISTRY_STORAGE_KEY,
             """{"version":1,""" +

@@ -21,7 +21,6 @@ class DynamicsCompressorTest {
         val inRms = DynamicsCompressor.rms(buffer)
         compressor.processInPlace(buffer)
         val outRms = DynamicsCompressor.rms(buffer)
-        // -14 dB peak is below the -10 dB threshold: no gain reduction
         assertEquals(inRms, outRms, inRms * 0.05)
     }
 
@@ -32,8 +31,6 @@ class DynamicsCompressorTest {
         val inRms = DynamicsCompressor.rms(buffer)
         compressor.processInPlace(buffer)
         val outRms = DynamicsCompressor.rms(buffer)
-        // detector sits ~2 dB over the -10 dB threshold with ratio 4:
-        // expect moderate gain reduction, not silence
         assertTrue(outRms < inRms * 0.75, "out=$outRms in=$inRms")
         assertTrue(outRms > 0.1, "out=$outRms")
     }

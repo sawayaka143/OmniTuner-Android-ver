@@ -41,7 +41,7 @@ class WavParserTest {
         writeAscii("WAVE")
         writeAscii("fmt ")
         writeInt32(16)
-        writeInt16(1) // PCM
+        writeInt16(1)
         writeInt16(channels)
         writeInt32(sampleRate)
         writeInt32(sampleRate * channels * bytesPerSample)

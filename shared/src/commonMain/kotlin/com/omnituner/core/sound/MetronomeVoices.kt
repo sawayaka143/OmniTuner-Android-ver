@@ -12,14 +12,8 @@ data class MetronomeVoiceOption(
     val label: String,
 )
 
-/**
- * PCM renderers for the 10 metronome voices, mirroring metronome-sounds.ts.
- * All voices are sample-rate aware and render full event buffers so the native
- * engine can pre-write them into a timeline (the look-ahead equivalent).
- */
 object MetronomeVoices {
 
-    /** Small inaudible guard tail after the envelope reaches its floor. */
     const val TAIL_SECONDS = 0.02
 
     const val MIN_VELOCITY = 0.0001
@@ -147,7 +141,6 @@ object MetronomeVoices {
         is Cowbell -> 0.22 + TAIL_SECONDS
     }
 
-    /** Web Audio exponentialRamp: v(t) = a * (b/a)^(t/d). */
     private fun expRamp(a: Double, b: Double, t: Double, d: Double): Double {
         if (t <= 0) return a
         if (t >= d) return b
@@ -207,9 +200,6 @@ object MetronomeVoices {
         var y1 = 0.0
         var y2 = 0.0
 
-        // The web caches a 1 s white-noise buffer per context and loops it; all
-        // metronome noise hits are shorter than 1 s, so streaming fresh seeded
-        // noise is behaviorally identical here while staying deterministic.
         val random = layer.random
 
         for (i in 0 until n) {

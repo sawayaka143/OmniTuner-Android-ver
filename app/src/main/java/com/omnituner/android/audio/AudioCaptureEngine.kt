@@ -74,7 +74,6 @@ class AudioCaptureEngine(private val context: Context) {
 
         highpass.setHighpass(SAMPLE_RATE.toDouble(), 38.0, 0.7)
         lowpass.setLowpass(SAMPLE_RATE.toDouble(), 1250.0, 0.7)
-        // A fresh AudioContext starts with clean filter state; mirror that per capture.
         highpass.reset()
         lowpass.reset()
 
@@ -135,7 +134,6 @@ class AudioCaptureEngine(private val context: Context) {
                 for (i in 0 until read) {
                     chunkFloat[i] = shortChunk[i] / 32768.0f
                 }
-                // Filters run continuously across chunks, like the web node chain.
                 highpass.process(chunkFloat, filterScratch, read)
                 lowpass.process(filterScratch, chunkFloat, read)
                 for (i in 0 until read) {

@@ -119,7 +119,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     fun uiState(): TunerUiState = _ui.value
 
-    /** Returns null when capture started, or a user-facing error string. */
     fun startCapture(): String? {
         val error = engine.start { frequency, _, trackingState ->
             analysis.value = Analysis(frequency, trackingState.name.lowercase(), true)
@@ -187,9 +186,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         rebuildUi()
     }
 
-    // ------------------------------------------------- custom tunings/instruments
-
-    /** Returns null on success, or a validation error message for the editor. */
     fun saveCustomTuning(editingId: String?, name: String, notes: List<Int>): String? =
         trapValidation {
             val tuning = if (editingId != null) {
@@ -208,7 +204,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         rebuildUi()
     }
 
-    /** Returns null on success, or a validation error message for the manager. */
     fun saveCustomInstrument(
         editingId: String?,
         name: String,
@@ -238,14 +233,11 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         e.message
     }
 
-    // --------------------------------------------------------- settings passthrough
-
     fun setReferencePitch(value: Double) {
         prefs.setReferencePitch(value)
         rebuildUi()
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeReferencePitch(delta: Int) {
         val current = prefs.tunerSettings.value.referencePitch
         prefs.setReferencePitch(current.toDouble() + delta)
@@ -277,7 +269,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         rebuildUi()
     }
 
-    /** Delta-based change; resolves the current value at call time (hold-repeat safe). */
     fun changeInTuneTolerance(delta: Int) {
         val current = prefs.tunerSettings.value.inTune.tolerance
         prefs.setInTuneTolerance(current.toDouble() + delta)
@@ -311,8 +302,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         rebuildUi()
     }
 
-    // ---------------------------------------------------------------- internals
-
     private fun currentStrings(): List<NamedFrequency> =
         registry.selectedTuning().strings
 
@@ -328,7 +317,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         if (freq <= 0) return null
         val played = frequencyToMidiFloat(freq, refPitch()) ?: return null
         val target = nearestStringTarget(played, currentStrings(), lastAutoTargetName)
-        // Web effect: remember the target while locked so hysteresis sticks.
         if (target != null && analysis.value.trackingState == "locked" &&
             target.name != lastAutoTargetName
         ) {
@@ -390,7 +378,6 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         lastAutoTargetName = null
     }
 
-    /** Direct port of the audio-monitor hold/release/confirm effect. */
     private fun evaluateHold() {
         val state = analysis.value.trackingState
         if (state != "locked") {

@@ -39,7 +39,6 @@ class MetronomeVoicesTest {
     @Test
     fun beepHiRingsAtExpectedFrequency() {
         val buffer = MetronomeVoices.render("beep-hi", sampleRate, 1.0, Random(2))
-        // 1760 Hz for 0.05s = 2400 cycles/s * 0.05 = 88 cycles; count sign changes ~ 176 per direction
         var crossings = 0
         for (i in 1 until buffer.size) {
             if ((buffer[i - 1] < 0 && buffer[i] >= 0)) crossings++
@@ -55,7 +54,6 @@ class MetronomeVoicesTest {
         val peak = buffer.max()
         assertTrue(peak <= 1.0 + 1e-3, "peak $peak")
         assertTrue(peak > 0.9, "peak $peak")
-        // tail is at the envelope floor
         val tail = buffer[buffer.size - 1].toDouble()
         assertTrue(abs(tail) <= 0.001, "tail $tail")
     }
@@ -75,7 +73,6 @@ class MetronomeVoicesTest {
         val cowbell = MetronomeVoices.render("cowbell", sampleRate, 1.0, Random(4))
         val beep = MetronomeVoices.render("beep-hi", sampleRate, 1.0, Random(4))
         assertTrue(cowbell.size > beep.size * 2)
-        // 0.22s stop vs 0.05 + tail
         assertTrue(cowbell.size / sampleRate > 0.22)
     }
 
@@ -92,7 +89,6 @@ class MetronomeVoicesTest {
     fun lowVelocityRendersQuietly() {
         val loud = MetronomeVoices.render("click", sampleRate, 1.0, Random(6))
         val quiet = MetronomeVoices.render("click", sampleRate, 0.1, Random(6))
-        // envelope scales with velocity: max ratio ~ 0.1 (clamped floor aside)
         val loudPeak = loud.map { abs(it) }.max()
         val quietPeak = quiet.map { abs(it) }.max()
         assertTrue(quietPeak < loudPeak * 0.25)
@@ -113,10 +109,8 @@ class NoteSynthTest {
     fun renderNoteMatchesEnvelopeSpec() {
         val buffer = NoteSynth.renderNote(69, sampleRate, 0.3)
         val peak = buffer.map { abs(it) }.max()
-        // 12 ms attack to 0.22, then decay; lowpass only reduces amplitude slightly at A4
         assertTrue(peak in 0.15..0.23, "peak $peak")
 
-        // attack ramp: first sample ~ 0
         assertTrue(abs(buffer[0].toDouble()) < 0.01)
     }
 
@@ -124,7 +118,6 @@ class NoteSynthTest {
     fun chimeTonesMatchWebConstants() {
         val tones = NoteSynth.chimeTones()
         assertEquals(2, tones.size)
-        // A4 then E5 60ms later
         assertEquals(NoteSynth.midiToFrequency(69), tones[0].frequency, 1e-9)
         assertEquals(NoteSynth.midiToFrequency(76), tones[1].frequency, 1e-9)
         assertEquals(0.06, tones[1].startSeconds, 1e-12)
