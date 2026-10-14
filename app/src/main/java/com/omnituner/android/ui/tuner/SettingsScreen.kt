@@ -46,6 +46,7 @@ import com.omnituner.android.ui.theme.LocalDarkTheme
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentColors
+import com.omnituner.android.ui.theme.accentSliderColors
 import com.omnituner.android.ui.theme.wallpaperAccentAvailable
 import kotlin.math.roundToInt
 
@@ -106,6 +107,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 headlineContent = { Text("Hold to confirm") },
                 supportingContent = {
                     Slider(
+                        colors = accentSliderColors(),
                         value = tuner.holdMs.toFloat(),
                         onValueChange = { raw ->
                             viewModel.setHoldMs((raw / HOLD_MS_STEP).roundToInt() * HOLD_MS_STEP)

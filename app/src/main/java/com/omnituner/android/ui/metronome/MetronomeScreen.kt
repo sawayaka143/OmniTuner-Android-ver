@@ -60,6 +60,8 @@ import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.SmoothShape
+import com.omnituner.android.ui.theme.accentSliderColors
+import com.omnituner.android.ui.theme.accentSwitchColors
 import com.omnituner.core.metronome.BPM_MAX
 import com.omnituner.core.metronome.BPM_MIN
 import com.omnituner.core.metronome.DENOMINATORS
@@ -137,6 +139,7 @@ private fun TempoCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onTap
                     Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Slider(
+                    colors = accentSliderColors(),
                     value = metronome.bpm.toFloat(),
                     onValueChange = { viewModel.setBpm(it.toDouble()) },
                     valueRange = BPM_MIN.toFloat()..BPM_MAX.toFloat(),
@@ -292,7 +295,7 @@ private fun PatternCard(metronome: MetronomeState, viewModel: MetronomeViewModel
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Bar mute pattern", style = MaterialTheme.typography.titleMedium)
-                Switch(checked = expanded, onCheckedChange = { expanded = it })
+                Switch(checked = expanded, onCheckedChange = { expanded = it }, colors = accentSwitchColors())
             }
             if (expanded) {
                 PickerRow(
@@ -393,6 +396,7 @@ private fun SoundsCard(metronome: MetronomeState, viewModel: MetronomeViewModel)
                 Text("Master volume", style = MaterialTheme.typography.bodyLarge)
             }
             Slider(
+                colors = accentSliderColors(),
                 value = metronome.masterVol.toFloat(),
                 onValueChange = { viewModel.setMasterVolume(it.toDouble()) },
                 valueRange = 0f..1f,

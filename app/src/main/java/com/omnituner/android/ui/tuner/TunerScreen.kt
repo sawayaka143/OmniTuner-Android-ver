@@ -50,7 +50,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -90,6 +89,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.SmoothShape
+import com.omnituner.android.ui.theme.accentSwitchColors
 import com.omnituner.core.audio.hzDisplay
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
@@ -402,17 +402,7 @@ private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifie
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text = "Auto", style = MaterialTheme.typography.labelLarge)
-        val accent = LocalAccentColors.current
-        Switch(
-            checked = auto,
-            onCheckedChange = null,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = accent.accent,
-                checkedThumbColor = accent.onAccent,
-                checkedBorderColor = accent.accent,
-                checkedIconColor = accent.accent,
-            ),
-        )
+        Switch(checked = auto, onCheckedChange = null, colors = accentSwitchColors())
     }
 }
 

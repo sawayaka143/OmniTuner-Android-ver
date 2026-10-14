@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import com.omnituner.android.ui.theme.accentSwitchColors
 
 @Composable
 fun SwitchRow(
@@ -20,7 +21,7 @@ fun SwitchRow(
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         headlineContent = { Text(headline) },
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null, colors = accentSwitchColors()) },
         modifier = modifier.toggleable(
             value = checked,
             role = Role.Switch,
