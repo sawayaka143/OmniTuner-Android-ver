@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -89,6 +88,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
 import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.audio.hzDisplay
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
@@ -268,11 +268,11 @@ private fun TuningMenu(
     Box(modifier = modifier) {
         Surface(
             onClick = { expanded = true },
-            shape = MaterialTheme.shapes.large,
+            shape = TuningMenuShape,
             color = Color.Transparent,
         ) {
             Row(
-                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f, fill = false)) {
@@ -431,6 +431,13 @@ private fun animatedTuneColors(state: TunerUiState): TuneColors {
     )
 }
 
+private val PanelCorner = 32.dp
+private val PanelHeaderInset = 12.dp
+
+// Concentric with the panel: inner radius = panel radius - inset, so the menu's press highlight
+// follows the panel's corner at an even distance instead of bulging into it.
+private val TuningMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
+
 @Composable
 private fun TunerPanel(
     state: TunerUiState,
@@ -451,7 +458,7 @@ private fun TunerPanel(
     val colors = animatedTuneColors(state)
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(32.dp),
+        shape = SmoothShape(PanelCorner),
         color = colors.container,
         contentColor = colors.content,
     ) {
@@ -459,7 +466,7 @@ private fun TunerPanel(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 8.dp, end = 12.dp, top = 8.dp),
+                    .padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -741,7 +748,7 @@ private fun StringButton(
         modifier = modifier
             .height(56.dp)
             .semantics { if (tuned) stateDescription = "In tune" },
-        shape = RoundedCornerShape(corner),
+        shape = SmoothShape(corner),
         color = container,
         contentColor = content,
     ) {

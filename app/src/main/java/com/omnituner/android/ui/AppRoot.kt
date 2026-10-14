@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -71,6 +70,7 @@ import com.omnituner.android.ui.metronome.MetronomeScreen
 import com.omnituner.android.ui.scales.ScalesScreen
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalNavBarColors
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.tuner.SettingsScreen
 import com.omnituner.android.ui.tuner.TunerScreen
 
@@ -184,7 +184,7 @@ private const val IconSettleDamping = 0.6f
 
 private val TabHeight = 64.dp
 private val TabInset = 4.dp
-private val TabShape = RoundedCornerShape(20.dp)
+private val TabShape = SmoothShape.Full
 
 // Stock NavigationBarItem only puts its indicator behind the icon; here one pill covers icon and
 // label and slides between the equal-width tabs instead of each tab fading its own.
