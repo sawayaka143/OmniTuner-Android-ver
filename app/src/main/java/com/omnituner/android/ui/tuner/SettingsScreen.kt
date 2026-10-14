@@ -1,11 +1,17 @@
 package com.omnituner.android.ui.tuner
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.ListItem
@@ -18,9 +24,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.HOLD_MS_RANGE
 import com.omnituner.android.data.HOLD_MS_STEP
 import com.omnituner.android.data.StartupMode
@@ -30,6 +39,9 @@ import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.SwitchRow
+import com.omnituner.android.ui.theme.LocalDarkTheme
+import com.omnituner.android.ui.theme.accentColors
+import com.omnituner.android.ui.theme.wallpaperAccentAvailable
 import kotlin.math.roundToInt
 
 private val themeChoices = listOf(
@@ -46,7 +58,7 @@ private val startupChoices = listOf(
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
-    val theme by viewModel.theme.collectAsState()
+    val appearance by viewModel.appearance.collectAsState()
     val tuner by viewModel.tuner.collectAsState()
 
     Column(
@@ -58,10 +70,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         SettingsSection(title = "Appearance") {
             ChoiceRow(
                 headline = "Theme",
-                selected = theme,
+                selected = appearance.themeMode,
                 choices = themeChoices,
                 onSelect = viewModel::setTheme,
             )
+            AccentRow(selected = appearance.accent, onSelect = viewModel::setAccent)
         }
 
         SettingsSection(title = "Tuner") {
@@ -125,7 +138,7 @@ private fun SettingsSection(title: String, content: @Composable ColumnScope.() -
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
         )
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -157,6 +170,52 @@ private fun <T> ChoiceRow(
                 open = false
             },
             onDismiss = { open = false },
+        )
+    }
+}
+
+private fun AccentColor.label(): String = when (this) {
+    AccentColor.Wallpaper -> "Match wallpaper"
+    else -> name
+}
+
+@Composable
+private fun AccentDot(accent: AccentColor) {
+    val color = accentColors(accent, LocalDarkTheme.current).accent
+    Box(
+        modifier = Modifier
+            .padding(end = 12.dp)
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(color),
+    )
+}
+
+@Composable
+private fun AccentRow(selected: AccentColor, onSelect: (AccentColor) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val options = AccentColor.entries.filter { it != AccentColor.Wallpaper || wallpaperAccentAvailable }
+    ListItem(
+        headlineContent = { Text("Accent color") },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AccentDot(selected)
+                Text(selected.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        modifier = Modifier.clickable { open = true },
+    )
+    if (open) {
+        OptionSheet(
+            title = "Accent color",
+            options = options.map { PickerOption(it, it.label()) },
+            selected = selected,
+            onSelect = { choice ->
+                onSelect(choice)
+                open = false
+            },
+            onDismiss = { open = false },
+            trailing = { accent -> AccentDot(accent) },
         )
     }
 }

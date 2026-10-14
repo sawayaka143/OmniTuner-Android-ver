@@ -7,13 +7,29 @@ import kotlinx.coroutines.CoroutineScope
 
 enum class ThemeMode { System, Light, Dark }
 
-private val themeKey = stringPreferencesKey("theme")
+enum class AccentColor { Wallpaper, Blue, Cyan, Green, Lime, Yellow, Orange, Pink, Black }
 
-internal fun themeStore(dataStore: DataStore<Preferences>, scope: CoroutineScope): SettingsStore<ThemeMode> =
+data class AppearanceSettings(
+    val themeMode: ThemeMode = ThemeMode.System,
+    val accent: AccentColor = AccentColor.Wallpaper,
+)
+
+private val themeKey = stringPreferencesKey("theme")
+private val accentKey = stringPreferencesKey("theme.accent")
+
+internal fun appearanceStore(dataStore: DataStore<Preferences>, scope: CoroutineScope): SettingsStore<AppearanceSettings> =
     SettingsStore(
         dataStore = dataStore,
         scope = scope,
-        defaultValue = ThemeMode.System,
-        read = { prefs -> prefs.enumOr(themeKey, ThemeMode.System) },
-        write = { prefs, mode -> prefs[themeKey] = mode.name },
+        defaultValue = AppearanceSettings(),
+        read = { prefs ->
+            AppearanceSettings(
+                themeMode = prefs.enumOr(themeKey, ThemeMode.System),
+                accent = prefs.enumOr(accentKey, AccentColor.Wallpaper),
+            )
+        },
+        write = { prefs, settings ->
+            prefs[themeKey] = settings.themeMode.name
+            prefs[accentKey] = settings.accent.name
+        },
     )

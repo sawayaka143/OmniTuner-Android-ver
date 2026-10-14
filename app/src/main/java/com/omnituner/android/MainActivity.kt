@@ -15,8 +15,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val container = (application as OmniTunerApp).container
         setContent {
-            val themeMode by container.theme.flow.collectAsState()
-            OmniTunerTheme(themeMode = themeMode) {
+            val appearance by container.appearance.flow.collectAsState()
+            OmniTunerTheme(themeMode = appearance.themeMode, accent = appearance.accent) {
                 AppRoot()
             }
         }

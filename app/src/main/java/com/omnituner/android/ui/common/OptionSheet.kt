@@ -66,7 +66,7 @@ fun <T> OptionSheet(
                         Text(
                             text = section,
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                         )
                     }

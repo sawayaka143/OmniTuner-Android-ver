@@ -21,8 +21,9 @@
 
 ## Colors & theme
 
-- **Colors come only from `MaterialTheme.colorScheme`** (dynamic color on Android 12+, otherwise the M3 defaults). Do not add hex values or hand-built palettes to screens or to the theme.
-- Semantic roles: in-tune = `primary`, out-of-tune = `error`, good/valid = `tertiary`, warning = `secondary`.
+- **Minimal accent.** `MaterialTheme.colorScheme` is a neutral grey scheme (`ui/theme/Theme.kt`), so stock components render black/white. The user's accent (Settings → Accent color: match wallpaper by default, or a preset) lives in `LocalAccentColors` and is used only where it carries meaning: the tuner needle, the in-tune note, the tuner's Auto switch and the active/tuned string chips. Do not spread it to other chrome.
+- Hex values live only in `ui/theme/Theme.kt`. Screens read `MaterialTheme.colorScheme` or `LocalAccentColors`.
+- Semantic roles: in-tune = accent, out-of-tune = `error`, good/valid = `tertiary`.
 
 ## Typography & icons
 

@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
+import com.omnituner.android.data.AccentColor
+import com.omnituner.android.data.AppearanceSettings
 import com.omnituner.android.data.HOLD_MS_RANGE
 import com.omnituner.android.data.REFERENCE_PITCH_RANGE
 import com.omnituner.android.data.StartupMode
@@ -17,11 +19,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val container = (application as OmniTunerApp).container
 
-    val theme: StateFlow<ThemeMode> = container.theme.flow
+    val appearance: StateFlow<AppearanceSettings> = container.appearance.flow
     val tuner: StateFlow<TunerSettings> = container.tuner.flow
 
     fun setTheme(mode: ThemeMode) {
-        viewModelScope.launch { container.theme.update { mode } }
+        viewModelScope.launch { container.appearance.update { it.copy(themeMode = mode) } }
+    }
+
+    fun setAccent(accent: AccentColor) {
+        viewModelScope.launch { container.appearance.update { it.copy(accent = accent) } }
     }
 
     fun setStartupMode(mode: StartupMode) {

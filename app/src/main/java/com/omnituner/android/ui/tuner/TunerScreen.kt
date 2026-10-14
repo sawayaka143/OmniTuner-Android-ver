@@ -51,6 +51,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -64,8 +65,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -87,9 +88,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
+import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.core.audio.hzDisplay
 import com.omnituner.core.audio.midiNoteLabel
-import com.omnituner.core.audio.tuneColorProgress
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.Tuning
 import kotlin.math.roundToInt
@@ -300,7 +301,7 @@ private fun TuningMenu(
                 Text(
                     text = entry.instrument.menuTitle(),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 entry.tunings.forEach { tuning ->
@@ -396,33 +397,37 @@ private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifie
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text = "Auto", style = MaterialTheme.typography.labelLarge)
-        Switch(checked = auto, onCheckedChange = null)
+        val accent = LocalAccentColors.current
+        Switch(
+            checked = auto,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = accent.accent,
+                checkedThumbColor = accent.onAccent,
+                checkedBorderColor = accent.accent,
+                checkedIconColor = accent.accent,
+            ),
+        )
     }
 }
 
-private class TuneColors(val container: Color, val content: Color, val accent: Color)
+private class TuneColors(val container: Color, val content: Color, val note: Color, val needle: Color)
 
 @Composable
 private fun animatedTuneColors(state: TunerUiState): TuneColors {
     val scheme = MaterialTheme.colorScheme
-    val cents = state.cents
-    val target = when {
-        state.tuned -> TuneColors(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.primary)
-        cents == null -> TuneColors(scheme.surfaceContainerHigh, scheme.onSurfaceVariant, scheme.onSurface)
-        else -> {
-            val progress = tuneColorProgress(cents, state.tolerance.toDouble()).toFloat()
-            TuneColors(
-                container = lerp(scheme.errorContainer, scheme.primaryContainer, progress),
-                content = lerp(scheme.onErrorContainer, scheme.onPrimaryContainer, progress),
-                accent = lerp(scheme.error, scheme.primary, progress),
-            )
-        }
-    }
-    val spec = spring<Color>(stiffness = Spring.StiffnessLow)
-    val container by animateColorAsState(target.container, spec, label = "tuneContainer")
-    val content by animateColorAsState(target.content, spec, label = "tuneContent")
-    val accent by animateColorAsState(target.accent, spec, label = "tuneAccent")
-    return TuneColors(container, content, accent)
+    val accent = LocalAccentColors.current.accent
+    val note by animateColorAsState(
+        targetValue = if (state.tuned) accent else scheme.onSurface,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "tuneNote",
+    )
+    return TuneColors(
+        container = scheme.surfaceContainerHigh,
+        content = scheme.onSurface,
+        note = note,
+        needle = accent,
+    )
 }
 
 @Composable
@@ -546,7 +551,7 @@ private fun Readout(state: TunerUiState, colors: TuneColors) {
             NoteName(
                 state = state,
                 size = noteSize,
-                color = colors.accent,
+                color = colors.note,
                 modifier = Modifier.graphicsLayer {
                     scaleX = noteScale.value
                     scaleY = noteScale.value
@@ -566,8 +571,8 @@ private fun Readout(state: TunerUiState, colors: TuneColors) {
             }
             NeedleMeter(
                 needlePercent = needle,
-                needleColor = colors.accent,
-                scaleColor = colors.content,
+                needleColor = colors.needle,
+                scaleColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 glow = state.pulse,
                 cents = state.cents,
                 modifier = Modifier.height(meterHeight),
@@ -576,7 +581,7 @@ private fun Readout(state: TunerUiState, colors: TuneColors) {
                 text = statusLabel(state),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = if (state.tuned) colors.accent else colors.content,
+                color = if (state.tuned) colors.note else colors.content,
                 textAlign = TextAlign.Center,
             )
         }
@@ -707,18 +712,19 @@ private fun StringButton(
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val accent = LocalAccentColors.current
     val container by animateColorAsState(
         targetValue = when {
-            selected -> scheme.primary
-            tuned -> scheme.tertiaryContainer
+            selected -> accent.accent
+            tuned -> accent.accent.copy(alpha = 0.18f).compositeOver(scheme.surfaceContainerHighest)
             else -> scheme.surfaceContainerHighest
         },
         label = "stringContainer",
     )
     val content by animateColorAsState(
         targetValue = when {
-            selected -> scheme.onPrimary
-            tuned -> scheme.onTertiaryContainer
+            selected -> accent.onAccent
+            tuned -> accent.accent
             else -> scheme.onSurface
         },
         label = "stringContent",
