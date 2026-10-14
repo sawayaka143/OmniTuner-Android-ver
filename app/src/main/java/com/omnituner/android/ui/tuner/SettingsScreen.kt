@@ -14,7 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -27,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.AccentColor
@@ -40,6 +43,8 @@ import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalDarkTheme
+import com.omnituner.android.ui.theme.LocalGroupedListColors
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentColors
 import com.omnituner.android.ui.theme.wallpaperAccentAvailable
 import kotlin.math.roundToInt
@@ -97,6 +102,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 onIncrement = { viewModel.changeTolerance(1) },
             )
             ListItem(
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                 headlineContent = { Text("Hold to confirm") },
                 supportingContent = {
                     Slider(
@@ -132,16 +138,24 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     }
 }
 
+private val SectionShape = SmoothShape(20.dp)
+
+// Inset grouped list: a secondary-grey title over a card in the group color, on the grey page
+// AppRoot puts behind Settings.
 @Composable
 private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
             text = title,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
         )
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = SectionShape,
+            colors = CardDefaults.cardColors(containerColor = LocalGroupedListColors.current.group),
+        ) {
             Column(content = content)
         }
     }
@@ -196,6 +210,7 @@ private fun AccentRow(selected: AccentColor, onSelect: (AccentColor) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
     val options = AccentColor.entries.filter { it != AccentColor.Wallpaper || wallpaperAccentAvailable }
     ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         headlineContent = { Text("Accent color") },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -46,6 +46,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +70,7 @@ import com.omnituner.android.ui.chords.ChordFinderScreen
 import com.omnituner.android.ui.metronome.MetronomeScreen
 import com.omnituner.android.ui.scales.ScalesScreen
 import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.LocalNavBarColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.tuner.SettingsScreen
@@ -100,11 +102,20 @@ fun AppRoot() {
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val current = Destination.fromRoute(entry?.destination?.route)
+    // Settings is a grouped list, so its page (and the top bar over it) drops to the grouped-list
+    // page color; every other screen sits on the plain surface.
+    val pageColor = if (current == Destination.Settings) {
+        LocalGroupedListColors.current.page
+    } else {
+        MaterialTheme.colorScheme.background
+    }
 
     Scaffold(
+        containerColor = pageColor,
         topBar = {
             TopAppBar(
                 title = { Text(current.title) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
                 navigationIcon = {
                     if (!current.topLevel) {
                         IconButton(onClick = { navController.popBackStack() }) {

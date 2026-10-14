@@ -170,6 +170,19 @@ private val NavBarDark = NavBarColors(indicator = Color(0xFF1C1C1C))
 
 val LocalNavBarColors = staticCompositionLocalOf { NavBarLight }
 
+// Grouped settings list (iOS-style inset groups): the page drops to the grey and the groups are
+// the page color, so in light it reads grey page / white cards, in dark black page / grey cards.
+@Immutable
+data class GroupedListColors(
+    val page: Color,
+    val group: Color,
+)
+
+private val GroupedListLight = GroupedListColors(page = Color(0xFFF3F3F2), group = Color(0xFFFFFFFF))
+private val GroupedListDark = GroupedListColors(page = Color(0xFF000000), group = Color(0xFF1C1C1C))
+
+val LocalGroupedListColors = staticCompositionLocalOf { GroupedListLight }
+
 @Composable
 fun OmniTunerTheme(
     themeMode: ThemeMode,
@@ -198,6 +211,7 @@ fun OmniTunerTheme(
         LocalAccentColors provides accentColors(accent, darkTheme),
         LocalDarkTheme provides darkTheme,
         LocalNavBarColors provides if (darkTheme) NavBarDark else NavBarLight,
+        LocalGroupedListColors provides if (darkTheme) GroupedListDark else GroupedListLight,
     ) {
         MaterialTheme(colorScheme = colorScheme, shapes = SmoothShapes, content = content)
     }
