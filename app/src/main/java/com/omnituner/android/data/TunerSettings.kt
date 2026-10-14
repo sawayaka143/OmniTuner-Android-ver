@@ -19,7 +19,6 @@ data class TunerSettings(
     val chime: Boolean = true,
     val haptics: Boolean = true,
     val tolerance: Int = 5,
-    val holdMs: Int = 500,
 ) {
     fun initialMode(): TunerMode = when (startupMode) {
         StartupMode.Remember -> mode
@@ -30,8 +29,10 @@ data class TunerSettings(
 
 val REFERENCE_PITCH_RANGE = 415..466
 val TOLERANCE_RANGE = 1..15
-val HOLD_MS_RANGE = 0..1500
-const val HOLD_MS_STEP = 50
+
+// How long a pitch must stay in tolerance before it counts as in tune. Fixed on purpose (no longer
+// a setting); a previously saved "tuner.inTune.holdMs" value is simply ignored.
+const val IN_TUNE_HOLD_MS = 500L
 
 private val modeKey = stringPreferencesKey("tuner.mode")
 private val startupKey = stringPreferencesKey("tuner.startup")
@@ -40,7 +41,6 @@ private val inTuneFeedbackKey = booleanPreferencesKey("tuner.inTune.feedback")
 private val chimeKey = booleanPreferencesKey("tuner.inTune.chime")
 private val hapticsKey = booleanPreferencesKey("tuner.inTune.haptics")
 private val toleranceKey = intPreferencesKey("tuner.inTune.tolerance")
-private val holdMsKey = intPreferencesKey("tuner.inTune.holdMs")
 
 internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: CoroutineScope): SettingsStore<TunerSettings> =
     SettingsStore(
@@ -56,7 +56,6 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
                 chime = prefs[chimeKey] ?: true,
                 haptics = prefs[hapticsKey] ?: true,
                 tolerance = (prefs[toleranceKey] ?: 5).coerceIn(TOLERANCE_RANGE),
-                holdMs = (prefs[holdMsKey] ?: 500).coerceIn(HOLD_MS_RANGE),
             )
         },
         write = { prefs, settings ->
@@ -67,6 +66,5 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
             prefs[chimeKey] = settings.chime
             prefs[hapticsKey] = settings.haptics
             prefs[toleranceKey] = settings.tolerance.coerceIn(TOLERANCE_RANGE)
-            prefs[holdMsKey] = settings.holdMs.coerceIn(HOLD_MS_RANGE)
         },
     )

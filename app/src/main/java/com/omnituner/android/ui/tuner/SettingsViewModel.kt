@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.AppearanceSettings
-import com.omnituner.android.data.HOLD_MS_RANGE
 import com.omnituner.android.data.REFERENCE_PITCH_RANGE
 import com.omnituner.android.data.StartupMode
 import com.omnituner.android.data.TOLERANCE_RANGE
@@ -40,10 +39,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun changeTolerance(delta: Int) {
         edit { it.copy(tolerance = (it.tolerance + delta).coerceIn(TOLERANCE_RANGE)) }
-    }
-
-    fun setHoldMs(holdMs: Int) {
-        edit { it.copy(holdMs = holdMs.coerceIn(HOLD_MS_RANGE)) }
     }
 
     fun setInTuneFeedback(enabled: Boolean) {

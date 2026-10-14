@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.PitchCapture
 import com.omnituner.android.audio.PitchFrame
+import com.omnituner.android.data.IN_TUNE_HOLD_MS
 import com.omnituner.android.data.InstrumentTunings
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.TunerMode
@@ -308,7 +309,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             cents = reading.cents,
             tracking = frame.tracking,
             tolerance = settings.tolerance.toDouble(),
-            holdMs = settings.holdMs.toLong(),
+            holdMs = IN_TUNE_HOLD_MS,
         )
         if (justConfirmed) onConfirmed(reading, settings, currentMode, now)
         lockState.update { it.copy(confirmed = lock.confirmed) }
