@@ -1,51 +1,45 @@
 package com.omnituner.android.ui.tuner
 
 import android.Manifest
-import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -57,109 +51,75 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omnituner.android.R
-import com.omnituner.android.ui.common.WheelOption
-import com.omnituner.android.ui.common.WheelSelectRow
-import com.omnituner.android.ui.common.WheelSelectSheet
-import com.omnituner.android.ui.common.WebTextButton
-import com.omnituner.android.ui.theme.LightTuneInk
-import com.omnituner.android.ui.theme.currentWebPalette
+import com.omnituner.android.data.TunerMode
+import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.PickerOption
+import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.core.audio.hzDisplay
 import com.omnituner.core.audio.midiNoteLabel
-import com.omnituner.core.data.Instrument
-import com.omnituner.core.prefs.MAX_CUSTOM_INSTRUMENT_NAME_LENGTH
-import com.omnituner.core.prefs.MAX_CUSTOM_TUNING_NAME_LENGTH
-import com.omnituner.core.prefs.MAX_STRING_COUNT
-import com.omnituner.core.prefs.MAX_TUNER_MIDI_NOTE
-import com.omnituner.core.prefs.MIN_STRING_COUNT
-import com.omnituner.core.prefs.MIN_TUNER_MIDI_NOTE
-import com.omnituner.core.prefs.TUNER_MODE_AUTO
-import com.omnituner.core.prefs.TUNER_MODE_MANUAL
-import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
-import kotlin.math.roundToInt
+import com.omnituner.core.audio.tuneCentsText
+import com.omnituner.core.audio.tuneColorProgress
+import com.omnituner.core.audio.tuneDirectionText
+import com.omnituner.core.data.Tuning
+import kotlin.math.abs
 
-private data class TuningEditorRequest(
-    val editingId: String?,
-    val initialName: String,
-    val initialNotes: List<Int>,
+private sealed interface TunerDialog {
+    data class EditTuning(val draft: TuningDraft) : TunerDialog
+    data class EditInstrument(val draft: InstrumentDraft) : TunerDialog
+    data object ManageInstruments : TunerDialog
+}
+
+private fun newInstrumentDraft() = InstrumentDraft(
+    editingId = null,
+    name = "",
+    stringCount = GUITAR_STANDARD_NOTES.size,
+    notes = GUITAR_STANDARD_NOTES,
 )
 
-private data class InstrumentFormState(
-    val editingId: String?,
-    val name: String,
-    val stringCount: Int,
-    val notes: List<Int>,
-)
+private fun Context.hasRecordPermission(): Boolean =
+    ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+        PackageManager.PERMISSION_GRANTED
 
-private data class InstrumentManagerRequest(
-    val initialForm: InstrumentFormState?,
-)
-
-private data class TuningPreset(
-    val id: String,
-    val name: String,
-    val notes: List<Int>,
-)
-
-private val GUITAR_STANDARD_NOTES = listOf(40, 45, 50, 55, 59, 64)
-
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     val state by viewModel.ui.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val haptics = LocalHapticFeedback.current
+    val view = LocalView.current
+    var dialog by remember { mutableStateOf<TunerDialog?>(null) }
 
-    DisposableEffect(state.isCapturing) {
-        val window = (context as? Activity)?.window
-        if (state.isCapturing) {
-            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-        onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+    DisposableEffect(state.capturing) {
+        view.keepScreenOn = state.capturing
+        onDispose { view.keepScreenOn = false }
     }
 
-    var hasPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED,
-        )
-    }
+    var hasPermission by remember { mutableStateOf(context.hasRecordPermission()) }
     var permanentlyDenied by rememberSaveable { mutableStateOf(false) }
-    var permissionAutoRequested by rememberSaveable { mutableStateOf(false) }
+    var requestedOnce by rememberSaveable { mutableStateOf(false) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasPermission = granted
         if (granted) {
-            hasPermission = true
             viewModel.startCapture()
         } else {
-            permanentlyDenied =
-                (context as? ComponentActivity)
-                    ?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false
+            permanentlyDenied = (context as? ComponentActivity)
+                ?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false
             viewModel.onPermissionDenied()
         }
     }
@@ -167,300 +127,274 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             viewModel.startCapture()
-        } else if (!permissionAutoRequested) {
-            permissionAutoRequested = true
+        } else if (!requestedOnce) {
+            requestedOnce = true
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    DisposableEffect(context) {
-        val activity = context as? ComponentActivity
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    val granted = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.RECORD_AUDIO,
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) {
-                        if (!hasPermission) hasPermission = true
-                        viewModel.startCapture()
-                    }
+                Lifecycle.Event.ON_RESUME -> if (context.hasRecordPermission()) {
+                    hasPermission = true
+                    viewModel.startCapture()
                 }
                 Lifecycle.Event.ON_PAUSE -> viewModel.stopCapture()
                 else -> Unit
             }
         }
-        activity?.lifecycle?.addObserver(observer)
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            activity?.lifecycle?.removeObserver(observer)
+            lifecycleOwner.lifecycle.removeObserver(observer)
             viewModel.stopCapture()
         }
     }
 
-    var tuningEditor by remember { mutableStateOf<TuningEditorRequest?>(null) }
-    var instrumentManager by remember { mutableStateOf<InstrumentManagerRequest?>(null) }
+    LaunchedEffect(viewModel) {
+        viewModel.lockEvents.collect { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
+    }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        contentAlignment = Alignment.TopCenter,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 480.dp)
-                .background(
-                    MaterialTheme.colorScheme.surfaceContainerLow,
-                    RoundedCornerShape(8.dp),
-                )
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp)),
-        ) {
-            WorkbenchHeader(
-                state = state,
-                autoDetect = state.mode == TUNER_MODE_AUTO,
-                onSelectMode = { auto ->
-                    viewModel.selectMode(if (auto) TUNER_MODE_AUTO else TUNER_MODE_MANUAL)
+        TuningCard(
+            state = state,
+            onModeChange = viewModel::selectMode,
+            onInstrumentPicked = viewModel::selectInstrument,
+            onTuningPicked = viewModel::selectTuning,
+            onEditTuning = { tuning: Tuning ->
+                dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes()))
+            },
+            onDeleteTuning = viewModel::deleteCustomTuning,
+            onNewTuning = {
+                dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes()))
+            },
+            onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft()) },
+            onManageInstruments = { dialog = TunerDialog.ManageInstruments },
+        )
+
+        MeterCard(state = state, onSelectString = viewModel::selectString)
+
+        if (!hasPermission) {
+            MicPermissionCard(
+                permanentDenial = permanentlyDenied,
+                onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+                onOpenSettings = {
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null),
+                        ),
+                    )
                 },
             )
+        }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                InstrumentTuningSelector(
-                    state = state,
-                    onSelectInstrument = viewModel::selectInstrument,
-                    onSelectTuning = viewModel::selectTuning,
-                    onNewTuning = {
-                        val currentTuning = state.tunings.firstOrNull {
-                            it.id == state.selectedTuningId
-                        }
-                        val notes = currentTuning?.strings?.map { midiNumberOf(it) }
-                            ?: List(state.instrumentStringCount) { 69 }
-                        tuningEditor = TuningEditorRequest(
-                            editingId = null,
-                            initialName = "",
-                            initialNotes = notes,
-                        )
-                    },
-                    onEditTuning = { tuningId ->
-                        val tuning = state.tunings.firstOrNull {
-                            it.id == tuningId && it.kind == "custom"
-                        } ?: return@InstrumentTuningSelector
-                        tuningEditor = TuningEditorRequest(
-                            editingId = tuning.id,
-                            initialName = tuning.label,
-                            initialNotes = tuning.strings.map { midiNumberOf(it) },
-                        )
-                    },
-                    onDeleteTuning = viewModel::deleteCustomTuning,
-                    onManageInstruments = {
-                        instrumentManager = InstrumentManagerRequest(initialForm = null)
-                    },
-                    onNewInstrument = {
-                        instrumentManager = InstrumentManagerRequest(
-                            initialForm = InstrumentFormState(
-                                editingId = null,
-                                name = "",
-                                stringCount = GUITAR_STANDARD_NOTES.size,
-                                notes = GUITAR_STANDARD_NOTES,
-                            ),
-                        )
-                    },
-                )
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                TunePrompt(state = state)
-
-                PitchMeterCanvas(
-                    needlePercent = state.needlePercent.toFloat(),
-                    needleColor = needleColor(state) ?: currentWebPalette().needleColor,
-                    glow = state.pulseActive && state.confirmed,
-                    cents = state.frameCents?.toFloat(),
-                )
-
-                PitchDisplay(
-                    state = state,
-                    color = needleColor(state) ?: currentWebPalette().needleColor,
-                )
-
-                StringChips(state = state, onSelect = viewModel::selectString)
-
-                if (!hasPermission) {
-                    MicPermissionBanner(
-                        permanentDenial = permanentlyDenied,
-                        onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                        onOpenSettings = {
-                            val intent = Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.fromParts("package", context.packageName, null),
-                            )
-                            context.startActivity(intent)
-                        },
-                    )
-                }
-
-                if (state.captureError != null) {
-                    Text(
-                        text = state.captureError!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
+        state.error?.let { message ->
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 
-    tuningEditor?.let { request ->
-        TuningEditorDialog(
-            request = request,
-            presets = state.tunings.map { tuning ->
-                TuningPreset(
-                    id = tuning.id,
-                    name = tuning.label,
-                    notes = tuning.strings.map { midiNumberOf(it) },
-                )
-            },
-            onDismiss = { tuningEditor = null },
+    when (val open = dialog) {
+        null -> Unit
+        is TunerDialog.EditTuning -> TuningEditorDialog(
+            draft = open.draft,
+            presets = state.tunings,
+            onDismiss = { dialog = null },
             onSave = { name, notes ->
-                val error = viewModel.saveCustomTuning(request.editingId, name, notes)
-                if (error == null) tuningEditor = null
+                val error = viewModel.saveCustomTuning(open.draft.editingId, name, notes)
+                if (error == null) dialog = null
                 error
             },
         )
-    }
-
-    instrumentManager?.let { request ->
-        InstrumentManagerDialog(
-            request = request,
-            customInstruments = state.instruments.filter { it.kind == "custom" },
-            onDismiss = { instrumentManager = null },
+        is TunerDialog.EditInstrument -> InstrumentEditorDialog(
+            draft = open.draft,
+            onDismiss = { dialog = null },
+            onSave = { name, count, notes ->
+                val error = viewModel.saveCustomInstrument(open.draft.editingId, name, count, notes)
+                if (error == null) dialog = null
+                error
+            },
+        )
+        TunerDialog.ManageInstruments -> CustomInstrumentsDialog(
+            customInstruments = state.instruments.filter { it.isCustom },
+            onDismiss = { dialog = null },
             onEdit = { instrument ->
-                val notes = instrument.tunings.firstOrNull()?.strings?.map { midiNumberOf(it) }
-                    ?: List(instrument.stringCount) { 40 }
-                instrumentManager = InstrumentManagerRequest(
-                    initialForm = InstrumentFormState(
-                        editingId = instrument.id,
-                        name = instrument.label,
-                        stringCount = instrument.stringCount,
-                        notes = notes,
-                    ),
+                dialog = TunerDialog.EditInstrument(
+                    InstrumentDraft(instrument.id, instrument.label, instrument.stringCount, instrument.defaultNotes()),
                 )
             },
             onDelete = viewModel::deleteCustomInstrument,
-            onNew = {
-                instrumentManager = InstrumentManagerRequest(
-                    initialForm = InstrumentFormState(
-                        editingId = null,
-                        name = "",
-                        stringCount = GUITAR_STANDARD_NOTES.size,
-                        notes = GUITAR_STANDARD_NOTES,
-                    ),
+            onNew = { dialog = TunerDialog.EditInstrument(newInstrumentDraft()) },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TuningCard(
+    state: TunerUiState,
+    onModeChange: (TunerMode) -> Unit,
+    onInstrumentPicked: (String) -> Unit,
+    onTuningPicked: (String) -> Unit,
+    onEditTuning: (Tuning) -> Unit,
+    onDeleteTuning: (String) -> Unit,
+    onNewTuning: () -> Unit,
+    onNewInstrument: () -> Unit,
+    onManageInstruments: () -> Unit,
+) {
+    var instrumentSheet by rememberSaveable { mutableStateOf(false) }
+    var tuningSheet by rememberSaveable { mutableStateOf(false) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "Current tuning",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(text = state.tuning.label, style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    text = "${state.instrument.label} · ${state.tuning.strings.joinToString(" ") { it.name }}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    val modes = TunerMode.entries
+                    modes.forEachIndexed { index, mode ->
+                        SegmentedButton(
+                            selected = state.mode == mode,
+                            onClick = { onModeChange(mode) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
+                        ) {
+                            Text(if (mode == TunerMode.Auto) "Auto detect" else "Manual")
+                        }
+                    }
+                }
+            }
+            PickerRow(
+                headline = "Instrument",
+                value = state.instrument.label,
+                onClick = { instrumentSheet = true },
+            )
+            PickerRow(
+                headline = "Tuning",
+                value = state.tuning.label,
+                onClick = { tuningSheet = true },
+            )
+        }
+    }
+
+    if (instrumentSheet) {
+        OptionSheet(
+            title = "Instrument",
+            options = state.instruments.map { PickerOption(it.id, it.label) },
+            selected = state.instrument.id,
+            onSelect = { id ->
+                onInstrumentPicked(id)
+                instrumentSheet = false
             },
-            onSave = { form ->
-                val error = viewModel.saveCustomInstrument(
-                    form.editingId,
-                    form.name,
-                    form.stringCount,
-                    form.notes,
-                )
-                if (error == null) instrumentManager = null
-                error
+            onDismiss = { instrumentSheet = false },
+            footer = {
+                TextButton(onClick = {
+                    instrumentSheet = false
+                    onNewInstrument()
+                }) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Text("New instrument")
+                }
+                TextButton(onClick = {
+                    instrumentSheet = false
+                    onManageInstruments()
+                }) {
+                    Text("Manage instruments")
+                }
+            },
+        )
+    }
+
+    if (tuningSheet) {
+        OptionSheet(
+            title = "Tuning",
+            options = state.tunings.map { PickerOption(it.id, it.label) },
+            selected = state.tuning.id,
+            onSelect = { id ->
+                onTuningPicked(id)
+                tuningSheet = false
+            },
+            onDismiss = { tuningSheet = false },
+            trailing = { id ->
+                val tuning = state.tunings.firstOrNull { it.id == id }
+                if (tuning != null && tuning.isCustom) {
+                    IconButton(onClick = {
+                        tuningSheet = false
+                        onEditTuning(tuning)
+                    }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}")
+                    }
+                    IconButton(onClick = { onDeleteTuning(tuning.id) }) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Delete ${tuning.label}",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            },
+            footer = {
+                TextButton(onClick = {
+                    tuningSheet = false
+                    onNewTuning()
+                }) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Text("New tuning")
+                }
             },
         )
     }
 }
 
-private fun midiNumberOf(string: com.omnituner.core.data.NamedFrequency): Int =
-    com.omnituner.core.audio.frequencyToMidiNote(string.freq) ?: 69
-
 @Composable
-private fun WorkbenchHeader(
-    state: TunerUiState,
-    autoDetect: Boolean,
-    onSelectMode: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 72.dp)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "CURRENT TUNING",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.08.em,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+private fun MeterCard(state: TunerUiState, onSelectString: (Int) -> Unit) {
+    val color = needleColor(state)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            TunePrompt(state = state, color = color)
+            NeedleMeter(
+                needlePercent = state.needlePercent,
+                needleColor = color,
+                glow = state.pulse,
+                cents = state.cents,
             )
-            Text(
-                text = state.tuningLabel,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Normal,
-                letterSpacing = (-0.02).em,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "${state.instrumentLabel} · ${state.tuningSummary}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AutoDetectToggle(checked = autoDetect, onChange = onSelectMode)
+            NoteReadout(state = state, color = color)
+            StringChips(state = state, onSelect = onSelectString)
         }
     }
 }
 
 @Composable
-private fun AutoDetectToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(text = "Auto detect", style = MaterialTheme.typography.labelMedium)
-        Spacer(modifier = Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
-
-@Composable
-private fun TunePrompt(state: TunerUiState) {
-    val promptColor = if (state.isTuned) {
-        tunedColor(state)
-    } else {
-        needleColor(state) ?: currentWebPalette().needleColor
-    }
-    val centsColor = if (state.isTuned) {
-        tunedColor(state)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+private fun TunePrompt(state: TunerUiState, color: Color) {
+    val tolerance = state.tolerance.toDouble()
+    val promptColor = if (state.tuned) MaterialTheme.colorScheme.primary else color
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -468,704 +402,139 @@ private fun TunePrompt(state: TunerUiState) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(32.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = state.tunePrompt,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.04.em,
-                color = promptColor,
-                maxLines = 1,
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(18.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = state.tuneCents,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.04.em,
-                color = centsColor,
-                maxLines = 1,
-            )
-        }
+        Text(
+            text = tuneDirectionText(state.cents, tolerance),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = promptColor,
+            maxLines = 1,
+        )
+        Text(
+            text = tuneCentsText(state.cents, tolerance),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (state.tuned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 
 @Composable
-private fun PitchDisplay(state: TunerUiState, color: Color) {
+private fun NoteReadout(state: TunerUiState, color: Color) {
+    val label = state.noteMidi?.let { midiNoteLabel(it) }
+    val name = label?.takeWhile { it != '-' && !it.isDigit() } ?: "—"
+    val octave = label?.drop(name.length) ?: ""
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = state.noteName ?: "—",
-                fontSize = 72.sp,
+                text = name,
+                style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = color,
             )
             Text(
-                text = state.noteOctave?.toString() ?: "",
-                fontSize = 28.sp,
+                text = octave,
+                style = MaterialTheme.typography.headlineSmall,
                 color = color,
-                modifier = Modifier.padding(bottom = 14.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
             )
         }
         Text(
-            text = state.hzText,
+            text = hzDisplay(state.frequency),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = state.statusMessage,
+            text = statusText(state.status),
             style = MaterialTheme.typography.labelLarge,
-            color = if (state.isTuned) tunedColor(state) else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
+            color = if (state.tuned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
+private fun statusText(status: TuneStatus): String = when (status) {
+    TuneStatus.Idle -> "IDLE"
+    TuneStatus.Listening -> "LISTENING FOR A NOTE"
+    is TuneStatus.Adjusting -> "TUNING ${status.stringName}"
+    TuneStatus.InTune -> "IN TUNE"
+}
+
 @Composable
-private fun needleColor(state: TunerUiState): Color? {
-    val tuned = state.isTuned
-    if (tuned) return tunedColor(state)
-    val hex = state.tuneColorHex ?: return null
-    val color = parseHex(hex) ?: return null
-    val surfaceLuminance = MaterialTheme.colorScheme.surface.luminance()
-    return if (surfaceLuminance > 0.5f) {
-        blend(color, LightTuneInk, 0.3f)
-    } else {
-        color
+private fun needleColor(state: TunerUiState): Color {
+    val scheme = MaterialTheme.colorScheme
+    val cents = state.cents
+    return when {
+        state.tuned -> scheme.primary
+        cents == null || abs(cents) <= state.tolerance -> scheme.onSurface
+        else -> lerp(
+            scheme.error,
+            scheme.primary,
+            tuneColorProgress(cents, state.tolerance.toDouble()).toFloat(),
+        )
+    }
+}
+
+private val CheckIcon: @Composable () -> Unit = {
+    Icon(
+        imageVector = Icons.Filled.Check,
+        contentDescription = null,
+        modifier = Modifier.size(FilterChipDefaults.IconSize),
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StringChips(state: TunerUiState, onSelect: (Int) -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        state.tuning.strings.forEachIndexed { index, string ->
+            val active = state.activeIndex == index
+            val tuned = (state.tuned && active) || string.name in state.tunedStrings
+            FilterChip(
+                selected = active,
+                onClick = { onSelect(index) },
+                label = { Text(string.name) },
+                leadingIcon = if (tuned) CheckIcon else null,
+            )
+        }
     }
 }
 
 @Composable
-private fun tunedColor(state: TunerUiState): Color =
-    parseHex(state.inTune.color) ?: currentWebPalette().inTuneColor
-
-private fun parseHex(hex: String): Color? {
-    if (!hex.startsWith("#") || hex.length != 7) return null
-    return try {
-        Color(android.graphics.Color.parseColor(hex))
-    } catch (_: Exception) {
-        null
-    }
-}
-
-private fun blend(from: Color, to: Color, t: Float): Color = Color(
-    red = from.red + (to.red - from.red) * t,
-    green = from.green + (to.green - from.green) * t,
-    blue = from.blue + (to.blue - from.blue) * t,
-    alpha = 1f,
-)
-
-@Composable
-private fun MicPermissionBanner(
+private fun MicPermissionCard(
     permanentDenial: Boolean,
     onAllow: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.errorContainer,
-                RoundedCornerShape(12.dp),
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painterResource(R.drawable.tabler_microphone),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onErrorContainer,
-        )
-        Spacer(modifier = Modifier.size(12.dp))
-        Text(
-            text = "Microphone needed to tune",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.weight(1f),
-        )
-        WebTextButton(onClick = if (permanentDenial) onOpenSettings else onAllow) {
-            Text(if (permanentDenial) "Open settings" else "Allow")
-        }
-    }
-}
-
-@Composable
-private fun InstrumentTuningSelector(
-    state: TunerUiState,
-    onSelectInstrument: (String) -> Unit,
-    onSelectTuning: (String) -> Unit,
-    onNewTuning: () -> Unit,
-    onEditTuning: (String) -> Unit,
-    onDeleteTuning: (String) -> Unit,
-    onManageInstruments: () -> Unit,
-    onNewInstrument: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        var instrumentSheetOpen by rememberSaveable { mutableStateOf(false) }
-        WheelSelectRow(
-            label = "Instrument",
-            value = state.instrumentLabel,
-            onClick = { instrumentSheetOpen = true },
-        )
-        if (instrumentSheetOpen) {
-            WheelSelectSheet(
-                title = "Instrument",
-                options = state.instruments.map { WheelOption(it.label) },
-                selectedIndex = state.instruments
-                    .indexOfFirst { it.id == state.selectedInstrumentId }
-                    .coerceAtLeast(0),
-                onConfirm = { index ->
-                    onSelectInstrument(state.instruments[index].id)
-                    instrumentSheetOpen = false
-                },
-                onDismiss = { instrumentSheetOpen = false },
-                footer = {
-                    FooterAction(R.drawable.tabler_plus, "New instrument", onNewInstrument)
-                    FooterAction(null, "Manage instruments", onManageInstruments)
-                },
-            )
-        }
-        var tuningSheetOpen by rememberSaveable { mutableStateOf(false) }
-        WheelSelectRow(
-            label = "Tuning",
-            value = state.tuningLabel,
-            onClick = { tuningSheetOpen = true },
-        )
-        if (tuningSheetOpen) {
-            WheelSelectSheet(
-                title = "Tuning",
-                options = state.tunings.map { WheelOption(it.label) },
-                selectedIndex = state.tunings
-                    .indexOfFirst { it.id == state.selectedTuningId }
-                    .coerceAtLeast(0),
-                onConfirm = { index ->
-                    onSelectTuning(state.tunings[index].id)
-                    tuningSheetOpen = false
-                },
-                onDismiss = { tuningSheetOpen = false },
-                itemTrailing = { index ->
-                    val tuning = state.tunings[index]
-                    if (tuning.kind == "custom") {
-                        Row {
-                            IconButton(
-                                onClick = { onEditTuning(tuning.id) },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(
-                                    painterResource(R.drawable.tabler_pencil),
-                                    contentDescription = "Edit tuning ${tuning.label}",
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                            IconButton(
-                                onClick = { onDeleteTuning(tuning.id) },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(
-                                    painterResource(R.drawable.tabler_trash),
-                                    contentDescription = "Delete tuning ${tuning.label}",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
-                },
-                footer = {
-                    FooterAction(R.drawable.tabler_plus, "New tuning", onNewTuning)
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun FooterAction(iconRes: Int?, label: String, onClick: () -> Unit) {
-    WebTextButton(onClick = onClick) {
-        if (iconRes != null) {
-            Icon(
-                painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-        }
-        Text(label)
-    }
-}
-
-@Composable
-private fun StringChips(state: TunerUiState, onSelect: (Int) -> Unit) {
-    val palette = currentWebPalette()
-    val tuned = tunedColor(state)
-    Row(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
     ) {
-        state.strings.forEachIndexed { index, string ->
-            val isActive = state.activeString == string.name
-            val inAutoSet = string.name in state.autoTuned
-            val isTuned = (state.isTuned && isActive) || inAutoSet
-            val background = when {
-                isTuned -> tuned.copy(alpha = 0.25f)
-                isActive -> palette.surfaceHigh
-                else -> palette.surface
-            }
-            val textColor = when {
-                isTuned -> tuned
-                isActive -> palette.text
-                else -> palette.muted
-            }
-            val borderColor = when {
-                isTuned -> tuned.copy(alpha = 0.5f)
-                isActive -> palette.borderActive
-                else -> palette.borderSubtle
-            }
-            Box(
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MicOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Text(
+                text = "Microphone needed to tune",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 40.dp)
-                    .clip(CircleShape)
-                    .background(background)
-                    .border(1.dp, borderColor, CircleShape)
-                    .clickable(role = Role.Button) { onSelect(index) }
-                    .semantics {
-                        contentDescription = "String ${string.name}${if (inAutoSet) ", tuned" else ""}"
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = string.name,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = textColor,
-                    maxLines = 1,
-                )
+                    .padding(horizontal = 12.dp),
+            )
+            TextButton(onClick = if (permanentDenial) onOpenSettings else onAllow) {
+                Text(if (permanentDenial) "Open settings" else "Allow")
             }
         }
-    }
-}
-
-@Composable
-private fun PitchMeterCanvas(
-    needlePercent: Float,
-    needleColor: Color,
-    glow: Boolean,
-    cents: Float?,
-) {
-    val pulse = rememberInfiniteTransition(label = "glow")
-    val glowAlpha by pulse.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(450, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "glowAlpha",
-    )
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val tickColor = currentWebPalette().meterTickMinor
-    val majorColor = currentWebPalette().meterTickMajor
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .semantics {
-                    val clamped = (cents ?: 0f).coerceIn(-50f, 50f).roundToInt()
-                    contentDescription =
-                        "Tuning meter, needle at $clamped cents, range -50 to +50"
-                },
-        ) {
-            val width = size.width
-            val centerY = size.height * 0.55f
-            val tickHeightMajor = size.height * 0.30f
-            val tickHeightMinor = size.height * 0.18f
-            val totalTicks = 41
-
-            drawLine(
-                color = labelColor.copy(alpha = 0.10f),
-                start = Offset(width * 0.02f, centerY),
-                end = Offset(width * 0.98f, centerY),
-                strokeWidth = 2f,
-            )
-
-            for (i in 0 until totalTicks) {
-                val x = width * (0.02f + 0.96f * i / (totalTicks - 1))
-                val isCenter = i == 20
-                val isMajor = i % 5 == 0
-                val height = when {
-                    isCenter -> tickHeightMajor * 1.25f
-                    isMajor -> tickHeightMajor
-                    else -> tickHeightMinor
-                }
-                drawLine(
-                    color = if (isCenter) needleColor else if (isMajor) majorColor else tickColor,
-                    start = Offset(x, centerY - height / 2),
-                    end = Offset(x, centerY + height / 2),
-                    strokeWidth = if (isCenter) 4f else if (isMajor) 3f else 2f,
-                    cap = StrokeCap.Round,
-                )
-            }
-
-            val needleX = width * (needlePercent / 100f).coerceIn(0f, 1f)
-            if (glow) {
-                drawCircle(
-                    color = needleColor.copy(alpha = glowAlpha * 0.5f),
-                    radius = size.height * 0.28f,
-                    center = Offset(needleX, centerY),
-                )
-            }
-            drawLine(
-                color = needleColor,
-                start = Offset(needleX, centerY - tickHeightMajor * 0.95f),
-                end = Offset(needleX, centerY + tickHeightMajor * 0.95f),
-                strokeWidth = 6f,
-                cap = StrokeCap.Round,
-            )
-            drawCircle(
-                color = needleColor,
-                radius = 9f,
-                center = Offset(needleX, centerY),
-                style = Stroke(width = 3f),
-            )
-
-            drawIntoCanvas { canvas ->
-                val paint = android.graphics.Paint().apply {
-                    isAntiAlias = true
-                    textAlign = android.graphics.Paint.Align.CENTER
-                    textSize = 11.sp.toPx()
-                }
-                val labelY = centerY + tickHeightMajor * 0.5f + 18.sp.toPx()
-                val labels = listOf("-50", "-25", "0", "+25", "+50")
-                labels.forEachIndexed { index, text ->
-                    val x = width * (0.02f + 0.96f * index / (labels.size - 1))
-                    paint.color = if (index == 2) needleColor.toArgb() else labelColor.toArgb()
-                    paint.isFakeBoldText = index == 2
-                    canvas.nativeCanvas.drawText(text, x, labelY, paint)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TuningEditorDialog(
-    request: TuningEditorRequest,
-    presets: List<TuningPreset>,
-    onDismiss: () -> Unit,
-    onSave: (name: String, notes: List<Int>) -> String?,
-) {
-    var name by remember(request) { mutableStateOf(request.initialName) }
-    var notes by remember(request) { mutableStateOf(request.initialNotes) }
-    var error by remember(request) { mutableStateOf<String?>(null) }
-    var presetOpen by remember { mutableStateOf(false) }
-    var presetName by remember(request) { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (request.editingId == null) "New tuning" else "Edit tuning") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { if (it.length <= MAX_CUSTOM_TUNING_NAME_LENGTH) name = it },
-                    label = { Text("Tuning name") },
-                    supportingText = {
-                        Text("${name.length}/$MAX_CUSTOM_TUNING_NAME_LENGTH")
-                    },
-                    isError = error != null,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                WebTextButton(onClick = { presetOpen = true }) {
-                    Text(
-                        text = presetName ?: "Start from preset",
-                        fontWeight = if (presetName != null) FontWeight.SemiBold else null,
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        painterResource(R.drawable.tabler_chevron_down),
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-
-                for (displayIndex in notes.indices) {
-                    val noteIndex = notes.lastIndex - displayIndex
-                    NoteStepperRow(
-                        label = "String ${displayIndex + 1}",
-                        midi = notes[noteIndex],
-                        onChange = { next ->
-                            notes = notes.toMutableList().also { it[noteIndex] = next }
-                        },
-                    )
-                }
-
-                if (error != null) {
-                    Text(
-                        text = error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            WebTextButton(onClick = {
-                error = onSave(name.trim(), notes)
-            }) { Text("Save") }
-        },
-        dismissButton = {
-            WebTextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-
-    if (presetOpen) {
-        WheelSelectSheet(
-            title = "Start from preset",
-            options = presets.map { WheelOption(it.name) },
-            selectedIndex = presets.indexOfFirst { it.name == presetName }.coerceAtLeast(0),
-            onConfirm = { index ->
-                presetName = presets[index].name
-                notes = presets[index].notes
-                presetOpen = false
-            },
-            onDismiss = { presetOpen = false },
-        )
-    }
-}
-
-@Composable
-private fun InstrumentManagerDialog(
-    request: InstrumentManagerRequest,
-    customInstruments: List<Instrument>,
-    onDismiss: () -> Unit,
-    onEdit: (Instrument) -> Unit,
-    onDelete: (String) -> Unit,
-    onNew: () -> Unit,
-    onSave: (InstrumentFormState) -> String?,
-) {
-    val form = request.initialForm
-
-    if (form == null) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text("Custom instruments") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 360.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    if (customInstruments.isEmpty()) {
-                        Text(
-                            "No custom instruments yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    for (instrument in customInstruments) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(instrument.label, style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    "${instrument.stringCount} strings",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            IconButton(onClick = { onEdit(instrument) }) {
-                                Icon(
-                                    painterResource(R.drawable.tabler_pencil),
-                                    contentDescription = "Edit ${instrument.label}",
-                                )
-                            }
-                            IconButton(onClick = { onDelete(instrument.id) }) {
-                                Icon(
-                                    painterResource(R.drawable.tabler_trash),
-                                    contentDescription = "Delete ${instrument.label}",
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                WebTextButton(onClick = onNew) { Text("New instrument") }
-            },
-            dismissButton = {
-                WebTextButton(onClick = onDismiss) { Text("Close") }
-            },
-        )
-        return
-    }
-
-    var name by remember(form) { mutableStateOf(form.name) }
-    var stringCount by remember(form) { mutableStateOf(form.stringCount) }
-    var notes by remember(form) { mutableStateOf(form.notes) }
-    var error by remember(form) { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (form.editingId == null) "New instrument" else "Edit instrument") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = {
-                        if (it.length <= MAX_CUSTOM_INSTRUMENT_NAME_LENGTH) name = it
-                    },
-                    label = { Text("Instrument name") },
-                    supportingText = {
-                        Text("${name.length}/$MAX_CUSTOM_INSTRUMENT_NAME_LENGTH")
-                    },
-                    isError = error != null,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text("Strings", modifier = Modifier.weight(1f))
-                    IconButton(
-                        onClick = {
-                            if (stringCount > MIN_STRING_COUNT) {
-                                stringCount -= 1
-                                notes = notes.take(stringCount)
-                            }
-                        },
-                    ) { Icon(painterResource(R.drawable.tabler_minus), contentDescription = "Fewer strings") }
-                    Text("$stringCount", modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
-                    IconButton(
-                        onClick = {
-                            if (stringCount < MAX_STRING_COUNT) {
-                                val lowest = notes.firstOrNull() ?: MIN_TUNER_MIDI_NOTE
-                                stringCount += 1
-                                notes = listOf((lowest - 5).coerceAtLeast(MIN_TUNER_MIDI_NOTE)) + notes
-                            }
-                        },
-                    ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "More strings") }
-                }
-
-                for (displayIndex in notes.indices) {
-                    val noteIndex = notes.lastIndex - displayIndex
-                    NoteStepperRow(
-                        label = "String ${displayIndex + 1}",
-                        midi = notes[noteIndex],
-                        onChange = { next ->
-                            notes = notes.toMutableList().also { it[noteIndex] = next }
-                        },
-                    )
-                }
-
-                if (error != null) {
-                    Text(
-                        text = error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            WebTextButton(onClick = {
-                error = onSave(
-                    InstrumentFormState(form.editingId, name.trim(), stringCount, notes),
-                )
-            }) { Text("Save") }
-        },
-        dismissButton = {
-            WebTextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
-@Composable
-private fun NoteStepperRow(
-    label: String,
-    midi: Int,
-    onChange: (Int) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.width(60.dp),
-        )
-        StringGauge(
-            midi = midi,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 6.dp),
-        )
-        IconButton(
-            onClick = { onChange((midi - 1).coerceIn(MIN_TUNER_MIDI_NOTE, MAX_TUNER_MIDI_NOTE)) },
-            modifier = Modifier.size(32.dp),
-        ) { Icon(painterResource(R.drawable.tabler_minus), contentDescription = "$label down a semitone") }
-        Text(
-            midiNoteLabel(midi),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.width(52.dp),
-            textAlign = TextAlign.Center,
-        )
-        IconButton(
-            onClick = { onChange((midi + 1).coerceIn(MIN_TUNER_MIDI_NOTE, MAX_TUNER_MIDI_NOTE)) },
-            modifier = Modifier.size(32.dp),
-        ) { Icon(painterResource(R.drawable.tabler_plus), contentDescription = "$label up a semitone") }
-    }
-}
-
-@Composable
-private fun StringGauge(midi: Int, modifier: Modifier = Modifier) {
-    val lineColor = currentWebPalette().muted
-    val span = (midi - MIN_TUNER_MIDI_NOTE).toFloat() / (MAX_TUNER_MIDI_NOTE - MIN_TUNER_MIDI_NOTE)
-    val thickness = 1.dp + 4.dp * (1f - span.coerceIn(0f, 1f))
-    Canvas(modifier.height(14.dp)) {
-        drawLine(
-            color = lineColor,
-            start = Offset(0f, size.height / 2f),
-            end = Offset(size.width, size.height / 2f),
-            strokeWidth = thickness.toPx(),
-            cap = StrokeCap.Round,
-        )
     }
 }

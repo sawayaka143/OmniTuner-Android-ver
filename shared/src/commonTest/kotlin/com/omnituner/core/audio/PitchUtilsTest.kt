@@ -166,26 +166,6 @@ class PitchUtilsTest {
     }
 
     @Test
-    fun interpolateColorBlendsLinearly() {
-        assertEquals("#808080", interpolateColor("#000000", "#ffffff", 0.5))
-        assertEquals("#404040", interpolateColor("#000000", "#ffffff", 0.25))
-        assertEquals("#808000", interpolateColor("#ff0000", "#00ff00", 0.5))
-    }
-
-    @Test
-    fun interpolateColorClampsT() {
-        assertEquals("#000000", interpolateColor("#000000", "#ffffff", -1.0))
-        assertEquals("#ffffff", interpolateColor("#000000", "#ffffff", 2.0))
-    }
-
-    @Test
-    fun interpolateColorRejectsInvalidColors() {
-        assertNull(interpolateColor("red", "#ffffff", 0.5))
-        assertNull(interpolateColor("#000000", "blue", 0.5))
-        assertNull(interpolateColor("#123", "#ffffff", 0.5))
-    }
-
-    @Test
     fun tuneColorProgressMapsTheBlendWindow() {
         assertEquals(0.0, tuneColorProgress(50.0), 1e-12)
         assertEquals(0.0, tuneColorProgress(-50.0), 1e-12)

@@ -4,7 +4,7 @@ data class Tuning(
     val id: String,
     val label: String,
     val strings: List<NamedFrequency>,
-    val kind: String? = null,
+    val isCustom: Boolean = false,
 )
 
 data class Instrument(
@@ -12,7 +12,7 @@ data class Instrument(
     val label: String,
     val stringCount: Int,
     val tunings: List<Tuning>,
-    val kind: String? = null,
+    val isCustom: Boolean = false,
 )
 
 val INSTRUMENTS: List<Instrument> = listOf(

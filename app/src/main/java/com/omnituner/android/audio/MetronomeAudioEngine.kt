@@ -6,7 +6,6 @@ import android.media.AudioTrack
 import android.os.Process
 import com.omnituner.core.metronome.MetronomeScheduler
 import com.omnituner.core.metronome.MetronomeState
-import com.omnituner.core.metronome.ScheduledSound
 import com.omnituner.core.sound.DynamicsCompressor
 import com.omnituner.core.sound.MetronomeVoices
 import kotlin.math.roundToInt
@@ -19,9 +18,15 @@ class MetronomeAudioEngine {
     }
 
     private val scheduler = MetronomeScheduler { clockSeconds() }
+    private val compressor = DynamicsCompressor(SAMPLE_RATE.toDouble())
+    private val renderRandom = Random(20260901)
+    private val pendingMix = mutableListOf<Pair<Long, FloatArray>>()
 
     private var track: AudioTrack? = null
     private var thread: Thread? = null
+    private var t0Nanos = 0L
+    private var playStartClock = 0.0
+    private var writeCursorFrames = 0L
 
     @Volatile
     private var running = false
@@ -31,14 +36,6 @@ class MetronomeAudioEngine {
 
     @Volatile
     private var transportListener: TransportListener? = null
-
-    private var t0Nanos = 0L
-    private var playStartClock = 0.0
-    private var writeCursorFrames = 0L
-
-    private val pendingMix = mutableListOf<Pair<Long, FloatArray>>()
-    private val compressor = DynamicsCompressor(SAMPLE_RATE.toDouble())
-    private val renderRandom = Random(20260901)
 
     fun configure(state: MetronomeState) {
         scheduler.configure(state)
@@ -59,67 +56,46 @@ class MetronomeAudioEngine {
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_FLOAT,
         )
-        val trackBufferSize = maxOf(minBuffer, 2048 * Float.SIZE_BYTES)
-
-        val newTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build(),
-            )
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes(trackBufferSize)
-            .build()
+        val active = PcmOutput.stream(
+            sampleRate = SAMPLE_RATE,
+            bufferBytes = maxOf(minBuffer, CHUNK_FRAMES * 2 * Float.SIZE_BYTES),
+            contentType = AudioAttributes.CONTENT_TYPE_SONIFICATION,
+        )
 
         compressor.reset()
         pendingMix.clear()
         writeCursorFrames = 0
-        playStartClock = 0.0
-
         t0Nanos = System.nanoTime()
         scheduler.start(0.0)
         running = true
 
-        newTrack.play()
+        active.play()
         playStartClock = clockSeconds()
-        track = newTrack
+        track = active
 
-        val worker = Thread({
-            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-            engineLoop(newTrack)
-        }, "omnituner-metronome")
-        this.thread = worker
-        worker.start()
+        thread = Thread(
+            {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+                engineLoop(active)
+            },
+            "omnituner-metronome",
+        ).also { it.start() }
     }
 
     fun stop() {
         if (!running) return
         running = false
         scheduler.stop()
-        thread?.let { current ->
-            try {
-                current.join(JOIN_TIMEOUT_MS)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-            }
-        }
+        thread?.join(JOIN_TIMEOUT_MS)
         thread = null
-        track?.let { current ->
+        track?.let { active ->
             try {
-                current.pause()
-                current.flush()
-                current.stop()
+                active.pause()
+                active.flush()
+                active.stop()
             } catch (_: IllegalStateException) {
             }
-            current.release()
+            active.release()
         }
         track = null
         pendingMix.clear()
@@ -128,52 +104,24 @@ class MetronomeAudioEngine {
 
     fun previewVoice(id: String, vol: Double) {
         val buffer = MetronomeVoices.render(id, SAMPLE_RATE.toDouble(), vol, renderRandom)
-        compressor.processInPlace(buffer)
-        val track = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build(),
-            )
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .setBufferSizeInBytes(buffer.size * Float.SIZE_BYTES)
-            .build()
-        track.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING)
-        track.play()
-        Thread {
-            try {
-                Thread.sleep(buffer.size * 1000L / SAMPLE_RATE + 150)
-            } catch (_: InterruptedException) {
-            }
-            try {
-                track.stop()
-            } catch (_: IllegalStateException) {
-            }
-            track.release()
-        }.apply { isDaemon = true }.start()
+        DynamicsCompressor(SAMPLE_RATE.toDouble()).processInPlace(buffer)
+        PcmOutput.playOnce(buffer, buffer.size, SAMPLE_RATE, AudioAttributes.CONTENT_TYPE_SONIFICATION)
     }
 
     private fun clockSeconds(): Double = (System.nanoTime() - t0Nanos) / 1_000_000_000.0
 
     private fun engineLoop(audioTrack: AudioTrack) {
-        val masterVol = { scheduler.config.masterVol }
-        var lastTransportEmit = 0L
+        var lastTransportEmit = 0.0
 
         while (running) {
             val now = clockSeconds()
-            val lookahead =
-                if (background) MetronomeScheduler.LOOKAHEAD_HIDDEN_S else MetronomeScheduler.LOOKAHEAD_VISIBLE_S
+            val lookahead = if (background) {
+                MetronomeScheduler.LOOKAHEAD_HIDDEN_S
+            } else {
+                MetronomeScheduler.LOOKAHEAD_VISIBLE_S
+            }
 
-            val due = scheduler.tick(lookahead, now)
-            for (event in due) {
+            for (event in scheduler.tick(lookahead, now)) {
                 val frame = clockToTrackFrame(event.time)
                 val pcm = MetronomeVoices.render(event.id, SAMPLE_RATE.toDouble(), event.vol, renderRandom)
                 pendingMix.add(frame to pcm)
@@ -183,7 +131,7 @@ class MetronomeAudioEngine {
             while (running && writeCursorFrames < targetFrames) {
                 val chunk = mixChunk(writeCursorFrames, CHUNK_FRAMES)
                 compressor.processInPlace(chunk)
-                val gain = masterVol().toFloat()
+                val gain = scheduler.config.masterVol.toFloat()
                 val output = if (gain != 1.0f) FloatArray(chunk.size) { chunk[it] * gain } else chunk
                 audioTrack.write(output, 0, output.size, AudioTrack.WRITE_BLOCKING)
                 writeCursorFrames += CHUNK_FRAMES
@@ -191,11 +139,11 @@ class MetronomeAudioEngine {
 
             pendingMix.removeAll { it.first + it.second.size <= writeCursorFrames }
 
-            if (transportListener != null && now - lastTransportEmit > 0.04) {
-                lastTransportEmit = (now * 1000).toLong()
-                val snapshot = scheduler.getTransport(now)
-                if (snapshot != null) {
-                    transportListener?.onTransport(
+            val listener = transportListener
+            if (listener != null && now - lastTransportEmit > TRANSPORT_EMIT_INTERVAL_S) {
+                lastTransportEmit = now
+                scheduler.getTransport(now)?.let { snapshot ->
+                    listener.onTransport(
                         snapshot.barIndex,
                         snapshot.patternPos,
                         snapshot.progress,
@@ -233,10 +181,11 @@ class MetronomeAudioEngine {
         return out
     }
 
-    companion object {
-        const val SAMPLE_RATE = 48000
+    private companion object {
+        const val SAMPLE_RATE = PcmOutput.SAMPLE_RATE
         const val CHUNK_FRAMES = 1200
         const val WRITE_AHEAD_FRAMES = 4800L
         const val JOIN_TIMEOUT_MS = 400L
+        const val TRANSPORT_EMIT_INTERVAL_S = 0.04
     }
 }

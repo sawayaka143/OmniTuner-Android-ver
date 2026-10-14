@@ -1,366 +1,162 @@
 package com.omnituner.android.ui.tuner
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import androidx.compose.material3.Card
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.toColorInt
-import com.omnituner.android.R
-import com.omnituner.android.ui.common.RepeatStepperRow
-import com.omnituner.android.ui.common.WebSettingDivider
-import com.omnituner.android.ui.common.WebSettingGroup
-import com.omnituner.android.ui.common.WebToggleRow
-import com.omnituner.android.ui.common.WheelOption
-import com.omnituner.android.ui.common.WheelSelectRow
-import com.omnituner.android.ui.common.WheelSelectSheet
-import com.omnituner.android.ui.theme.THEME_DARK
-import com.omnituner.android.ui.theme.THEME_LIGHT
-import com.omnituner.android.ui.theme.THEME_SYSTEM
-import com.omnituner.core.prefs.TUNER_MODE_AUTO
-import com.omnituner.core.prefs.TUNER_MODE_MANUAL
-import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.data.HOLD_MS_RANGE
+import com.omnituner.android.data.HOLD_MS_STEP
+import com.omnituner.android.data.StartupMode
+import com.omnituner.android.data.ThemeMode
+import com.omnituner.android.ui.common.NumberStepper
+import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.PickerOption
+import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.android.ui.common.SwitchRow
 import kotlin.math.roundToInt
 
-private val IN_TUNE_SWATCHES = listOf(
-    "#7ecba8" to "Sage",
-    "#4cc38a" to "Green",
-    "#58c4dd" to "Sky",
-    "#b18cf0" to "Violet",
-    "#f2c14e" to "Amber",
-    "#e5484d" to "Red",
+private val themeChoices = listOf(
+    ThemeMode.System to "System",
+    ThemeMode.Light to "Light",
+    ThemeMode.Dark to "Dark",
 )
-private val OUT_OF_TUNE_SWATCHES = listOf(
-    "#ff8aab" to "Pink",
-    "#e5484d" to "Red",
-    "#f97316" to "Orange",
-    "#f2c14e" to "Amber",
-    "#a3a3a3" to "Gray",
-    "#7ecba8" to "Sage",
+
+private val startupChoices = listOf(
+    StartupMode.Remember to "Remember",
+    StartupMode.Auto to "Auto",
+    StartupMode.Manual to "Manual",
 )
 
 @Composable
-internal fun SettingsScreen(
-    themeMode: String,
-    onThemeModeChange: (String) -> Unit,
-    state: TunerUiState,
-    onBack: () -> Unit,
-    viewModel: TunerViewModel,
-) {
-    var expandedGroup by remember { mutableStateOf<String?>(null) }
-    val background = MaterialTheme.colorScheme.background
+fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
+    val theme by viewModel.theme.collectAsState()
+    val tuner by viewModel.tuner.collectAsState()
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(background),
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            SettingsSection(label = "Appearance") {
-                WebSettingGroup(dimmed = expandedGroup != null && expandedGroup != "appearance") {
-                    var themeSheetOpen by rememberSaveable { mutableStateOf(false) }
-                    WheelSelectRow(
-                        label = "Theme",
-                        value = themeOptionLabel(themeMode),
-                        onClick = {
-                            expandedGroup = "appearance"
-                            themeSheetOpen = true
-                        },
-                    )
-                    if (themeSheetOpen) {
-                        WheelSelectSheet(
-                            title = "Theme",
-                            options = THEME_OPTIONS.map { WheelOption(it.second) },
-                            selectedIndex = THEME_OPTIONS
-                                .indexOfFirst { it.first == themeMode }
-                                .coerceAtLeast(0),
-                            onConfirm = { index ->
-                                onThemeModeChange(THEME_OPTIONS[index].first)
-                                themeSheetOpen = false
-                                expandedGroup = null
-                            },
-                            onDismiss = {
-                                themeSheetOpen = false
-                                expandedGroup = null
-                            },
-                        )
-                    }
-                }
-            }
+        SettingsSection(title = "Appearance") {
+            ChoiceRow(
+                headline = "Theme",
+                selected = theme,
+                choices = themeChoices,
+                onSelect = viewModel::setTheme,
+            )
+        }
 
-            SettingsSection(label = "Tuner") {
-                WebSettingGroup(dimmed = expandedGroup != null && expandedGroup != "tuner") {
-                    var startupSheetOpen by rememberSaveable { mutableStateOf(false) }
-                    WheelSelectRow(
-                        label = "Open tuner in",
-                        value = startupOptionLabel(state.startupMode),
-                        onClick = {
-                            expandedGroup = "tuner"
-                            startupSheetOpen = true
-                        },
-                    )
-                    if (startupSheetOpen) {
-                        WheelSelectSheet(
-                            title = "Open tuner in",
-                            options = STARTUP_OPTIONS.map { WheelOption(it.second) },
-                            selectedIndex = STARTUP_OPTIONS
-                                .indexOfFirst { it.first == state.startupMode }
-                                .coerceAtLeast(0),
-                            onConfirm = { index ->
-                                viewModel.setStartupMode(STARTUP_OPTIONS[index].first)
-                                startupSheetOpen = false
-                                expandedGroup = null
-                            },
-                            onDismiss = {
-                                startupSheetOpen = false
-                                expandedGroup = null
-                            },
-                        )
-                    }
-                    WebSettingDivider()
-                    RepeatStepperRow(
-                        label = "Reference pitch",
-                        valueText = "${state.referencePitch} Hz",
-                        onDelta = viewModel::changeReferencePitch,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    WebSettingDivider()
-                    RepeatStepperRow(
-                        label = "In-tune tolerance",
-                        valueText = "±${state.inTune.tolerance} ¢",
-                        onDelta = viewModel::changeInTuneTolerance,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    WebSettingDivider()
-                    SettingSliderRow(
-                        label = "Hold to confirm",
-                        valueText = "${state.inTune.holdMs} ms",
-                        value = state.inTune.holdMs.toFloat(),
-                        valueRange = 0f..1500f,
+        SettingsSection(title = "Tuner") {
+            ChoiceRow(
+                headline = "Open tuner in",
+                selected = tuner.startupMode,
+                choices = startupChoices,
+                onSelect = viewModel::setStartupMode,
+            )
+            NumberStepper(
+                headline = "Reference pitch",
+                valueText = "${tuner.referencePitch} Hz",
+                onDecrement = { viewModel.changeReferencePitch(-1) },
+                onIncrement = { viewModel.changeReferencePitch(1) },
+            )
+            NumberStepper(
+                headline = "In-tune tolerance",
+                valueText = "±${tuner.tolerance} ¢",
+                onDecrement = { viewModel.changeTolerance(-1) },
+                onIncrement = { viewModel.changeTolerance(1) },
+            )
+            ListItem(
+                headlineContent = { Text("Hold to confirm") },
+                supportingContent = {
+                    Slider(
+                        value = tuner.holdMs.toFloat(),
                         onValueChange = { raw ->
-                            viewModel.setInTuneHoldMs(((raw / 50f).roundToInt() * 50).toDouble())
+                            viewModel.setHoldMs((raw / HOLD_MS_STEP).roundToInt() * HOLD_MS_STEP)
                         },
+                        valueRange = HOLD_MS_RANGE.first.toFloat()..HOLD_MS_RANGE.last.toFloat(),
+                        steps = HOLD_MS_RANGE.last / HOLD_MS_STEP - 1,
                     )
-                }
-            }
-
-            SettingsSection(label = "In-tune feedback") {
-                WebSettingGroup(dimmed = expandedGroup != null && expandedGroup != "feedback") {
-                    WebToggleRow(
-                        label = "Show in-tune feedback",
-                        checked = state.inTune.enabled,
-                        onCheckedChange = viewModel::setInTuneEnabled,
-                    )
-                    WebSettingDivider()
-                    WebToggleRow(
-                        label = "Play chime",
-                        checked = state.inTune.sound,
-                        onCheckedChange = viewModel::setInTuneSound,
-                    )
-                    WebSettingDivider()
-                    WebToggleRow(
-                        label = "Glow pulse",
-                        checked = state.inTune.glow,
-                        onCheckedChange = viewModel::setInTuneGlow,
-                    )
-                }
-            }
-
-            SettingsSection(label = "Colors") {
-                WebSettingGroup(dimmed = expandedGroup != null && expandedGroup != "colors") {
-                    ColorSelectRow(
-                        label = "In-tune color",
-                        swatches = IN_TUNE_SWATCHES,
-                        selected = state.inTune.color,
-                        onSelect = viewModel::setInTuneColor,
-                        onExpandedChange = { open ->
-                            expandedGroup = if (open) "colors" else null
-                        },
-                    )
-                    WebSettingDivider()
-                    ColorSelectRow(
-                        label = "Out-of-tune color",
-                        swatches = OUT_OF_TUNE_SWATCHES,
-                        selected = state.inTune.outOfTuneColor,
-                        onSelect = viewModel::setOutOfTuneColor,
-                        onExpandedChange = { open ->
-                            expandedGroup = if (open) "colors" else null
-                        },
-                    )
-                }
-            }
+                },
+                trailingContent = { Text("${tuner.holdMs} ms") },
+            )
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(background, Color.Transparent),
-                    ),
-                ),
-        )
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(16.dp)
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painterResource(R.drawable.tabler_arrow_left),
-                contentDescription = "Back",
+        SettingsSection(title = "In-tune feedback") {
+            SwitchRow(
+                headline = "Show in-tune feedback",
+                checked = tuner.inTuneFeedback,
+                onCheckedChange = viewModel::setInTuneFeedback,
+            )
+            SwitchRow(
+                headline = "Play chime",
+                checked = tuner.chime,
+                onCheckedChange = viewModel::setChime,
+            )
+            SwitchRow(
+                headline = "Glow pulse",
+                checked = tuner.glow,
+                onCheckedChange = viewModel::setGlow,
             )
         }
     }
 }
 
-private val THEME_OPTIONS = listOf(
-    THEME_SYSTEM to "System",
-    THEME_LIGHT to "Light",
-    THEME_DARK to "Dark",
-)
-
-private val STARTUP_OPTIONS = listOf(
-    TUNER_STARTUP_REMEMBER to "Remember",
-    TUNER_MODE_AUTO to "Auto",
-    TUNER_MODE_MANUAL to "Manual",
-)
-
-private fun themeOptionLabel(themeMode: String) =
-    THEME_OPTIONS.firstOrNull { it.first == themeMode }?.second ?: themeMode
-
-private fun startupOptionLabel(startupMode: String) =
-    STARTUP_OPTIONS.firstOrNull { it.first == startupMode }?.second ?: startupMode
-
 @Composable
-private fun SettingsSection(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
-            text = label,
+            text = title,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
         )
-        content()
-    }
-}
-
-private fun parseHex(hex: String): Color? {
-    if (!hex.startsWith("#") || hex.length != 7) return null
-    return try {
-        Color(hex.toColorInt())
-    } catch (_: Exception) {
-        null
-    }
-}
-
-@Composable
-private fun SettingSliderRow(
-    label: String,
-    valueText: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    onValueChange: (Float) -> Unit,
-) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Text(
-                valueText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(content = content)
         }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-        )
     }
 }
 
 @Composable
-private fun ColorSelectRow(
-    label: String,
-    swatches: List<Pair<String, String>>,
-    selected: String,
-    onSelect: (String) -> Unit,
-    onExpandedChange: (Boolean) -> Unit,
+private fun <T> ChoiceRow(
+    headline: String,
+    selected: T,
+    choices: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
 ) {
-    val selectedEntry = swatches.firstOrNull { it.first.equals(selected, ignoreCase = true) }
-    val entries = swatches.mapNotNull { (hex, name) ->
-        parseHex(hex)?.let { color -> Triple(hex, name, color) }
-    }
-    var sheetOpen by rememberSaveable { mutableStateOf(false) }
-    WheelSelectRow(
-        label = label,
-        value = selectedEntry?.second ?: selected,
-        valueDotColor = selectedEntry?.let { parseHex(it.first) },
-        onClick = {
-            sheetOpen = true
-            onExpandedChange(true)
-        },
+    var open by rememberSaveable { mutableStateOf(false) }
+    PickerRow(
+        headline = headline,
+        value = choices.firstOrNull { it.first == selected }?.second ?: "",
+        onClick = { open = true },
     )
-    if (sheetOpen) {
-        WheelSelectSheet(
-            title = label,
-            options = entries.map { WheelOption(it.second, dotColor = it.third) },
-            selectedIndex = entries
-                .indexOfFirst { it.first.equals(selected, ignoreCase = true) }
-                .coerceAtLeast(0),
-            onConfirm = { index ->
-                onSelect(entries[index].first)
-                sheetOpen = false
-                onExpandedChange(false)
+    if (open) {
+        OptionSheet(
+            title = headline,
+            options = choices.map { PickerOption(it.first, it.second) },
+            selected = selected,
+            onSelect = { choice ->
+                onSelect(choice)
+                open = false
             },
-            onDismiss = {
-                sheetOpen = false
-                onExpandedChange(false)
-            },
+            onDismiss = { open = false },
         )
     }
 }

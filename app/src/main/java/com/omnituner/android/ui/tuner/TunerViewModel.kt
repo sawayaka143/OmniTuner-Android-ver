@@ -1,592 +1,394 @@
 package com.omnituner.android.ui.tuner
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
-import com.omnituner.android.audio.AudioCaptureEngine
-import com.omnituner.android.audio.GuitarSamplePlayer
-import com.omnituner.android.audio.NotePlayer
-import com.omnituner.android.ui.Haptics
+import com.omnituner.android.audio.PitchCapture
+import com.omnituner.android.audio.PitchFrame
+import com.omnituner.android.data.LibraryState
+import com.omnituner.android.data.TunerMode
+import com.omnituner.android.data.TunerSettings
+import com.omnituner.core.audio.PitchTrackingState
 import com.omnituner.core.audio.centsFromMidiFloat
 import com.omnituner.core.audio.frequencyToMidiFloat
 import com.omnituner.core.audio.frequencyToMidiNote
-import com.omnituner.core.audio.hzDisplay
-import com.omnituner.core.audio.interpolateColor
-import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.audio.nearestSemitone
 import com.omnituner.core.audio.nearestStringTarget
 import com.omnituner.core.audio.needlePercentFromCents
-import com.omnituner.core.audio.shouldConfirm
-import com.omnituner.core.audio.StringTarget
-import com.omnituner.core.audio.tuneCentsText
-import com.omnituner.core.audio.tuneColorProgress
-import com.omnituner.core.audio.tuneDirectionText
+import com.omnituner.core.data.INSTRUMENTS
 import com.omnituner.core.data.Instrument
+import com.omnituner.core.data.InvalidInstrumentException
 import com.omnituner.core.data.NamedFrequency
 import com.omnituner.core.data.Tuning
-import com.omnituner.core.prefs.InTunePreferences
-import com.omnituner.core.prefs.InstrumentNameException
-import com.omnituner.core.prefs.TUNER_MODE_AUTO
-import com.omnituner.core.prefs.TUNER_MODE_MANUAL
-import com.omnituner.core.prefs.TUNER_STARTUP_REMEMBER
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import com.omnituner.core.data.validateInstrumentName
+import com.omnituner.core.data.validateNotes
+import com.omnituner.core.data.validateStringCount
+import com.omnituner.core.data.validateTuningName
+import kotlin.math.abs
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-const val LOCK_PULSE_DURATION_MS = 900L
-const val RELEASE_HYSTERESIS_MS = 135L
+const val LOCK_PULSE_MS = 900L
+private const val NOTE_SNAP_CENTS = 50.0
+
+sealed interface TuneStatus {
+    data object Idle : TuneStatus
+    data object Listening : TuneStatus
+    data class Adjusting(val stringName: String) : TuneStatus
+    data object InTune : TuneStatus
+}
 
 data class TunerUiState(
-    val isCapturing: Boolean = false,
-    val frequency: Double? = null,
-    val trackingState: String = "idle",
-    val captureError: String? = null,
-    val mode: String = TUNER_MODE_AUTO,
+    val capturing: Boolean = false,
+    val error: String? = null,
+    val mode: TunerMode = TunerMode.Auto,
     val instruments: List<Instrument> = emptyList(),
+    val instrument: Instrument = INSTRUMENTS.first(),
     val tunings: List<Tuning> = emptyList(),
-    val strings: List<NamedFrequency> = emptyList(),
-    val tuningSummary: String = "",
-    val instrumentLabel: String = "",
-    val tuningLabel: String = "",
-    val selectedInstrumentId: String = "",
-    val selectedTuningId: String = "",
-    val instrumentStringCount: Int = 6,
-    val frameCents: Double? = null,
-    val inRange: Boolean = false,
-    val confirmed: Boolean = false,
-    val pulseActive: Boolean = false,
-    val autoTuned: List<String> = emptyList(),
-    val activeString: String? = null,
-    val needlePercent: Double = 50.0,
-    val tunePrompt: String = "—",
-    val tuneCents: String = "",
-    val tuneColorHex: String? = null,
-    val isTuned: Boolean = false,
-    val hzText: String = "— Hz",
-    val noteName: String? = null,
-    val noteOctave: Int? = null,
-    val statusMessage: String = "IDLE",
-    val manualIndex: Int = 0,
-    val referencePitch: Int = 440,
-    val startupMode: String = TUNER_STARTUP_REMEMBER,
-    val inTune: InTunePreferences = InTunePreferences(),
+    val tuning: Tuning = INSTRUMENTS.first().tunings.first(),
+    val activeIndex: Int? = null,
+    val cents: Double? = null,
+    val tolerance: Int = 5,
+    val needlePercent: Float = 50f,
+    val noteMidi: Int? = null,
+    val frequency: Double? = null,
+    val tuned: Boolean = false,
+    val status: TuneStatus = TuneStatus.Idle,
+    val tunedStrings: Set<String> = emptySet(),
+    val pulse: Boolean = false,
 )
+
+private data class LockSnapshot(
+    val confirmed: Boolean = false,
+    val tunedStrings: Set<String> = emptySet(),
+    val pulseUntil: Long = 0L,
+)
+
+private data class Session(
+    val frame: PitchFrame,
+    val capturing: Boolean,
+    val error: String?,
+    val lock: LockSnapshot,
+)
+
+private data class Controls(
+    val mode: TunerMode?,
+    val manualIndex: Int,
+    val settings: TunerSettings,
+    val library: LibraryState,
+)
+
+private data class Reading(
+    val activeIndex: Int?,
+    val cents: Double?,
+    val noteMidi: Int?,
+    val targetName: String?,
+)
+
+private fun readFrame(
+    frame: PitchFrame,
+    mode: TunerMode,
+    manualIndex: Int,
+    strings: List<NamedFrequency>,
+    referencePitch: Int,
+    previousTarget: String?,
+    capturing: Boolean,
+): Reading {
+    val played = frame.frequency?.let { frequencyToMidiFloat(it, referencePitch.toDouble()) }
+
+    if (mode == TunerMode.Manual) {
+        val index = if (strings.isEmpty()) null else minOf(manualIndex, strings.lastIndex)
+        val targetMidi = index?.let { frequencyToMidiNote(strings[it].freq) ?: 69 }
+        val cents = if (played != null && targetMidi != null) centsFromMidiFloat(played, targetMidi) else null
+        val noteMidi = if (targetMidi != null && cents != null && abs(cents) < NOTE_SNAP_CENTS) {
+            targetMidi
+        } else {
+            nearestSemitone(played)
+        }
+        return Reading(index, cents, noteMidi, index?.let { strings[it].name })
+    }
+
+    val target = if (capturing && played != null) nearestStringTarget(played, strings, previousTarget) else null
+    val cents = target?.cents
+    val noteMidi = if (target != null && cents != null && abs(cents) < NOTE_SNAP_CENTS) {
+        target.midi
+    } else {
+        nearestSemitone(played)
+    }
+    val index = target?.let { found -> strings.indexOfFirst { it.name == found.name }.takeIf { it >= 0 } }
+    return Reading(index, cents, noteMidi, target?.name)
+}
 
 class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val container = (application as OmniTunerApp).container
-    private val prefs = container.tunerPreferences
-    private val registry = container.instrumentRegistry
-    private val engine = AudioCaptureEngine(application)
-    private val player = NotePlayer()
-    private val samplePlayer = GuitarSamplePlayer(application)
-    private val haptics = Haptics(application)
+    private val settingsStore = container.tuner
+    private val library = container.instruments
+    private val noteAudio = container.noteAudio
+    private val capture = PitchCapture(application)
 
-    private data class Analysis(
-        val frequency: Double? = null,
-        val trackingState: String = "idle",
-        val isCapturing: Boolean = false,
+    private val frameEvents = MutableSharedFlow<PitchFrame>(
+        extraBufferCapacity = FRAME_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
+    private val latestFrame = MutableStateFlow(PitchFrame.Silent)
+    private val capturing = MutableStateFlow(false)
+    private val captureError = MutableStateFlow<String?>(null)
+    private val mode = MutableStateFlow<TunerMode?>(null)
+    private val manualIndex = MutableStateFlow(0)
+    private val lockState = MutableStateFlow(LockSnapshot())
+    private val lock = TuneLock()
+    private val lockChannel = Channel<Unit>(Channel.BUFFERED)
+    private var previousTarget: String? = null
 
-    private val analysis = MutableStateFlow(Analysis())
+    val lockEvents: Flow<Unit> = lockChannel.receiveAsFlow()
 
-    private val _ui = MutableStateFlow(TunerUiState())
-    val ui: StateFlow<TunerUiState> = _ui.asStateFlow()
+    private val session: StateFlow<Session> = combine(
+        latestFrame,
+        capturing,
+        captureError,
+        lockState,
+    ) { frame, active, error, snapshot -> Session(frame, active, error, snapshot) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Session(PitchFrame.Silent, false, null, LockSnapshot()))
 
-    private val holdStartedAt = java.util.concurrent.atomic.AtomicLong(0)
-    private var holdJob: Job? = null
-    private var releaseJob: Job? = null
-    private var pulseJob: Job? = null
-    private var lastAutoTargetName: String? = null
-    private var autoTunedNames: List<String> = emptyList()
-    private var confirmed = false
-    private var pulseActive = false
-    private var mode: String = initialMode()
-    private var manualIndex = 0
+    private val controls: StateFlow<Controls> = combine(
+        mode,
+        manualIndex,
+        settingsStore.flow,
+        library.state,
+    ) { currentMode, index, settings, libraryState -> Controls(currentMode, index, settings, libraryState) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            Controls(null, 0, TunerSettings(), library.state.value),
+        )
 
-    private fun initialMode(): String {
-        val settings = prefs.tunerSettings.value
-        return if (settings.startupMode == TUNER_STARTUP_REMEMBER) settings.mode else settings.startupMode
-    }
+    val ui: StateFlow<TunerUiState> = combine(session, controls) { current, state -> buildState(current, state) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TunerUiState())
 
     init {
-        rebuildUi()
+        viewModelScope.launch {
+            mode.value = settingsStore.current().initialMode()
+        }
+        viewModelScope.launch {
+            frameEvents.collect { onFrame(it) }
+        }
     }
 
-    fun uiState(): TunerUiState = _ui.value
-
-    fun startCapture(): String? {
-        val error = engine.start { frequency, _, trackingState ->
-            analysis.value = Analysis(frequency, trackingState.name.lowercase(), true)
-            rebuildUi()
+    fun startCapture() {
+        if (capturing.value) return
+        val error = capture.start { frame ->
+            latestFrame.value = frame
+            frameEvents.tryEmit(frame)
         }
-        if (error == null) {
-            analysis.value = analysis.value.copy(isCapturing = true, trackingState = "listening")
-            rebuildUi()
-        } else {
-            analysis.value = analysis.value.copy(isCapturing = false, trackingState = "idle")
-            _ui.value = _ui.value.copy(captureError = error)
-            rebuildUi()
-        }
-        return error
+        capturing.value = error == null
+        captureError.value = error
     }
 
     fun stopCapture() {
-        engine.stop()
-        analysis.value = Analysis(frequency = null, trackingState = "idle", isCapturing = false)
-        rebuildUi()
-    }
-
-    fun selectMode(newMode: String) {
-        if (mode == newMode) return
-        if (newMode == TUNER_MODE_MANUAL) {
-            val targetName = currentAutoTarget()?.name
-            if (targetName != null) {
-                val index = currentStrings().indexOfFirst { it.name == targetName }
-                if (index != -1) manualIndex = index
-            }
-        }
-        mode = newMode
-        prefs.setMode(newMode)
-        resetHoldState()
-        rebuildUi()
-    }
-
-    fun selectString(index: Int) {
-        manualIndex = index
-        mode = TUNER_MODE_MANUAL
-        prefs.setMode(TUNER_MODE_MANUAL)
-        resetHoldState()
-
-        val string = currentStrings().getOrNull(index)
-        if (string != null) {
-            val midi = frequencyToMidiNote(string.freq) ?: 69
-            if (!samplePlayer.playSampleNote(midi)) {
-                player.playNote(midi)
-            }
-        }
-        rebuildUi()
-    }
-
-    fun selectInstrument(instrumentId: String) {
-        if (registry.selectedInstrumentIdFlow.value == instrumentId) return
-        registry.selectInstrument(instrumentId)
-        resetHoldState()
-        rebuildUi()
-    }
-
-    fun selectTuning(tuningId: String) {
-        if (registry.selectedTuningIdFlow.value == tuningId) return
-        registry.selectTuning(tuningId)
-        resetHoldState()
-        rebuildUi()
-    }
-
-    fun saveCustomTuning(editingId: String?, name: String, notes: List<Int>): String? =
-        trapValidation {
-            val tuning = if (editingId != null) {
-                registry.updateTuning(editingId, name, notes)
-            } else {
-                registry.createTuning(registry.selectedInstrumentIdFlow.value, name, notes)
-            }
-            registry.selectTuning(tuning.id)
-            resetHoldState()
-            rebuildUi()
-        }
-
-    fun deleteCustomTuning(tuningId: String) {
-        registry.deleteTuning(tuningId)
-        resetHoldState()
-        rebuildUi()
-    }
-
-    fun saveCustomInstrument(
-        editingId: String?,
-        name: String,
-        stringCount: Int,
-        notes: List<Int>,
-    ): String? = trapValidation {
-        val instrument = if (editingId != null) {
-            registry.updateInstrument(editingId, name, stringCount, notes)
-        } else {
-            registry.createInstrument(name, stringCount, notes)
-        }
-        registry.selectInstrument(instrument.id)
-        resetHoldState()
-        rebuildUi()
-    }
-
-    fun deleteCustomInstrument(instrumentId: String) {
-        registry.deleteInstrument(instrumentId)
-        resetHoldState()
-        rebuildUi()
-    }
-
-    private inline fun trapValidation(block: () -> Unit): String? = try {
-        block()
-        null
-    } catch (e: InstrumentNameException) {
-        e.message
-    }
-
-    fun setReferencePitch(value: Double) {
-        prefs.setReferencePitch(value)
-        rebuildUi()
-    }
-
-    fun changeReferencePitch(delta: Int) {
-        val current = prefs.tunerSettings.value.referencePitch
-        prefs.setReferencePitch(current.toDouble() + delta)
-        rebuildUi()
-    }
-
-    fun setStartupMode(value: String) {
-        prefs.setStartupMode(value)
-        rebuildUi()
-    }
-
-    fun setInTuneEnabled(value: Boolean) {
-        prefs.setInTuneEnabled(value)
-        rebuildUi()
-    }
-
-    fun setInTuneSound(value: Boolean) {
-        prefs.setInTuneSound(value)
-        rebuildUi()
-    }
-
-    fun setInTuneGlow(value: Boolean) {
-        prefs.setInTuneGlow(value)
-        rebuildUi()
-    }
-
-    fun setInTuneTolerance(value: Double) {
-        prefs.setInTuneTolerance(value)
-        rebuildUi()
-    }
-
-    fun changeInTuneTolerance(delta: Int) {
-        val current = prefs.tunerSettings.value.inTune.tolerance
-        prefs.setInTuneTolerance(current.toDouble() + delta)
-        rebuildUi()
-    }
-
-    fun setInTuneHoldMs(value: Double) {
-        prefs.setInTuneHoldMs(value)
-        rebuildUi()
-    }
-
-    fun setInTuneColor(hex: String) {
-        prefs.setInTuneColor(hex)
-        rebuildUi()
-    }
-
-    fun setOutOfTuneColor(hex: String) {
-        prefs.setOutOfTuneColor(hex)
-        rebuildUi()
-    }
-
-    fun clearError() {
-        _ui.value = _ui.value.copy(captureError = null)
+        if (!capturing.value) return
+        capture.stop()
+        capturing.value = false
+        latestFrame.value = PitchFrame.Silent
+        frameEvents.tryEmit(PitchFrame.Silent)
     }
 
     fun onPermissionDenied() {
-        analysis.value = analysis.value.copy(isCapturing = false, trackingState = "idle")
-        _ui.value = _ui.value.copy(
-            captureError = "Microphone access is unavailable. Check permissions and try again.",
+        stopCapture()
+        captureError.value = "Microphone access is unavailable. Check permissions and try again."
+    }
+
+    fun selectMode(newMode: TunerMode) {
+        val current = mode.value ?: return
+        if (current == newMode) return
+        if (newMode == TunerMode.Manual) {
+            val reading = readFrame(
+                latestFrame.value,
+                TunerMode.Auto,
+                manualIndex.value,
+                library.state.value.tuning.strings,
+                settingsStore.flow.value.referencePitch,
+                previousTarget,
+                capturing.value,
+            )
+            reading.activeIndex?.let { manualIndex.value = it }
+        }
+        mode.value = newMode
+        resetHold()
+        viewModelScope.launch { settingsStore.update { it.copy(mode = newMode) } }
+    }
+
+    fun selectString(index: Int) {
+        manualIndex.value = index
+        mode.value = TunerMode.Manual
+        resetHold()
+        viewModelScope.launch { settingsStore.update { it.copy(mode = TunerMode.Manual) } }
+        library.state.value.tuning.strings.getOrNull(index)?.let { string ->
+            noteAudio.playNote(frequencyToMidiNote(string.freq) ?: 69)
+        }
+    }
+
+    fun selectInstrument(instrumentId: String) {
+        if (library.state.value.instrument.id == instrumentId) return
+        resetHold()
+        viewModelScope.launch { library.selectInstrument(instrumentId) }
+    }
+
+    fun selectTuning(tuningId: String) {
+        if (library.state.value.tuning.id == tuningId) return
+        resetHold()
+        viewModelScope.launch { library.selectTuning(tuningId) }
+    }
+
+    fun saveCustomTuning(editingId: String?, name: String, notes: List<Int>): String? {
+        val instrument = library.state.value.instrument
+        return try {
+            val validName = validateTuningName(name)
+            val validNotes = validateNotes(notes, instrument.stringCount)
+            viewModelScope.launch { library.saveTuning(editingId, instrument.id, validName, validNotes) }
+            resetHold()
+            null
+        } catch (e: InvalidInstrumentException) {
+            e.message
+        }
+    }
+
+    fun deleteCustomTuning(tuningId: String) {
+        resetHold()
+        viewModelScope.launch { library.deleteTuning(tuningId) }
+    }
+
+    fun saveCustomInstrument(editingId: String?, name: String, stringCount: Int, notes: List<Int>): String? {
+        return try {
+            val validName = validateInstrumentName(name)
+            val validCount = validateStringCount(stringCount)
+            val validNotes = validateNotes(notes, validCount)
+            viewModelScope.launch { library.saveInstrument(editingId, validName, validCount, validNotes) }
+            resetHold()
+            null
+        } catch (e: InvalidInstrumentException) {
+            e.message
+        }
+    }
+
+    fun deleteCustomInstrument(instrumentId: String) {
+        resetHold()
+        viewModelScope.launch { library.deleteInstrument(instrumentId) }
+    }
+
+    private fun onFrame(frame: PitchFrame) {
+        val currentMode = mode.value ?: return
+        val settings = settingsStore.flow.value
+        val reading = readFrame(
+            frame,
+            currentMode,
+            manualIndex.value,
+            library.state.value.tuning.strings,
+            settings.referencePitch,
+            previousTarget,
+            capturing.value,
         )
-        rebuildUi()
+        if (currentMode == TunerMode.Auto && frame.tracking == PitchTrackingState.LOCKED) {
+            reading.targetName?.let { previousTarget = it }
+        }
+
+        val now = SystemClock.elapsedRealtime()
+        val justConfirmed = lock.step(
+            now = now,
+            cents = reading.cents,
+            tracking = frame.tracking,
+            tolerance = settings.tolerance.toDouble(),
+            holdMs = settings.holdMs.toLong(),
+        )
+        if (justConfirmed) onConfirmed(reading, settings, currentMode, now)
+        lockState.update { it.copy(confirmed = lock.confirmed) }
     }
 
-    private fun currentStrings(): List<NamedFrequency> =
-        registry.selectedTuning().strings
-
-    private fun currentSettings() = prefs.tunerSettings.value
-
-    private fun refPitch(): Double = currentSettings().referencePitch.toDouble()
-
-    private fun tolerance(): Double = currentSettings().inTune.tolerance.toDouble()
-
-    private fun currentAutoTarget(): StringTarget? {
-        if (!analysis.value.isCapturing) return null
-        val freq = analysis.value.frequency ?: return null
-        if (freq <= 0) return null
-        val played = frequencyToMidiFloat(freq, refPitch()) ?: return null
-        val target = nearestStringTarget(played, currentStrings(), lastAutoTargetName)
-        if (target != null && analysis.value.trackingState == "locked" &&
-            target.name != lastAutoTargetName
-        ) {
-            lastAutoTargetName = target.name
-        }
-        return target
-    }
-
-    private fun targetMidi(target: NamedFrequency): Int = frequencyToMidiNote(target.freq) ?: 69
-
-    private fun frameCents(): Double? {
-        if (mode == TUNER_MODE_AUTO) return currentAutoTarget()?.cents
-        val freq = analysis.value.frequency ?: return null
-        if (freq <= 0) return null
-        val strings = currentStrings()
-        val target = strings.getOrNull(minOf(manualIndex, strings.size - 1)) ?: return null
-        return centsFromMidiFloat(frequencyToMidiFloat(freq, refPitch()), targetMidi(target))
-    }
-
-    private fun inRange(): Boolean {
-        val cents = frameCents() ?: return false
-        return kotlin.math.abs(cents) <= tolerance()
-    }
-
-    private fun playedNoteLabel(): String? {
-        val freq = analysis.value.frequency ?: return null
-        if (freq <= 0 || !freq.isFinite()) return null
-        val played = frequencyToMidiFloat(freq, refPitch())
-        val nearest = nearestSemitone(played) ?: return null
-        return midiNoteLabel(nearest)
-    }
-
-    private fun targetNoteLabel(): String? {
-        if (mode == TUNER_MODE_MANUAL) {
-            val cents = frameCents()
-            val strings = currentStrings()
-            val target = strings.getOrNull(minOf(manualIndex, strings.size - 1))
-            if (cents != null && kotlin.math.abs(cents) < 50 && target != null) {
-                val nominal = targetMidi(target)
-                return midiNoteLabel(nominal)
-            }
-            return playedNoteLabel()
-        }
-        val target = currentAutoTarget() ?: return playedNoteLabel()
-        val cents = frameCents()
-        if (cents != null && kotlin.math.abs(cents) < 50) {
-            return midiNoteLabel(target.midi)
-        }
-        return playedNoteLabel()
-    }
-
-    private fun resetHoldState() {
-        holdJob?.cancel()
-        holdJob = null
-        releaseJob?.cancel()
-        releaseJob = null
-        confirmed = false
-        autoTunedNames = emptyList()
-        lastAutoTargetName = null
-    }
-
-    private fun evaluateHold() {
-        val state = analysis.value.trackingState
-        if (state != "locked") {
-            holdJob?.cancel()
-            holdJob = null
-            if (state == "idle") {
-                releaseJob?.cancel()
-                releaseJob = null
-                confirmed = false
-            } else if (confirmed && releaseJob == null) {
-                scheduleReleaseTimer()
-            }
-            return
-        }
-
-        val inRangeNow = inRange()
-        if (confirmed) {
-            if (inRangeNow) {
-                releaseJob?.cancel()
-                releaseJob = null
-            } else if (releaseJob == null) {
-                scheduleReleaseTimer()
-            }
-            return
-        }
-
-        releaseJob?.cancel()
-        releaseJob = null
-
-        val holding = holdJob != null
-        if (!inRangeNow) {
-            val cents = frameCents()
-            val withinHysteresis = holding && cents != null &&
-                kotlin.math.abs(cents) <= tolerance() + 1.5
-            if (!withinHysteresis) {
-                holdJob?.cancel()
-                holdJob = null
-                return
-            }
-        }
-
-        val now = android.os.SystemClock.elapsedRealtime()
-        val holdMs = currentSettings().inTune.holdMs.toLong()
-        val elapsed = if (holding) now - holdStartedAt.get() else 0L
-        if (shouldConfirm(inRangeNow, elapsed, holdMs)) {
-            confirmLock()
-            return
-        }
-
-        if (holdJob == null) holdStartedAt.set(now)
-        val remaining = (holdMs - elapsed).coerceAtLeast(0)
-        holdJob?.cancel()
-        holdJob = viewModelScope.launch {
-            delay(remaining)
-            holdJob = null
-            if (inRange()) confirmLock()
-            rebuildUi()
-        }
-    }
-
-    private fun scheduleReleaseTimer() {
-        releaseJob?.cancel()
-        releaseJob = viewModelScope.launch {
-            delay(RELEASE_HYSTERESIS_MS)
-            releaseJob = null
-            if (confirmed && !inRange()) {
-                confirmed = false
-                rebuildUi()
-            }
-        }
-    }
-
-    private fun confirmLock() {
-        holdJob?.cancel()
-        holdJob = null
-        releaseJob?.cancel()
-        releaseJob = null
-        if (confirmed) return
-
-        confirmed = true
-        haptics.success()
-        val inTune = currentSettings().inTune
-        if (inTune.enabled && inTune.sound) player.playChime()
-        if (inTune.enabled && inTune.glow) triggerPulse()
-
-        if (mode == TUNER_MODE_AUTO) {
-            val target = currentAutoTarget()
-            if (target != null && target.name !in autoTunedNames) {
-                autoTunedNames = autoTunedNames + target.name
-            }
-        }
-        rebuildUi()
-    }
-
-    private fun triggerPulse() {
-        pulseActive = true
-        pulseJob?.cancel()
-        pulseJob = viewModelScope.launch {
-            delay(LOCK_PULSE_DURATION_MS)
-            pulseActive = false
-            rebuildUi()
-        }
-    }
-
-    fun rebuildUi() {
-        evaluateHold()
-
-        val settings = currentSettings()
-        val strings = currentStrings()
-        val tuning = registry.selectedTuning()
-        val instrument = registry.selectedInstrument()
-        val cents = frameCents()
-        val inRangeNow = cents != null && kotlin.math.abs(cents) <= tolerance()
-        val tracking = analysis.value.trackingState
-        val isLocked = tracking == "locked"
-        val showTuned = settings.inTune.enabled && confirmed
-        val isTuned = if (settings.inTune.enabled) {
-            showTuned
-        } else {
-            cents != null && isLocked && kotlin.math.abs(cents) <= tolerance()
-        }
-        val chipTuned = isTuned && activeStringName() != null
-
-        val tuneColorHex = run {
-            val centsValue = cents
-            if (centsValue == null || kotlin.math.abs(centsValue) <= tolerance()) {
-                null
+    private fun onConfirmed(reading: Reading, settings: TunerSettings, currentMode: TunerMode, now: Long) {
+        lockChannel.trySend(Unit)
+        val name = reading.targetName
+        lockState.update { snapshot ->
+            val tunedStrings = if (currentMode == TunerMode.Auto && name != null) {
+                snapshot.tunedStrings + name
             } else {
-                interpolateColor(
-                    settings.inTune.outOfTuneColor,
-                    settings.inTune.color,
-                    tuneColorProgress(centsValue, tolerance()),
-                )
+                snapshot.tunedStrings
             }
+            val pulseUntil = if (settings.inTuneFeedback && settings.glow) now + LOCK_PULSE_MS else snapshot.pulseUntil
+            snapshot.copy(tunedStrings = tunedStrings, pulseUntil = pulseUntil)
+        }
+        if (settings.inTuneFeedback && settings.chime) noteAudio.playChime()
+    }
+
+    private fun buildState(current: Session, state: Controls): TunerUiState {
+        val settings = state.settings
+        val currentMode = state.mode ?: TunerMode.Auto
+        val reading = readFrame(
+            current.frame,
+            currentMode,
+            state.manualIndex,
+            state.library.tuning.strings,
+            settings.referencePitch,
+            previousTarget,
+            current.capturing,
+        )
+        val tracking = current.frame.tracking
+        val cents = reading.cents
+        val withinTolerance = cents != null && abs(cents) <= settings.tolerance
+        val showTuned = settings.inTuneFeedback && current.lock.confirmed
+        val tunedNow = if (settings.inTuneFeedback) showTuned else tracking == PitchTrackingState.LOCKED && withinTolerance
+        val targetName = reading.targetName
+
+        val status = when {
+            !current.capturing -> TuneStatus.Idle
+            showTuned -> TuneStatus.InTune
+            targetName != null && tracking == PitchTrackingState.LOCKED -> TuneStatus.Adjusting(targetName)
+            else -> TuneStatus.Listening
         }
 
-        val label = targetNoteLabel()
-        val noteName = label?.dropLast(1)
-        val noteOctave = label?.takeLast(1)?.toIntOrNull()
-
-        val statusMessage = buildString {
-            val error = _ui.value.captureError
-            when {
-                error != null -> append(error)
-                !analysis.value.isCapturing -> append("IDLE")
-                showTuned -> append("IN TUNE")
-                isLocked -> {
-                    val targetName =
-                        if (mode == TUNER_MODE_MANUAL) {
-                            currentStrings().getOrNull(manualIndex)?.name
-                        } else {
-                            currentAutoTarget()?.name
-                        }
-                    if (targetName != null) {
-                        append("TUNING $targetName")
-                    } else {
-                        append("LISTENING FOR A NOTE")
-                    }
-                }
-                else -> append("LISTENING FOR A NOTE")
-            }
-        }
-
-        _ui.value = TunerUiState(
-            isCapturing = analysis.value.isCapturing,
-            frequency = analysis.value.frequency,
-            trackingState = tracking,
-            captureError = _ui.value.captureError,
-            mode = mode,
-            instruments = registry.instruments(),
-            tunings = registry.availableTunings(),
-            strings = strings,
-            tuningSummary = strings.joinToString(" ") { it.name },
-            instrumentLabel = instrument.label,
-            tuningLabel = tuning.label,
-            selectedInstrumentId = registry.selectedInstrumentIdFlow.value,
-            selectedTuningId = registry.selectedTuningIdFlow.value,
-            instrumentStringCount = instrument.stringCount,
-            frameCents = cents,
-            inRange = inRangeNow,
-            confirmed = confirmed,
-            pulseActive = pulseActive,
-            autoTuned = autoTunedNames,
-            activeString = activeStringName(),
-            needlePercent = needlePercentFromCents(cents),
-            tunePrompt = tuneDirectionText(cents, tolerance()),
-            tuneCents = tuneCentsText(cents, tolerance()),
-            tuneColorHex = tuneColorHex,
-            isTuned = chipTuned,
-            hzText = hzDisplay(analysis.value.frequency),
-            noteName = noteName,
-            noteOctave = noteOctave,
-            statusMessage = statusMessage,
-            manualIndex = manualIndex,
-            referencePitch = settings.referencePitch,
-            startupMode = settings.startupMode,
-            inTune = settings.inTune,
+        return TunerUiState(
+            capturing = current.capturing,
+            error = current.error,
+            mode = currentMode,
+            instruments = state.library.instruments,
+            instrument = state.library.instrument,
+            tunings = state.library.tunings,
+            tuning = state.library.tuning,
+            activeIndex = reading.activeIndex,
+            cents = cents,
+            tolerance = settings.tolerance,
+            needlePercent = needlePercentFromCents(cents).toFloat(),
+            noteMidi = reading.noteMidi,
+            frequency = current.frame.frequency,
+            tuned = tunedNow && reading.activeIndex != null,
+            status = status,
+            tunedStrings = current.lock.tunedStrings,
+            pulse = current.lock.pulseUntil > SystemClock.elapsedRealtime(),
         )
     }
 
-    private fun activeStringName(): String? =
-        if (mode == TUNER_MODE_MANUAL) {
-            currentStrings().getOrNull(minOf(manualIndex, currentStrings().size - 1))?.name
-        } else {
-            currentAutoTarget()?.name
-        }
+    private fun resetHold() {
+        lock.reset()
+        previousTarget = null
+        lockState.value = LockSnapshot()
+    }
 
     override fun onCleared() {
-        engine.stop()
-        super.onCleared()
+        capture.stop()
+    }
+
+    private companion object {
+        const val FRAME_BUFFER = 8
     }
 }

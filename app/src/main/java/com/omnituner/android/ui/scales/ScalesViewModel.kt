@@ -1,181 +1,139 @@
 package com.omnituner.android.ui.scales
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.omnituner.android.audio.GuitarSamplePlayer
-import com.omnituner.android.audio.NotePlayer
-import com.omnituner.core.audio.midiNoteToFrequency
+import com.omnituner.android.OmniTunerApp
+import com.omnituner.android.data.Accidental
+import com.omnituner.android.data.InstrumentLibrary
+import com.omnituner.android.data.LabelMode
+import com.omnituner.android.data.LibraryState
+import com.omnituner.android.data.ScaleSettings
+import com.omnituner.core.audio.frequencyToMidiNote
+import com.omnituner.core.data.INSTRUMENTS
+import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.SCALES
-import com.omnituner.core.prefs.InstrumentRegistry
-import com.omnituner.core.prefs.ScalePreferences
-import com.omnituner.core.prefs.ScalePreferencesState
+import com.omnituner.core.data.Tuning
 import com.omnituner.core.theory.FretCell
 import com.omnituner.core.theory.computeFretboard
-import com.omnituner.core.theory.noteName
+import com.omnituner.core.theory.mod12
 import com.omnituner.core.theory.parseNote
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+private const val SCALE_NOTE_DELAY_MS = 330L
+
 data class ScalesUiState(
-    val prefs: ScalePreferencesState = ScalePreferencesState(),
-    val instruments: List<com.omnituner.core.data.Instrument> = emptyList(),
-    val tunings: List<com.omnituner.core.data.Tuning> = emptyList(),
-    val instrumentId: String = "",
-    val instrumentLabel: String = "",
-    val tuningId: String = "",
-    val tuningLabel: String = "",
-    val tuningSummary: String = "",
-    val tuningFrequencies: List<Double> = emptyList(),
+    val settings: ScaleSettings = ScaleSettings(),
+    val instruments: List<Instrument> = emptyList(),
+    val instrument: Instrument = INSTRUMENTS.first(),
+    val tunings: List<Tuning> = emptyList(),
+    val tuning: Tuning = INSTRUMENTS.first().tunings.first(),
     val board: List<List<FretCell>> = emptyList(),
     val isPlaying: Boolean = false,
 )
 
-class ScalesViewModel(
-    private val prefs: ScalePreferences,
-    private val registry: InstrumentRegistry,
-    private val notePlayer: NotePlayer,
-    private val samplePlayer: GuitarSamplePlayer?,
-) : ViewModel() {
+class ScalesViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _ui = MutableStateFlow(ScalesUiState())
-    val ui: StateFlow<ScalesUiState> = _ui.asStateFlow()
-
+    private val container = (application as OmniTunerApp).container
+    private val settingsStore = container.scales
+    private val library: InstrumentLibrary = container.instruments
+    private val noteAudio = container.noteAudio
+    private val playing = MutableStateFlow(false)
     private var playJob: Job? = null
 
-    init {
-        rebuild()
-    }
+    val ui: StateFlow<ScalesUiState> = combine(
+        settingsStore.flow,
+        library.state,
+        playing,
+    ) { settings, libraryState, isPlaying -> buildState(settings, libraryState, isPlaying) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ScalesUiState())
 
-    fun setScaleId(scaleId: String) {
-        prefs.setScaleId(scaleId)
-        rebuild()
-    }
+    fun setScaleId(scaleId: String) = edit { it.copy(scaleId = scaleId) }
 
-    fun setRootPitchClass(root: Int) {
-        prefs.setRootPitchClass(root)
-        rebuild()
-    }
+    fun setRootPitchClass(root: Int) = edit { it.copy(rootPitchClass = root) }
 
-    fun setAccidental(accidental: String) {
-        prefs.setAccidental(accidental)
-        rebuild()
-    }
+    fun setAccidental(accidental: Accidental) = edit { it.copy(accidental = accidental) }
 
-    fun setFretCount(fretCount: Int) {
-        prefs.setFretCount(fretCount)
-        rebuild()
-    }
+    fun setFretCount(fretCount: Int) = edit { it.copy(fretCount = fretCount) }
 
-    fun setLabelMode(labelMode: String) {
-        prefs.setLabelMode(labelMode)
-        rebuild()
-    }
+    fun setLabelMode(labelMode: LabelMode) = edit { it.copy(labelMode = labelMode) }
 
-    fun setShowOutsideScale(show: Boolean) {
-        prefs.setShowOutsideScale(show)
-        rebuild()
-    }
+    fun setShowOutsideScale(show: Boolean) = edit { it.copy(showOutsideScale = show) }
 
     fun selectInstrument(instrumentId: String) {
-        registry.selectInstrument(instrumentId)
-        rebuild()
+        viewModelScope.launch { library.selectInstrument(instrumentId) }
     }
 
     fun selectTuning(tuningId: String) {
-        registry.selectTuning(tuningId)
-        rebuild()
+        viewModelScope.launch { library.selectTuning(tuningId) }
     }
 
     fun playCell(cell: FretCell) {
         val midi = cell.midi ?: return
-        if (samplePlayer != null && samplePlayer.playSampleNote(midi)) return
-        notePlayer.playNote(midi)
+        noteAudio.playNote(midi)
     }
 
-    fun playScale(down: Boolean = false) {
-        if (_ui.value.isPlaying) {
+    fun togglePlayScale() {
+        if (playing.value) {
             playJob?.cancel()
             playJob = null
-            _ui.value = _ui.value.copy(isPlaying = false)
+            playing.value = false
             return
         }
         playJob = viewModelScope.launch {
-            _ui.value = _ui.value.copy(isPlaying = true)
-            val scaleCells = _ui.value.board
+            playing.value = true
+            val cells = ui.value.board
                 .flatten()
                 .filter { it.interval != null && it.midi != null }
                 .sortedBy { it.midi }
-            val sequence = if (down) scaleCells.asReversed() else scaleCells
-            for (cell in sequence) {
-                if (!_ui.value.isPlaying) break
+            for (cell in cells) {
+                if (!playing.value) break
                 playCell(cell)
-                delay(330)
+                delay(SCALE_NOTE_DELAY_MS)
             }
-            _ui.value = _ui.value.copy(isPlaying = false)
+            playing.value = false
         }
-    }
-
-    fun rebuild() {
-        val prefsState = prefs.stateFlow.value
-        val tuning = registry.selectedTuning()
-        val openMidi = tuning.strings.map { string ->
-            parseNote(string.name)?.let { pc -> pc } ?: run {
-                val midi = com.omnituner.core.audio.frequencyToMidiNote(string.freq) ?: 69
-                ((midi % 12) + 12) % 12
-            }
-        }
-        val midiNotes = tuning.strings.map { com.omnituner.core.audio.frequencyToMidiNote(it.freq) ?: 69 }
-        val scale = SCALES.find { it.id == prefsState.scaleId } ?: SCALES.first()
-        val board = computeFretboard(
-            openPitchClasses = openMidi.reversed(),
-            fretCount = prefsState.fretCount,
-            intervals = scale.intervals,
-            preferFlats = prefsState.accidental == "flat",
-            openMidiNotes = midiNotes.reversed(),
-        )
-
-        _ui.value = ScalesUiState(
-            prefs = prefsState,
-            instruments = registry.instruments(),
-            tunings = registry.availableTunings(),
-            instrumentId = registry.selectedInstrument().id,
-            instrumentLabel = registry.selectedInstrument().label,
-            tuningId = tuning.id,
-            tuningLabel = tuning.label,
-            tuningSummary = tuning.strings.joinToString(" ") { it.name },
-            tuningFrequencies = tuning.strings.map { it.freq },
-            board = board,
-            isPlaying = _ui.value.isPlaying,
-        )
-    }
-
-    fun previewTuningNote(index: Int) {
-        val freq = _ui.value.tuningFrequencies.getOrNull(index) ?: return
-        val midi = com.omnituner.core.audio.frequencyToMidiNote(freq) ?: return
-        if (samplePlayer != null && samplePlayer.playSampleNote(midi)) return
-        notePlayer.playNote(midi)
     }
 
     override fun onCleared() {
         playJob?.cancel()
-        super.onCleared()
     }
 
-    companion object {
-        fun factory(
-            prefs: ScalePreferences,
-            registry: InstrumentRegistry,
-            notePlayer: NotePlayer,
-            samplePlayer: GuitarSamplePlayer?,
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { ScalesViewModel(prefs, registry, notePlayer, samplePlayer) }
+    private fun edit(transform: (ScaleSettings) -> ScaleSettings) {
+        viewModelScope.launch { settingsStore.update(transform) }
+    }
+
+    private fun buildState(settings: ScaleSettings, libraryState: LibraryState, isPlaying: Boolean): ScalesUiState {
+        return ScalesUiState(
+            settings = settings,
+            instruments = libraryState.instruments,
+            instrument = libraryState.instrument,
+            tunings = libraryState.tunings,
+            tuning = libraryState.tuning,
+            board = computeBoard(settings, libraryState.tuning),
+            isPlaying = isPlaying,
+        )
+    }
+
+    private fun computeBoard(settings: ScaleSettings, tuning: Tuning): List<List<FretCell>> {
+        val midiNotes = tuning.strings.map { frequencyToMidiNote(it.freq) ?: 69 }
+        val pitchClasses = tuning.strings.mapIndexed { index, string ->
+            parseNote(string.name) ?: mod12(midiNotes[index])
         }
+        val scale = SCALES.firstOrNull { it.id == settings.scaleId } ?: SCALES.first()
+        return computeFretboard(
+            openPitchClasses = pitchClasses.reversed(),
+            fretCount = settings.fretCount,
+            intervals = scale.intervals,
+            preferFlats = settings.accidental == Accidental.Flat,
+            openMidiNotes = midiNotes.reversed(),
+        )
     }
 }

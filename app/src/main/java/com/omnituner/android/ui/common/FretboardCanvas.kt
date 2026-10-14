@@ -1,6 +1,7 @@
 package com.omnituner.android.ui.common
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -9,9 +10,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
-import com.omnituner.android.ui.theme.currentWebPalette
-import com.omnituner.android.ui.theme.textColorOn
 import com.omnituner.core.theory.FretCell
+
+private val SINGLE_MARKER_FRETS = setOf(3, 5, 7, 9, 15, 17, 19, 21)
+private val DOUBLE_MARKER_FRETS = setOf(12, 24)
 
 @Composable
 fun FretboardCanvas(
@@ -22,9 +24,9 @@ fun FretboardCanvas(
     modifier: Modifier = Modifier,
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val palette = currentWebPalette()
-    val wireColor = palette.text
-    val inkColor = palette.muted
+    val scheme = MaterialTheme.colorScheme
+    val wireColor = scheme.onSurface
+    val inkColor = scheme.onSurfaceVariant
     val fretCount = board.firstOrNull()?.size?.minus(1) ?: 12
     val columns = fretCount + 1
 
@@ -36,16 +38,12 @@ fun FretboardCanvas(
         val pad = 14.sp.toPx()
         val boardTop = pad
         val boardBottom = size.height - pad
-        val boardHeight = boardBottom - boardTop
-        val rowHeight = boardHeight / strings
+        val rowHeight = (boardBottom - boardTop) / strings
 
         fun centerX(col: Int) = colWidth * (col + 0.5f)
 
         val openLabel = textMeasurer.measure("OPEN", labelStyle)
-        drawText(
-            openLabel,
-            topLeft = Offset(centerX(0) - openLabel.size.width / 2f, 0f),
-        )
+        drawText(openLabel, topLeft = Offset(centerX(0) - openLabel.size.width / 2f, 0f))
 
         drawLine(
             color = wireColor.copy(alpha = 0.7f),
@@ -72,9 +70,8 @@ fun FretboardCanvas(
             )
         }
 
-        val markerColor = palette.muted.copy(alpha = 0.45f)
+        val markerColor = inkColor.copy(alpha = 0.45f)
         val markerHalf = 2.5.sp.toPx()
-        val singleMarkers = setOf(3, 5, 7, 9, 15, 17, 19, 21)
         fun diamond(cx: Float, cy: Float) {
             drawPath(
                 Path().apply {
@@ -90,11 +87,11 @@ fun FretboardCanvas(
         for (f in 1..fretCount) {
             val cx = centerX(f)
             when {
-                f == 12 || f == 24 -> {
+                f in DOUBLE_MARKER_FRETS -> {
                     diamond(cx, boardTop + rowHeight * (strings / 2f - 1))
                     diamond(cx, boardTop + rowHeight * (strings / 2f + 1))
                 }
-                f in singleMarkers -> diamond(cx, boardTop + rowHeight * (strings / 2f))
+                f in SINGLE_MARKER_FRETS -> diamond(cx, boardTop + rowHeight * (strings / 2f))
             }
         }
 
@@ -105,9 +102,13 @@ fun FretboardCanvas(
                 if (interval == null && !showOutside) continue
                 val cx = centerX(cell.fret)
                 val cy = boardTop + rowHeight * (cell.stringIndex + 0.5f)
-                val cellColor = if (cell.isRoot) palette.scaleAccent else palette.fretboardNote
+                val cellColor = when {
+                    cell.isRoot -> scheme.primary
+                    interval != null -> scheme.secondaryContainer
+                    else -> inkColor.copy(alpha = 0.35f)
+                }
                 drawCircle(
-                    color = if (interval == null) cellColor.copy(alpha = 0.35f) else cellColor,
+                    color = cellColor,
                     radius = if (cell.isRoot) radius * 1.12f else radius,
                     center = Offset(cx, cy),
                 )
@@ -118,17 +119,15 @@ fun FretboardCanvas(
                         else -> null
                     }
                     if (text != null) {
-                        val ink = if (interval == null) palette.muted else textColorOn(cellColor)
-                        val measured = textMeasurer.measure(
-                            text,
-                            TextStyle(fontSize = 10.sp, color = ink),
-                        )
+                        val ink = when {
+                            cell.isRoot -> scheme.onPrimary
+                            interval != null -> scheme.onSecondaryContainer
+                            else -> inkColor
+                        }
+                        val measured = textMeasurer.measure(text, TextStyle(fontSize = 10.sp, color = ink))
                         drawText(
                             measured,
-                            topLeft = Offset(
-                                cx - measured.size.width / 2f,
-                                cy - measured.size.height / 2f,
-                            ),
+                            topLeft = Offset(cx - measured.size.width / 2f, cy - measured.size.height / 2f),
                         )
                     }
                 }
@@ -146,6 +145,4 @@ fun FretboardCanvas(
             )
         }
     }
-
 }
-

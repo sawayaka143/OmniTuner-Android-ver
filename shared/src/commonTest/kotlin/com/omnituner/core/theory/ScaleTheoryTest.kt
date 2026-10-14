@@ -118,13 +118,12 @@ class ScaleTheoryTest {
     }
 
     @Test
-    fun computeFretboardMarksRootAndColorsIt() {
+    fun computeFretboardMarksRoot() {
         val board = computeFretboard(listOf(4, 11, 7, 2, 9, 4), 12, majorIntervals, false)
         val lowE8 = board[5][8]
         assertEquals(0, lowE8.pitchClass)
         assertTrue(lowE8.isRoot)
         assertEquals("R", lowE8.interval?.label)
-        assertEquals("#779900", lowE8.color)
     }
 
     @Test
@@ -142,7 +141,6 @@ class ScaleTheoryTest {
 
         val pc6 = board[5].first { it.pitchClass == 6 }
         assertNull(pc6.interval)
-        assertEquals("", pc6.color)
         assertFalse(pc6.isRoot)
     }
 

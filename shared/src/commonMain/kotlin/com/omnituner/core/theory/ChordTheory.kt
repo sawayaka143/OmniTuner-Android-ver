@@ -1,17 +1,11 @@
 package com.omnituner.core.theory
 
-const val SHARP_PC_NAMES_COUNT = 12
-
 val SHARP_PC_NAMES: List<String> = listOf(
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 )
 
 val FLAT_PC_NAMES: List<String> = listOf(
     "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B",
-)
-
-val DEGREE_LABELS: List<String> = listOf(
-    "R", "b2", "2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7",
 )
 
 val PC_LETTER: Map<String, Int> = mapOf(

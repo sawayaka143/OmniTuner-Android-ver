@@ -1,102 +1,40 @@
 package com.omnituner.android.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-
-private fun darkScheme(p: WebPalette) = darkColorScheme(
-    primary = p.scaleAccent,
-    onPrimary = p.scaleAccentInk,
-    primaryContainer = p.scaleAccent,
-    onPrimaryContainer = p.scaleAccentInk,
-    inversePrimary = p.scaleAccentInk,
-    secondary = p.info,
-    onSecondary = p.scaleAccentInk,
-    secondaryContainer = p.surfaceHigh,
-    onSecondaryContainer = p.text,
-    tertiary = p.good,
-    onTertiary = p.scaleAccentInk,
-    tertiaryContainer = p.surfaceHigh,
-    onTertiaryContainer = p.text,
-    background = p.canvas,
-    onBackground = p.text,
-    surface = p.canvas,
-    onSurface = p.text,
-    surfaceVariant = p.surface,
-    onSurfaceVariant = p.muted,
-    surfaceTint = p.canvas,
-    surfaceDim = p.canvas,
-    surfaceBright = p.surfaceHigh,
-    surfaceContainerLowest = p.canvas,
-    surfaceContainerLow = p.surfaceLow,
-    surfaceContainer = p.surface,
-    surfaceContainerHigh = p.surfaceHigh,
-    surfaceContainerHighest = p.surfaceHigh,
-    inverseSurface = p.text,
-    inverseOnSurface = p.canvas,
-    outline = p.borderMedium,
-    outlineVariant = p.borderSubtle,
-    error = p.danger,
-    onError = p.scaleAccentInk,
-    errorContainer = p.surfaceHigh,
-    onErrorContainer = p.danger,
-    scrim = p.backdrop,
-)
-
-private fun lightScheme(p: WebPalette) = lightColorScheme(
-    primary = p.scaleAccent,
-    onPrimary = p.scaleAccentInk,
-    primaryContainer = p.scaleAccent,
-    onPrimaryContainer = p.scaleAccentInk,
-    inversePrimary = p.scaleAccentInk,
-    secondary = p.info,
-    onSecondary = Color.White,
-    secondaryContainer = p.surfaceHigh,
-    onSecondaryContainer = p.text,
-    tertiary = p.good,
-    onTertiary = p.scaleAccentInk,
-    tertiaryContainer = p.surfaceHigh,
-    onTertiaryContainer = p.text,
-    background = p.canvas,
-    onBackground = p.text,
-    surface = p.canvas,
-    onSurface = p.text,
-    surfaceVariant = p.surface,
-    onSurfaceVariant = p.muted,
-    surfaceTint = p.canvas,
-    surfaceDim = p.canvas,
-    surfaceBright = p.surfaceLow,
-    surfaceContainerLowest = p.canvas,
-    surfaceContainerLow = p.surfaceLow,
-    surfaceContainer = p.surface,
-    surfaceContainerHigh = p.surfaceHigh,
-    surfaceContainerHighest = p.surfaceHigh,
-    inverseSurface = p.text,
-    inverseOnSurface = p.canvas,
-    outline = p.borderMedium,
-    outlineVariant = p.borderSubtle,
-    error = p.danger,
-    onError = Color.White,
-    errorContainer = p.surfaceHigh,
-    onErrorContainer = p.danger,
-    scrim = p.backdrop,
-)
+import com.omnituner.android.data.ThemeMode
 
 @Composable
 fun OmniTunerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode,
     content: @Composable () -> Unit,
 ) {
-    val palette = if (darkTheme) WebColors.Dark else WebColors.Light
-    val colorScheme = if (darkTheme) darkScheme(palette) else lightScheme(palette)
+    val darkTheme = when (themeMode) {
+        ThemeMode.System -> isSystemInDarkTheme()
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+    }
+    val context = LocalContext.current
+    val colorScheme = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (darkTheme) {
+            dynamicDarkColorScheme(context)
+        } else {
+            dynamicLightColorScheme(context)
+        }
+        darkTheme -> darkColorScheme()
+        else -> lightColorScheme()
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -109,11 +47,5 @@ fun OmniTunerTheme(
         }
     }
 
-    CompositionLocalProvider(LocalWebPalette provides palette) {
-        MaterialTheme(
-            colorScheme = colorScheme,
-            typography = Typography,
-            content = content,
-        )
-    }
+    MaterialTheme(colorScheme = colorScheme, content = content)
 }

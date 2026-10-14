@@ -2,10 +2,6 @@ package com.omnituner.core.data
 
 import com.omnituner.core.theory.ModeName
 
-const val TONALITY_MAJOR = "major"
-const val TONALITY_MINOR = "minor"
-const val TONALITY_BOTH = "both"
-
 data class ProgressionPreset(
     val id: String,
     val name: String,

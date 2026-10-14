@@ -113,27 +113,6 @@ fun tuneCentsText(cents: Double?, threshold: Double = 5.0): String {
     return "${abs(cents.roundToInt())}¢"
 }
 
-private val HEX_COLOR = Regex("^#([0-9a-fA-F]{6})$")
-
-fun interpolateColor(from: String, to: String, t: Double): String? {
-    fun parse(hex: String): Triple<Int, Int, Int>? {
-        val match = HEX_COLOR.matchEntire(hex) ?: return null
-        val value = match.groupValues[1].toInt(16)
-        return Triple((value shr 16) and 0xff, (value shr 8) and 0xff, value and 0xff)
-    }
-
-    val fromRgb = parse(from) ?: return null
-    val toRgb = parse(to) ?: return null
-
-    val amount = t.coerceIn(0.0, 1.0)
-    val fromChannels = listOf(fromRgb.first, fromRgb.second, fromRgb.third)
-    val toChannels = listOf(toRgb.first, toRgb.second, toRgb.third)
-    val channels = fromChannels.mapIndexed { index, channel ->
-        (channel + (toChannels[index] - channel) * amount).roundToInt()
-    }
-    return "#" + channels.joinToString("") { it.toString(16).padStart(2, '0') }
-}
-
 fun tuneColorProgress(cents: Double?, threshold: Double = 5.0): Double {
     if (cents == null || !cents.isFinite()) return 0.0
     val magnitude = abs(cents)

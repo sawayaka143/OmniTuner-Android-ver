@@ -3,7 +3,6 @@ package com.omnituner.core.theory
 import com.omnituner.core.data.FLAT_NAMES
 import com.omnituner.core.data.SHARP_NAMES
 import com.omnituner.core.data.ScaleInterval
-import com.omnituner.core.data.colorForLabel
 
 data class FretCell(
     val stringIndex: Int,
@@ -12,7 +11,6 @@ data class FretCell(
     val midi: Int?,
     val interval: ScaleInterval?,
     val noteName: String,
-    val color: String,
     val isRoot: Boolean,
 )
 
@@ -75,7 +73,6 @@ fun computeFretboard(
                     midi = openMidiNotes?.getOrNull(stringIndex)?.plus(fret),
                     interval = interval,
                     noteName = noteName(pitchClass, preferFlats),
-                    color = if (interval != null) colorForLabel(interval.label) else "",
                     isRoot = interval?.label == "R" || interval?.label == "1",
                 ),
             )

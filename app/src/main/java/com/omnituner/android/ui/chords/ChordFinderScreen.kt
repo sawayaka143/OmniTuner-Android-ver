@@ -1,259 +1,283 @@
 package com.omnituner.android.ui.chords
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.omnituner.android.OmniTunerApp
-import com.omnituner.android.audio.GuitarSamplePlayer
-import com.omnituner.android.audio.NotePlayer
-import com.omnituner.android.ui.common.SectionCard
-import com.omnituner.android.ui.common.WheelOption
-import com.omnituner.android.ui.common.WheelSelectRow
-import com.omnituner.android.ui.common.WheelSelectSheet
-import com.omnituner.android.ui.common.WebTextButton
-import com.omnituner.android.ui.theme.webQualityColor
+import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.PickerOption
+import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.core.data.PROGRESSION_PRESETS
 import com.omnituner.core.theory.VoicingShape
 
+private val TONIC_NAMES = listOf("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChordFinderScreen(app: OmniTunerApp) {
-    val container = app.container
-    val notePlayer = remember { NotePlayer() }
-    val samplePlayer = remember { GuitarSamplePlayer(app.applicationContext) }
-    val viewModel: ChordFinderViewModel = viewModel(
-        factory = ChordFinderViewModel.factory(
-            container.scalePreferences,
-            container.instrumentRegistry,
-            notePlayer,
-            samplePlayer,
-        ),
-    )
-    val state by viewModel.ui.collectAsState()
+fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
+    val ui by viewModel.ui.collectAsState()
+    var tonicSheet by rememberSaveable { mutableStateOf(false) }
+    var presetSheet by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-
-        SectionCard {
-            Text("Chord finder", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = state.chordInput,
-                onValueChange = viewModel::setChordInput,
-                label = { Text("Chord symbol (e.g. Cmaj7, Bø, F#m7b5)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                isError = state.chordError != null,
-                supportingText = {
-                    when {
-                        state.chordError != null -> Text(state.chordError!!)
-                        state.parsedChord != null -> {
-                            val chord = state.parsedChord!!
-                            Text(
-                                "root ${chord.rootPc} · ${chord.quality} · " +
-                                    chord.intervals.joinToString(" ") { it.toString() },
-                            )
-                        }
-                        else -> Text("Enter a chord symbol")
-                    }
-                },
-            )
-
-            val badge = state.badges[state.chordInput.trim()]
-            if (badge != null) {
-                Text(
-                    badge.text,
-                    color = when (badge.kind) {
-                        "good" -> webQualityColor("good")
-                        "warn" -> webQualityColor("warn")
-                        else -> MaterialTheme.colorScheme.error
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            val tonicNotes = remember {
-                listOf("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
-            }
-            var tonicSheetOpen by rememberSaveable { mutableStateOf(false) }
-            WheelSelectRow(
-                label = "Tonic",
-                value = state.tonicInput,
-                onClick = { tonicSheetOpen = true },
-            )
-            if (tonicSheetOpen) {
-                WheelSelectSheet(
-                    title = "Tonic",
-                    options = tonicNotes.map { WheelOption(it) },
-                    selectedIndex = tonicNotes.indexOf(state.tonicInput).coerceAtLeast(0),
-                    onConfirm = { index ->
-                        viewModel.setTonic(tonicNotes[index])
-                        tonicSheetOpen = false
-                    },
-                    onDismiss = { tonicSheetOpen = false },
-                )
-            }
-        }
-
-        SectionCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Key", style = MaterialTheme.typography.titleMedium)
-                WebTextButton(onClick = viewModel::playProgression) { Text("Play progression") }
-            }
-            OutlinedTextField(
-                value = state.progressionInput,
-                onValueChange = viewModel::setProgressionInput,
-                label = { Text("Progression (chords or roman numerals)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            val key = state.detectedKey
-            if (key != null) {
-                Text(
-                    "${key.tonicName} ${key.mode} · ${key.confidence}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = webQualityColor("good"),
-                )
-                for (alt in key.alternatives) {
-                    Text(
-                        "alt: ${alt.tonicName} ${alt.mode} (${alt.confidence})",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 4.dp),
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    for (chord in state.progression) {
-                        FilterChip(
-                            selected = chord.symbol == state.parsedChord?.symbol,
-                            onClick = {
-                                viewModel.setChordInput(chord.symbol)
-                                viewModel.playChord(chord)
-                            },
-                            label = { Text(chord.symbol) },
+                    Text("Chord finder", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = ui.chordInput,
+                        onValueChange = viewModel::setChordInput,
+                        label = { Text("Chord symbol (e.g. Cmaj7, Bø, F#m7b5)") },
+                        singleLine = true,
+                        isError = ui.chordError != null,
+                        supportingText = {
+                            val error = ui.chordError
+                            val chord = ui.parsedChord
+                            when {
+                                error != null -> Text(error)
+                                chord != null -> Text(
+                                    "root ${chord.rootPc} · ${chord.quality} · " +
+                                        chord.intervals.joinToString(" "),
+                                )
+                                else -> Text("Enter a chord symbol")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ui.badge?.let { badge ->
+                        Text(
+                            text = badge.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = badgeColor(badge.kind),
                         )
                     }
                 }
-            }
-        }
-
-        SectionCard {
-            Text("Progressions", style = MaterialTheme.typography.titleMedium)
-            var presetSheetOpen by rememberSaveable { mutableStateOf(false) }
-            WheelSelectRow(
-                label = "Progression preset",
-                value = "Load a preset",
-                onClick = { presetSheetOpen = true },
-            )
-            if (presetSheetOpen) {
-                WheelSelectSheet(
-                    title = "Progression preset",
-                    options = PROGRESSION_PRESETS.map { preset ->
-                        WheelOption(preset.name, preset.degrees.joinToString(" "))
-                    },
-                    selectedIndex = 0,
-                    onConfirm = { index ->
-                        viewModel.applyPreset(PROGRESSION_PRESETS[index])
-                        presetSheetOpen = false
-                    },
-                    onDismiss = { presetSheetOpen = false },
+                PickerRow(
+                    headline = "Tonic",
+                    value = ui.tonic,
+                    onClick = { tonicSheet = true },
                 )
             }
         }
 
-        SectionCard {
-            Text("Voicings", style = MaterialTheme.typography.titleMedium)
-            if (state.parsedChord == null) {
-                Text("Parse a chord to see voicings.")
-            } else if (state.tuningParseError != null) {
-                Text(state.tuningParseError!!, color = MaterialTheme.colorScheme.error)
-            } else {
-                for (shape in state.voicings) {
-                    VoicingRow(shape, state.tuningSummary)
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Key",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = viewModel::playProgression) { Text("Play progression") }
+                }
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = ui.progressionInput,
+                        onValueChange = viewModel::setProgressionInput,
+                        label = { Text("Progression (chords or roman numerals)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    ui.detectedKey?.let { key ->
+                        Text(
+                            text = "${key.tonicName} ${key.mode} · ${key.confidence}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                        key.alternatives.forEach { alt ->
+                            Text(
+                                text = "alt: ${alt.tonicName} ${alt.mode} (${alt.confidence})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                if (ui.detectedKey != null) {
+                    ProgressionChips(ui = ui, onChordTap = { chord ->
+                        viewModel.setChordInput(chord.symbol)
+                        viewModel.playChord(chord)
+                    })
                 }
             }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Text(
+                    text = "Progressions",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
+                )
+                PickerRow(
+                    headline = "Progression preset",
+                    value = "Load a preset",
+                    onClick = { presetSheet = true },
+                )
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("Voicings", style = MaterialTheme.typography.titleMedium)
+                if (ui.parsedChord == null) {
+                    Text(
+                        "Parse a chord to see voicings.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (ui.voicings.isEmpty()) {
+                    Text(
+                        "No voicings for this tuning.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    ui.voicings.forEach { shape -> VoicingRow(shape) }
+                }
+            }
+        }
+    }
+
+    if (tonicSheet) {
+        OptionSheet(
+            title = "Tonic",
+            options = TONIC_NAMES.map { PickerOption(it, it) },
+            selected = ui.tonic,
+            onSelect = { tonic ->
+                viewModel.setTonic(tonic)
+                tonicSheet = false
+            },
+            onDismiss = { tonicSheet = false },
+        )
+    }
+
+    if (presetSheet) {
+        OptionSheet(
+            title = "Progression preset",
+            options = PROGRESSION_PRESETS.map { preset ->
+                PickerOption(preset, preset.name, supporting = preset.degrees.joinToString(" "))
+            },
+            selected = null,
+            onSelect = { preset ->
+                viewModel.applyPreset(preset)
+                presetSheet = false
+            },
+            onDismiss = { presetSheet = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProgressionChips(
+    ui: ChordFinderUiState,
+    onChordTap: (com.omnituner.core.theory.ParsedChord) -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        ui.progression.forEach { chord ->
+            FilterChip(
+                selected = chord.symbol == ui.parsedChord?.symbol,
+                onClick = { onChordTap(chord) },
+                label = { Text(chord.symbol) },
+            )
         }
     }
 }
 
 @Composable
-private fun VoicingRow(shape: VoicingShape, tuningSummary: String) {
-    val frets = shape.frets
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-    ) {
-        Column {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (fret in frets) {
-                    val label = fret?.toString() ?: "x"
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .background(
-                                if (fret == 0) webQualityColor("good") else MaterialTheme.colorScheme.surfaceVariant,
-                                CircleShape,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
+private fun VoicingRow(shape: VoicingShape) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            shape.frets.forEach { fret ->
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(
+                            color = when (fret) {
+                                0 -> MaterialTheme.colorScheme.tertiaryContainer
+                                null -> MaterialTheme.colorScheme.surface
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            shape = CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = fret?.toString() ?: "x",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
-            Text(
-                "span ${shape.span} · pos ${shape.position} · " +
-                    "bass ${if (shape.bassIsRoot) "root" else "non-root"}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+        Text(
+            text = "span ${shape.span} · pos ${shape.position} · " +
+                "bass ${if (shape.bassIsRoot) "root" else "non-root"}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
+}
+
+@Composable
+private fun badgeColor(kind: String): Color = when (kind) {
+    "good" -> MaterialTheme.colorScheme.tertiary
+    "warn" -> MaterialTheme.colorScheme.secondary
+    else -> MaterialTheme.colorScheme.error
 }
