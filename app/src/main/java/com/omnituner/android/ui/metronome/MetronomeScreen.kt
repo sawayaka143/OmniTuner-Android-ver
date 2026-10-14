@@ -409,7 +409,7 @@ private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
                         centerScale = { bpmScale.value },
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight(),
+                            .fillMaxHeight(WheelHeightShare),
                     )
                     Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
                         RepeatingIconButton(label = "Increase tempo", onStep = { viewModel.changeBpm(1) }) {
@@ -446,6 +446,10 @@ private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
 
 private val ReadoutInset = 8.dp
 private val StepperSlot = 56.dp
+
+// Share of the space between the beat dots and the caption the wheel spans; it bends its rows onto
+// a drum that tall, so this also sets how many neighbours show.
+private const val WheelHeightShare = 0.75f
 
 // Concentric with the panel corner at the readout's inset.
 private val BandShape = SmoothShape(PanelCorner - ReadoutInset)
