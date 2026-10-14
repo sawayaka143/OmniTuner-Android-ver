@@ -39,7 +39,8 @@ fun PickerRow(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         headlineContent = { Text(headline) },
         trailingContent = {
-            Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // ListItem's trailing slot defaults to labelSmall; values read at row size.
+            Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         },
         modifier = modifier.clickable(onClick = onClick),
     )
@@ -60,7 +61,7 @@ fun <T> OptionSheet(
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
             options.groupBy { it.section }.forEach { (section, group) ->
@@ -70,7 +71,7 @@ fun <T> OptionSheet(
                             text = section,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
                 }

@@ -217,7 +217,7 @@ private fun AccentRow(selected: AccentColor, onSelect: (AccentColor) -> Unit) {
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AccentDot(selected)
-                Text(selected.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(selected.label(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         modifier = Modifier.clickable { open = true },
