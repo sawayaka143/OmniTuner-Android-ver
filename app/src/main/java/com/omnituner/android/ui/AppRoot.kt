@@ -39,8 +39,9 @@ import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
@@ -118,14 +119,21 @@ fun AppRoot() {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
                 navigationIcon = {
                     if (!current.topLevel) {
-                        IconButton(onClick = { navController.popBackStack() }) {
+                        // The tonal container matches the grouped-list page in light mode, so the
+                        // button takes the group card color to stay visible on it.
+                        FilledTonalIconButton(
+                            onClick = { navController.popBackStack() },
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = LocalGroupedListColors.current.group,
+                            ),
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 },
                 actions = {
                     if (current.topLevel) {
-                        IconButton(onClick = { navController.navigate(Destination.Settings.route) }) {
+                        FilledTonalIconButton(onClick = { navController.navigate(Destination.Settings.route) }) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
