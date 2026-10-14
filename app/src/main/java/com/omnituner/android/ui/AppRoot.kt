@@ -4,6 +4,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -161,11 +162,25 @@ fun AppRoot() {
 
 // M3 "fade through": the old screen fades out quickly, then the new one fades in while
 // growing slightly, so unrelated tabs never visibly overlap.
-private fun fadeThroughIn(): EnterTransition =
-    fadeIn(tween(210, delayMillis = 90, easing = LinearOutSlowInEasing)) +
-        scaleIn(tween(210, delayMillis = 90, easing = LinearOutSlowInEasing), initialScale = 0.92f)
+private const val FadeOutMillis = 150
+private const val FadeInMillis = 300
 
-private fun fadeThroughOut(): ExitTransition = fadeOut(tween(90, easing = FastOutLinearInEasing))
+private fun fadeThroughIn(): EnterTransition =
+    fadeIn(tween(FadeInMillis, delayMillis = FadeOutMillis, easing = LinearOutSlowInEasing)) +
+        scaleIn(tween(FadeInMillis, delayMillis = FadeOutMillis, easing = LinearOutSlowInEasing), initialScale = 0.92f)
+
+private fun fadeThroughOut(): ExitTransition = fadeOut(tween(FadeOutMillis, easing = FastOutLinearInEasing))
+
+// Pill slide: a low-stiffness spring, settling in roughly 600 ms with a hint of overshoot.
+private const val PillStiffness = 120f
+private const val PillDamping = 0.8f
+
+// Icon pop: ease up to IconPopScale, then drift back on a soft, lightly damped spring so it
+// settles with one gentle overshoot instead of a sharp bounce.
+private const val IconPopScale = 1.15f
+private const val IconPopMillis = 220
+private const val IconSettleStiffness = 150f
+private const val IconSettleDamping = 0.6f
 
 private val TabHeight = 64.dp
 private val TabInset = 4.dp
@@ -184,7 +199,7 @@ private fun NavTabs(
         val slot = maxWidth / tabs.size
         val pillOffset = animateDpAsState(
             targetValue = slot * tabs.indexOf(current).coerceAtLeast(0),
-            animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+            animationSpec = spring(dampingRatio = PillDamping, stiffness = PillStiffness),
             label = "navPill",
         )
         Box(
@@ -225,8 +240,8 @@ private fun NavTab(
         if (firstRun.value) {
             firstRun.value = false
         } else if (selected) {
-            iconScale.animateTo(1.2f, tween(90))
-            iconScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
+            iconScale.animateTo(IconPopScale, tween(IconPopMillis, easing = FastOutSlowInEasing))
+            iconScale.animateTo(1f, spring(dampingRatio = IconSettleDamping, stiffness = IconSettleStiffness))
         }
     }
 
