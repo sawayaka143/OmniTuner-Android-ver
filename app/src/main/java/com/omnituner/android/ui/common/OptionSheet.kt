@@ -1,6 +1,5 @@
 package com.omnituner.android.ui.common
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,9 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.omnituner.android.ui.theme.LocalGroupedListColors
 
 data class PickerOption<T>(
     val key: T,
@@ -73,15 +71,13 @@ private val MenuCheckSize = 20.dp
 /**
  * The app's one pull-down menu: every anchored menu (picker rows, the tuner's tuning menu, the
  * metronome's meter and preset menus) goes through this so they share width, shape and color.
- * The container is the grouped-list card color with a hairline edge, so it stays visible over any
- * grey surface it opens on (the theme's own menu color is the same grey as the tuner and metronome
- * panels).
  */
 @Composable
 fun PullDownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    containerColor: Color = MenuDefaults.containerColor,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     DropdownMenu(
@@ -89,8 +85,7 @@ fun PullDownMenu(
         onDismissRequest = onDismissRequest,
         modifier = modifier.widthIn(min = MenuMinWidth, max = MenuMaxWidth),
         shape = MaterialTheme.shapes.large,
-        containerColor = LocalGroupedListColors.current.group,
-        border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
+        containerColor = containerColor,
         content = content,
     )
 }
@@ -179,6 +174,7 @@ fun <T> MenuPickerRow(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    menuColor: Color = MenuDefaults.containerColor,
     leading: (@Composable (T) -> Unit)? = null,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -197,7 +193,7 @@ fun <T> MenuPickerRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                PullDownMenu(expanded = open, onDismissRequest = { open = false }) {
+                PullDownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = menuColor) {
                     options.forEach { option ->
                         PullDownMenuItem(
                             text = option.label,

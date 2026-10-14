@@ -144,6 +144,7 @@ private fun <T> ChoiceRow(
         options = choices.map { PickerOption(it.first, it.second) },
         selected = selected,
         onSelect = onSelect,
+        menuColor = LocalGroupedListColors.current.group,
     )
 }
 
@@ -172,6 +173,7 @@ private fun AccentRow(selected: AccentColor, onSelect: (AccentColor) -> Unit) {
         options = options.map { PickerOption(it, it.label()) },
         selected = selected,
         onSelect = onSelect,
+        menuColor = LocalGroupedListColors.current.group,
         leading = { accent -> AccentDot(accent) },
     )
 }
