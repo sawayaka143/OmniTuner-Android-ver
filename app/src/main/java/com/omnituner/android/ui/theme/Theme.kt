@@ -144,6 +144,18 @@ val LocalAccentColors = staticCompositionLocalOf {
 
 val LocalDarkTheme = staticCompositionLocalOf { false }
 
+// Bottom navigation sits on the page surface; the selection pill is a neutral grey step above it,
+// so only the selected tab's icon and label carry the accent.
+@Immutable
+data class NavBarColors(
+    val indicator: Color,
+)
+
+private val NavBarLight = NavBarColors(indicator = Color(0xFFE6E6E6))
+private val NavBarDark = NavBarColors(indicator = Color(0xFF1C1C1C))
+
+val LocalNavBarColors = staticCompositionLocalOf { NavBarLight }
+
 @Composable
 fun OmniTunerTheme(
     themeMode: ThemeMode,
@@ -171,6 +183,7 @@ fun OmniTunerTheme(
     CompositionLocalProvider(
         LocalAccentColors provides accentColors(accent, darkTheme),
         LocalDarkTheme provides darkTheme,
+        LocalNavBarColors provides if (darkTheme) NavBarDark else NavBarLight,
     ) {
         MaterialTheme(colorScheme = colorScheme, content = content)
     }
