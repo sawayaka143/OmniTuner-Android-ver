@@ -732,7 +732,7 @@ private fun StringButton(
         label = "stringContent",
     )
     val corner: Dp by animateDpAsState(
-        targetValue = if (selected) 12.dp else 28.dp,
+        targetValue = if (selected) 18.dp else 28.dp,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "stringCorner",
     )
