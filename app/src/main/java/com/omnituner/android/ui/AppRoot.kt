@@ -107,14 +107,14 @@ fun AppRoot() {
                 navigationIcon = {
                     if (!current.topLevel) {
                         IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 },
                 actions = {
                     if (current.topLevel) {
                         IconButton(onClick = { navController.navigate(Destination.Settings.route) }) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 },

@@ -22,8 +22,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -133,7 +133,7 @@ private fun TempoCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onTap
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RepeatingIconButton(label = "Decrease tempo", onStep = { viewModel.changeBpm(-1) }) {
-                    Icon(Icons.Filled.Remove, contentDescription = null)
+                    Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Slider(
                     value = metronome.bpm.toFloat(),
@@ -145,7 +145,7 @@ private fun TempoCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onTap
                         .semantics { contentDescription = "Tempo" },
                 )
                 RepeatingIconButton(label = "Increase tempo", onStep = { viewModel.changeBpm(1) }) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
             Row(
@@ -153,7 +153,7 @@ private fun TempoCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onTap
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilledTonalButton(onClick = onTap) { Text("Tap tempo") }
-                FilledIconButton(
+                FilledTonalIconButton(
                     onClick = viewModel::toggle,
                     modifier = Modifier
                         .size(64.dp)
@@ -165,6 +165,7 @@ private fun TempoCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onTap
                         imageVector = if (ui.isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = null,
                         modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -487,7 +488,7 @@ private fun PresetsCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onS
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     IconButton(onClick = { viewModel.deletePreset(preset.id) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete preset ${preset.name}")
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete preset ${preset.name}", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }

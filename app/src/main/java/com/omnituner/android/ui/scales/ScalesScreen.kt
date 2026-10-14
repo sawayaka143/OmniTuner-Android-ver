@@ -98,6 +98,7 @@ private fun InstrumentCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
                     Icon(
                         imageVector = if (ui.isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }

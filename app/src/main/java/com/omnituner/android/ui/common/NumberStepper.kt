@@ -39,7 +39,7 @@ fun NumberStepper(
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RepeatingIconButton(label = "Decrease $headline", onStep = onDecrement) {
-                    Icon(Icons.Filled.Remove, contentDescription = null)
+                    Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Text(
                     text = valueText,
@@ -48,7 +48,7 @@ fun NumberStepper(
                     modifier = Modifier.widthIn(min = 80.dp),
                 )
                 RepeatingIconButton(label = "Increase $headline", onStep = onIncrement) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
         },

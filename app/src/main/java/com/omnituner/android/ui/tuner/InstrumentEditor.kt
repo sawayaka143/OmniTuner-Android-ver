@@ -235,13 +235,13 @@ fun CustomInstrumentsDialog(
                             )
                         }
                         IconButton(onClick = { onEdit(instrument) }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit ${instrument.label}")
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit ${instrument.label}", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         IconButton(onClick = { onDelete(instrument.id) }) {
                             Icon(
                                 Icons.Filled.Delete,
                                 contentDescription = "Delete ${instrument.label}",
-                                tint = MaterialTheme.colorScheme.error,
+                                tint = MaterialTheme.colorScheme.onSurface,
                             )
                         }
                     }
@@ -250,7 +250,7 @@ fun CustomInstrumentsDialog(
         },
         confirmButton = {
             TextButton(onClick = onNew) {
-                Icon(Icons.Filled.Add, contentDescription = null)
+                Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 Text("New instrument")
             }
         },

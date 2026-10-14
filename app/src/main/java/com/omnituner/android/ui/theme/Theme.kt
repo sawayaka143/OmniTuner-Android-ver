@@ -20,28 +20,30 @@ import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.ThemeMode
 
 // The whole Material scheme is neutral grey on purpose: stock components render black/white,
-// and the accent is reserved for the few places that read LocalAccentColors.
+// and the accent is reserved for the few places that read LocalAccentColors. Page surfaces are
+// pure white / pure black (AMOLED); every grey fill (cards, panels, chips, pills, sheets) is one
+// single grey per theme, so the UI never mixes near-identical shades.
 private val NeutralDark = darkColorScheme(
     primary = Color(0xFFECECEC),
     onPrimary = Color(0xFF121212),
-    primaryContainer = Color(0xFF2E2E2E),
+    primaryContainer = Color(0xFF1C1C1C),
     onPrimaryContainer = Color(0xFFECECEC),
     inversePrimary = Color(0xFF3A3A3A),
     secondary = Color(0xFFC4C4C4),
     onSecondary = Color(0xFF121212),
-    secondaryContainer = Color(0xFF333333),
+    secondaryContainer = Color(0xFF1C1C1C),
     onSecondaryContainer = Color(0xFFECECEC),
     tertiary = Color(0xFF8FD3A8),
     onTertiary = Color(0xFF0B2615),
     tertiaryContainer = Color(0xFF1F3A29),
     onTertiaryContainer = Color(0xFFB5ECC8),
-    background = Color(0xFF121212),
+    background = Color(0xFF000000),
     onBackground = Color(0xFFFFFFFF),
-    surface = Color(0xFF121212),
+    surface = Color(0xFF000000),
     onSurface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFF2A2A2A),
+    surfaceVariant = Color(0xFF1C1C1C),
     onSurfaceVariant = Color(0xFF868688),
-    surfaceTint = Color(0xFF121212),
+    surfaceTint = Color(0xFF000000),
     inverseSurface = Color(0xFFECECEC),
     inverseOnSurface = Color(0xFF1C1C1C),
     error = Color(0xFFF2B8B5),
@@ -52,23 +54,23 @@ private val NeutralDark = darkColorScheme(
     outlineVariant = Color(0xFF333333),
     scrim = Color(0xFF000000),
     surfaceBright = Color(0xFF383838),
-    surfaceDim = Color(0xFF121212),
-    surfaceContainerLowest = Color(0xFF0D0D0D),
-    surfaceContainerLow = Color(0xFF181818),
+    surfaceDim = Color(0xFF000000),
+    surfaceContainerLowest = Color(0xFF000000),
+    surfaceContainerLow = Color(0xFF1C1C1C),
     surfaceContainer = Color(0xFF1C1C1C),
-    surfaceContainerHigh = Color(0xFF242424),
-    surfaceContainerHighest = Color(0xFF2E2E2E),
+    surfaceContainerHigh = Color(0xFF1C1C1C),
+    surfaceContainerHighest = Color(0xFF1C1C1C),
 )
 
 private val NeutralLight = lightColorScheme(
     primary = Color(0xFF171717),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE6E6E6),
+    primaryContainer = Color(0xFFF3F3F2),
     onPrimaryContainer = Color(0xFF171717),
     inversePrimary = Color(0xFFD4D4D4),
     secondary = Color(0xFF3D3D3D),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE6E6E6),
+    secondaryContainer = Color(0xFFF3F3F2),
     onSecondaryContainer = Color(0xFF171717),
     tertiary = Color(0xFF1E7A45),
     onTertiary = Color(0xFFFFFFFF),
@@ -78,7 +80,7 @@ private val NeutralLight = lightColorScheme(
     onBackground = Color(0xFF000000),
     surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF000000),
-    surfaceVariant = Color(0xFFEDEDED),
+    surfaceVariant = Color(0xFFF3F3F2),
     onSurfaceVariant = Color(0xFF868688),
     surfaceTint = Color(0xFFFFFFFF),
     inverseSurface = Color(0xFF2B2B2B),
@@ -93,10 +95,10 @@ private val NeutralLight = lightColorScheme(
     surfaceBright = Color(0xFFFFFFFF),
     surfaceDim = Color(0xFFDDDDDD),
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF9F9F9),
-    surfaceContainer = Color(0xFFF3F3F3),
-    surfaceContainerHigh = Color(0xFFEDEDED),
-    surfaceContainerHighest = Color(0xFFE6E6E6),
+    surfaceContainerLow = Color(0xFFF3F3F2),
+    surfaceContainer = Color(0xFFF3F3F2),
+    surfaceContainerHigh = Color(0xFFF3F3F2),
+    surfaceContainerHighest = Color(0xFFF3F3F2),
 )
 
 @Immutable
@@ -151,7 +153,7 @@ data class NavBarColors(
     val indicator: Color,
 )
 
-private val NavBarLight = NavBarColors(indicator = Color(0xFFE6E6E6))
+private val NavBarLight = NavBarColors(indicator = Color(0xFFF3F3F2))
 private val NavBarDark = NavBarColors(indicator = Color(0xFF1C1C1C))
 
 val LocalNavBarColors = staticCompositionLocalOf { NavBarLight }

@@ -292,6 +292,7 @@ private fun TuningMenu(
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
                     contentDescription = "Choose tuning",
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -320,7 +321,7 @@ private fun TuningMenu(
                         },
                         leadingIcon = {
                             if (selected) {
-                                Icon(Icons.Filled.Check, contentDescription = null)
+                                Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                             } else {
                                 Spacer(Modifier.size(24.dp))
                             }
@@ -333,13 +334,13 @@ private fun TuningMenu(
                                         onTuningPicked(entry.instrument.id, tuning.id)
                                         onEditTuning(tuning)
                                     }) {
-                                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}")
+                                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}", tint = MaterialTheme.colorScheme.onSurface)
                                     }
                                     IconButton(onClick = { onDeleteTuning(tuning.id) }) {
                                         Icon(
                                             Icons.Filled.Delete,
                                             contentDescription = "Delete ${tuning.label}",
-                                            tint = MaterialTheme.colorScheme.error,
+                                            tint = MaterialTheme.colorScheme.onSurface,
                                         )
                                     }
                                 }
@@ -353,7 +354,7 @@ private fun TuningMenu(
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             DropdownMenuItem(
                 text = { Text("New tuning for ${state.instrument.label}…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
                 onClick = {
                     close()
                     onNewTuning()
@@ -361,7 +362,7 @@ private fun TuningMenu(
             )
             DropdownMenuItem(
                 text = { Text("New instrument…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
                 onClick = {
                     close()
                     onNewInstrument()
@@ -370,7 +371,7 @@ private fun TuningMenu(
             if (state.catalog.any { it.instrument.isCustom }) {
                 DropdownMenuItem(
                     text = { Text("Manage instruments…") },
-                    leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
                     onClick = {
                         close()
                         onManageInstruments()
@@ -653,7 +654,7 @@ private fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(48.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurface)
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
@@ -755,6 +756,7 @@ private fun StringButton(
                 Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(top = 4.dp, end = 6.dp)
