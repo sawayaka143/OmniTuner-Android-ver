@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,9 +40,6 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -87,6 +83,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
+import com.omnituner.android.ui.common.PullDownMenu
+import com.omnituner.android.ui.common.PullDownMenuDivider
+import com.omnituner.android.ui.common.PullDownMenuItem
+import com.omnituner.android.ui.common.PullDownMenuSection
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentSwitchColors
@@ -297,37 +297,21 @@ private fun TuningMenu(
                 )
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = close) {
+        PullDownMenu(expanded = expanded, onDismissRequest = close) {
             state.catalog.forEachIndexed { index, entry ->
-                if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text(
-                    text = entry.instrument.menuTitle(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+                if (index > 0) PullDownMenuDivider()
+                PullDownMenuSection(entry.instrument.menuTitle())
                 entry.tunings.forEach { tuning ->
                     val selected = entry.instrument.id == state.instrument.id && tuning.id == state.tuning.id
                     val editable = tuning.isCustom && tuning.id != "${entry.instrument.id}-default"
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = tuning.label,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            )
-                        },
+                    PullDownMenuItem(
+                        text = tuning.label,
+                        selected = selected,
                         onClick = {
                             close()
                             onTuningPicked(entry.instrument.id, tuning.id)
                         },
-                        leadingIcon = {
-                            if (selected) {
-                                Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                            } else {
-                                Spacer(Modifier.size(24.dp))
-                            }
-                        },
-                        trailingIcon = if (editable) {
+                        trailing = if (editable) {
                             {
                                 Row {
                                     IconButton(onClick = {
@@ -352,27 +336,27 @@ private fun TuningMenu(
                     )
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            DropdownMenuItem(
-                text = { Text("New tuning for ${state.instrument.label}…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
+            PullDownMenuDivider()
+            PullDownMenuItem(
+                text = "New tuning for ${state.instrument.label}…",
+                icon = Icons.Filled.Add,
                 onClick = {
                     close()
                     onNewTuning()
                 },
             )
-            DropdownMenuItem(
-                text = { Text("New instrument…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
+            PullDownMenuItem(
+                text = "New instrument…",
+                icon = Icons.Filled.Add,
                 onClick = {
                     close()
                     onNewInstrument()
                 },
             )
             if (state.catalog.any { it.instrument.isCustom }) {
-                DropdownMenuItem(
-                    text = { Text("Manage instruments…") },
-                    leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
+                PullDownMenuItem(
+                    text = "Manage instruments…",
+                    icon = Icons.Filled.Tune,
                     onClick = {
                         close()
                         onManageInstruments()

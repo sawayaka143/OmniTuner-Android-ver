@@ -31,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
@@ -39,12 +38,9 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -88,6 +84,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
+import com.omnituner.android.ui.common.PullDownMenu
+import com.omnituner.android.ui.common.PullDownMenuDivider
+import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalAccentColors
@@ -251,15 +250,6 @@ private fun HeaderMenuTrigger(
 }
 
 @Composable
-private fun MenuCheck(selected: Boolean) {
-    if (selected) {
-        Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-    } else {
-        Spacer(Modifier.size(24.dp))
-    }
-}
-
-@Composable
 private fun MeterMenu(
     metronome: MetronomeState,
     onPick: (TimeSignature) -> Unit,
@@ -275,24 +265,12 @@ private fun MeterMenu(
             onClick = { expanded = true },
             contentDescription = "Choose meter",
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        PullDownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             METER_PRESETS.forEach { preset ->
-                val selected = preset == meter
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "${preset.numerator}/${preset.denominator}",
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
-                    },
-                    trailingIcon = {
-                        Text(
-                            text = meterFeel(preset.denominator),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    leadingIcon = { MenuCheck(selected) },
+                PullDownMenuItem(
+                    text = "${preset.numerator}/${preset.denominator}",
+                    selected = preset == meter,
+                    supporting = meterFeel(preset.denominator),
                     onClick = {
                         expanded = false
                         onPick(preset)
@@ -323,26 +301,13 @@ private fun PresetMenu(
             contentDescription = "Choose preset",
             alignEnd = true,
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = close) {
+        PullDownMenu(expanded = expanded, onDismissRequest = close) {
             ui.presets.forEach { preset ->
-                val selected = preset.id == current?.id
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(
-                                text = preset.name,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                maxLines = 1,
-                            )
-                            Text(
-                                text = presetSummary(preset.state),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    leadingIcon = { MenuCheck(selected) },
-                    trailingIcon = {
+                PullDownMenuItem(
+                    text = preset.name,
+                    selected = preset.id == current?.id,
+                    supporting = presetSummary(preset.state),
+                    trailing = {
                         IconButton(onClick = { onDelete(preset.id) }) {
                             Icon(
                                 Icons.Filled.Delete,
@@ -357,10 +322,11 @@ private fun PresetMenu(
                     },
                 )
             }
-            if (ui.presets.isNotEmpty()) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            DropdownMenuItem(
-                text = { Text(if (ui.presets.size >= PRESETS_MAX) "Save current (replaces oldest)…" else "Save current…") },
-                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface) },
+            if (ui.presets.isNotEmpty()) PullDownMenuDivider()
+            PullDownMenuItem(
+                text = "Save current…",
+                icon = Icons.Filled.Add,
+                supporting = if (ui.presets.size >= PRESETS_MAX) "Replaces the oldest" else null,
                 onClick = {
                     close()
                     onSave()

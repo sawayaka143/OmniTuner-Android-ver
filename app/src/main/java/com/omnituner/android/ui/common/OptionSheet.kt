@@ -1,13 +1,15 @@
 package com.omnituner.android.ui.common
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -15,11 +17,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,7 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 
 data class PickerOption<T>(
     val key: T,
@@ -57,10 +63,109 @@ fun PickerRow(
     )
 }
 
-// Every MenuPickerRow menu is the same width, whatever its labels, so menus don't jump in size
-// between rows. The check glyph at this box size is ~14 dp, matching a 14 dp leading dot.
-private val MenuWidth = 220.dp
+// Every pull-down menu starts at the same width, whatever its labels, so menus don't jump in size
+// between rows; long labels may widen it up to the max and then ellipsize. The check glyph at this
+// box size is ~14 dp, matching a 14 dp leading dot.
+private val MenuMinWidth = 220.dp
+private val MenuMaxWidth = 280.dp
 private val MenuCheckSize = 20.dp
+
+/**
+ * The app's one pull-down menu: every anchored menu (picker rows, the tuner's tuning menu, the
+ * metronome's meter and preset menus) goes through this so they share width, shape and color.
+ * The container is the grouped-list card color with a hairline edge, so it stays visible over any
+ * grey surface it opens on (the theme's own menu color is the same grey as the tuner and metronome
+ * panels).
+ */
+@Composable
+fun PullDownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier.widthIn(min = MenuMinWidth, max = MenuMaxWidth),
+        shape = MaterialTheme.shapes.large,
+        containerColor = LocalGroupedListColors.current.group,
+        border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)),
+        content = content,
+    )
+}
+
+/**
+ * A [PullDownMenu] row. The leading slot holds a check when [selected], or [icon] for action rows
+ * ("New tuning…"), or stays empty so labels line up. [leading] is drawn just before the label (a
+ * color dot), [supporting] under it, [trailing] at the end (e.g. edit/delete buttons).
+ */
+@Composable
+fun PullDownMenuItem(
+    text: String,
+    onClick: () -> Unit,
+    selected: Boolean = false,
+    icon: ImageVector? = null,
+    supporting: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    DropdownMenuItem(
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                leading?.invoke()
+                Column {
+                    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (supporting != null) {
+                        Text(
+                            text = supporting,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        },
+        leadingIcon = {
+            when {
+                selected -> Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(MenuCheckSize),
+                )
+                icon != null -> Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(MenuCheckSize),
+                )
+                else -> Spacer(Modifier.size(MenuCheckSize))
+            }
+        },
+        trailingIcon = trailing,
+        onClick = onClick,
+    )
+}
+
+/** A section title inside a [PullDownMenu], aligned with the item labels. */
+@Composable
+fun PullDownMenuSection(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+fun PullDownMenuDivider() {
+    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+}
 
 /**
  * A row whose value opens an anchored menu (iOS-style pull-down) instead of a bottom sheet: the
@@ -74,7 +179,6 @@ fun <T> MenuPickerRow(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
-    menuColor: Color = MenuDefaults.containerColor,
     leading: (@Composable (T) -> Unit)? = null,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -93,33 +197,13 @@ fun <T> MenuPickerRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                DropdownMenu(
-                    expanded = open,
-                    onDismissRequest = { open = false },
-                    modifier = Modifier.width(MenuWidth),
-                    shape = MaterialTheme.shapes.large,
-                    containerColor = menuColor,
-                ) {
+                PullDownMenu(expanded = open, onDismissRequest = { open = false }) {
                     options.forEach { option ->
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    leading?.invoke(option.key)
-                                    Text(option.label)
-                                }
-                            },
-                            leadingIcon = {
-                                if (option.key == selected) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(MenuCheckSize),
-                                    )
-                                } else {
-                                    Spacer(Modifier.size(MenuCheckSize))
-                                }
-                            },
+                        PullDownMenuItem(
+                            text = option.label,
+                            selected = option.key == selected,
+                            supporting = option.supporting,
+                            leading = leading?.let { draw -> { draw(option.key) } },
                             onClick = {
                                 open = false
                                 onSelect(option.key)
