@@ -15,7 +15,7 @@
 ## UI patterns
 
 - The app is **native Material 3**: `Scaffold` + `TopAppBar` + `NavigationBar`, M3 `Card`, `ListItem`, `Switch`, `Slider`, `FilterChip`, `SingleChoiceSegmentedButtonRow`, `AlertDialog`, `ModalBottomSheet`. Do not reintroduce custom look-alikes of web components.
-- Option selection goes through the shared pickers in `ui/common/OptionSheet.kt`: `PickerRow` (the trigger row) + `OptionSheet` (a `ModalBottomSheet` list with optional sections, trailing actions and a footer). Do not add new dropdown, wheel, or spinner components.
+- Option selection goes through the shared pickers in `ui/common/OptionSheet.kt`: `PickerRow` (the trigger row) + `OptionSheet` (a `ModalBottomSheet` list with optional sections, trailing actions and a footer). The stock M3 `ExposedDropdownMenuBox` / `DropdownMenu` are fine where a compact menu fits better; do not build custom dropdown, wheel, or spinner components.
 - Numeric adjustments use `NumberStepper` (`ui/common/NumberStepper.kt`), which repeats while held.
 - Reuse `SwitchRow` (`ui/common/SwitchRow.kt`) for boolean settings.
 
@@ -36,7 +36,7 @@
 
 ## Comments
 
-- **Never add comments with code changes.** No inline notes, no KDoc on new or changed members, no ported-from/design-token annotations — the user reviews diffs and does not want prose in them; names and structure must speak for themselves. Only write a comment when the user explicitly asks for one. This extends to new files: ship them comment-free.
+- Comment where it genuinely helps (non-obvious intent, gotchas); do not narrate obvious code.
 - Do not strip pre-existing comments in files you touch unless the user asks for a cleanup.
 
 ## Encoding & file editing
