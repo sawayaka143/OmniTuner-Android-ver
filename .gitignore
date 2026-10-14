@@ -17,3 +17,8 @@ build/
 local.properties
 
 /tests/
+.artifacts/
+/.idea/misc.xml
+/.idea/artifacts/
+/.idea/deviceManager.xml
+/.idea/deploymentTargetSelector.xml
