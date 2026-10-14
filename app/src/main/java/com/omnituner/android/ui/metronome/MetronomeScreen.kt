@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -69,12 +72,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -378,18 +385,21 @@ private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
         }
     }
 
+    var typingTempo by rememberSaveable { mutableStateOf(false) }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = ReadoutInset, vertical = 16.dp),
     ) {
-        val bpmSize = with(LocalDensity.current) { (maxHeight * 0.26f).coerceIn(56.dp, 168.dp).toSp() }
+        // Three digits must fit between the steppers, and the drum needs room for rows around them.
+        val bpmSize = min(maxHeight * 0.2f, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp)
+        val rowPitch = (bpmSize * 0.36f).coerceIn(28.dp, 44.dp)
         val dotsHeight = min(32.dp, maxHeight * 0.08f)
 
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             BeatDots(
                 beats = beats,
@@ -398,57 +408,115 @@ private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
                 barActive = ui.barActive,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
                     .height(dotsHeight),
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "${metronome.bpm.roundToInt()}",
-                    style = MaterialTheme.typography.displayLarge.copy(
-                        fontSize = bpmSize,
-                        lineHeight = bpmSize,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    modifier = Modifier
-                        .graphicsLayer {
-                            scaleX = bpmScale.value
-                            scaleY = bpmScale.value
-                        }
-                        .semantics { contentDescription = "${metronome.bpm.roundToInt()} BPM" },
-                )
-                Text(
-                    text = "BPM · ${getTempoMarking(metronome.bpm)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = LocalContentColor.current.copy(alpha = 0.7f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
             ) {
-                RepeatingIconButton(label = "Decrease tempo", onStep = { viewModel.changeBpm(-1) }) {
-                    Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                }
-                Slider(
-                    colors = accentSliderColors(),
-                    value = metronome.bpm.toFloat(),
-                    onValueChange = { viewModel.setBpm(it.roundToInt().toDouble()) },
-                    valueRange = BPM_MIN.toFloat()..BPM_MAX.toFloat(),
+                // Selection band behind the centre row; the steppers sit at its two ends.
+                Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp)
-                        .semantics { contentDescription = "Tempo" },
+                        .fillMaxWidth()
+                        .height(bpmSize + 20.dp)
+                        .background(MaterialTheme.colorScheme.surface, BandShape),
                 )
-                RepeatingIconButton(label = "Increase tempo", onStep = { viewModel.changeBpm(1) }) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
+                        RepeatingIconButton(label = "Decrease tempo", onStep = { viewModel.changeBpm(-1) }) {
+                            Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                    BpmWheel(
+                        value = metronome.bpm.roundToInt(),
+                        range = BPM_MIN..BPM_MAX,
+                        onValueChange = { viewModel.setBpm(it.toDouble()) },
+                        onCenterClick = { typingTempo = true },
+                        centerSize = bpmSize,
+                        pitch = rowPitch,
+                        centerScale = { bpmScale.value },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                    Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
+                        RepeatingIconButton(label = "Increase tempo", onStep = { viewModel.changeBpm(1) }) {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
                 }
             }
+            Text(
+                text = "BPM · ${getTempoMarking(metronome.bpm)}",
+                style = MaterialTheme.typography.titleMedium,
+                color = LocalContentColor.current.copy(alpha = 0.7f),
+            )
             Text(
                 text = statusLabel(ui),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
     }
+
+    if (typingTempo) {
+        TempoEntryDialog(
+            current = metronome.bpm.roundToInt(),
+            onDismiss = { typingTempo = false },
+            onSet = { bpm ->
+                viewModel.setBpm(bpm.toDouble())
+                typingTempo = false
+            },
+        )
+    }
+}
+
+private val ReadoutInset = 8.dp
+private val StepperSlot = 56.dp
+
+// Concentric with the panel corner at the readout's inset.
+private val BandShape = SmoothShape(PanelCorner - ReadoutInset)
+
+@Composable
+private fun TempoEntryDialog(current: Int, onDismiss: () -> Unit, onSet: (Int) -> Unit) {
+    var text by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue("$current", selection = TextRange(0, "$current".length)))
+    }
+    val focus = remember { FocusRequester() }
+    val bpm = text.text.toIntOrNull()?.takeIf { it in BPM_MIN..BPM_MAX }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tempo") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { new ->
+                    if (new.text.length <= BPM_MAX.toString().length && new.text.all(Char::isDigit)) text = new
+                },
+                label = { Text("BPM") },
+                singleLine = true,
+                isError = text.text.isNotEmpty() && bpm == null,
+                supportingText = { Text("$BPM_MIN–$BPM_MAX") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { bpm?.let(onSet) }),
+                modifier = Modifier.focusRequester(focus),
+            )
+        },
+        confirmButton = {
+            Button(shape = SmoothShape.Full, enabled = bpm != null, onClick = { bpm?.let(onSet) }) { Text("Set") }
+        },
+        dismissButton = {
+            TextButton(shape = SmoothShape.Full, onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 private val BeatDotMax = 28.dp
