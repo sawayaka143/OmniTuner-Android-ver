@@ -9,7 +9,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,9 +51,11 @@ import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.cosh
 import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlin.math.sin
+import kotlin.math.tanh
 
 /**
  * The tempo readout as an iOS-style drum: the current value sits large in the middle while its
@@ -142,7 +144,6 @@ fun BpmWheel(
         scope.launch { position.snapTo(position.value - delta / pitchPx) }
     }
 
-    val window = (centerRow - VisibleRows).coerceAtLeast(0)..(centerRow + VisibleRows).coerceAtMost(maxIndex)
     val style = MaterialTheme.typography.displayLarge.copy(
         fontSize = with(density) { centerSize.toSp() },
         lineHeight = with(density) { centerSize.toSp() },
@@ -150,7 +151,7 @@ fun BpmWheel(
         fontFeatureSettings = "tnum",
     )
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .clipToBounds()
             // Fade the drum out at its top and bottom edges rather than cutting rows off.
@@ -180,9 +181,10 @@ fun BpmWheel(
                         latestOnCenterClick()
                         return@detectTapGestures
                     }
-                    val first = (position.value.roundToInt() - VisibleRows).coerceAtLeast(0)
-                    val last = (position.value.roundToInt() + VisibleRows).coerceAtMost(maxIndex)
-                    val row = (first..last).minBy { abs(rowOffset(it - position.value, bigPx, pitchPx) - dy) }
+                    val tapGeometry = DrumGeometry(bigPx, pitchPx, size.height / 2f)
+                    val first = (position.value.roundToInt() - tapGeometry.visibleRows).coerceAtLeast(0)
+                    val last = (position.value.roundToInt() + tapGeometry.visibleRows).coerceAtMost(maxIndex)
+                    val row = (first..last).minBy { abs(tapGeometry.offset(it - position.value) - dy) }
                     interacting = true
                     scope.launch { settleTo(row) }
                 }
@@ -206,6 +208,11 @@ fun BpmWheel(
             },
         contentAlignment = Alignment.Center,
     ) {
+        val geometry = remember(bigPx, pitchPx, constraints.maxHeight) {
+            DrumGeometry(bigPx, pitchPx, constraints.maxHeight / 2f)
+        }
+        val window = (centerRow - geometry.visibleRows).coerceAtLeast(0)..
+            (centerRow + geometry.visibleRows).coerceAtMost(maxIndex)
         for (row in window) {
             key(row) {
                 Text(
@@ -215,16 +222,15 @@ fun BpmWheel(
                     softWrap = false,
                     modifier = Modifier.graphicsLayer {
                         val d = row - position.value
-                        val near = abs(d).coerceAtMost(1f)
-                        val ease = near * near * (3f - 2f * near)
-                        val angle = (d * RowAngle).coerceIn(-MaxAngle, MaxAngle)
-                        translationY = rowOffset(d, bigPx, pitchPx)
-                        val scale = lerp(1f, NeighbourRatio * pitchPx / bigPx, ease) * lerp(centerScale(), 1f, ease)
+                        val focus = geometry.focus(d)
+                        val angle = geometry.angle(d)
+                        translationY = geometry.offset(d)
+                        val scale = geometry.scale(d) * lerp(1f, centerScale(), focus)
                         scaleX = scale
                         scaleY = scale
                         rotationX = -Math.toDegrees(angle.toDouble()).toFloat()
                         cameraDistance = CameraDistance * this.density
-                        alpha = lerp(1f, NeighbourAlpha, ease) * cos(angle).coerceAtLeast(0f)
+                        alpha = lerp(NeighbourAlpha, 1f, focus) * cos(angle).coerceAtLeast(0f)
                     },
                 )
             }
@@ -233,27 +239,52 @@ fun BpmWheel(
 }
 
 /**
- * Vertical offset from the wheel's centre of a row [d] rows away (fractional while moving). Rows
- * sit on a drum of radius pitch / angle, and every row but the centre one is pushed out far enough
- * to clear the large centre number, keeping the same gap the small rows have between each other.
+ * Where and how large each row is drawn, for a row `d` rows from the centre (fractional while the
+ * wheel moves).
+ *
+ * Size follows a bell curve ([focus]) instead of jumping over the last row, so a number grows
+ * steadily as it approaches the centre. Rows are stacked by that size, so the spacing opens up
+ * around the large number exactly as much as the numbers need: the distance along the drum is the
+ * integral of row height (pitch + the extra size), and the drum (radius = half the wheel's height)
+ * then bends that onto a curve, tilting rows away and hiding them past 90°.
  */
-private fun rowOffset(d: Float, bigPx: Float, pitchPx: Float): Float {
-    val near = abs(d).coerceAtMost(1f)
-    val ease = near * near * (3f - 2f * near)
-    val angle = (d * RowAngle).coerceIn(-MaxAngle, MaxAngle)
-    val neighbour = NeighbourRatio * pitchPx
-    val push = bigPx / 2f + (pitchPx - neighbour) + neighbour / 2f - pitchPx
-    return (pitchPx / RowAngle) * sin(angle) + sign(d) * push * ease
+private class DrumGeometry(private val bigPx: Float, private val pitchPx: Float, private val radius: Float) {
+    private val smallPx = NeighbourRatio * pitchPx
+
+    /** 1 at the centre, easing to 0 a few rows out: how much of the centre's size a row has. */
+    fun focus(d: Float): Float {
+        val c = cosh(d / SizeFalloff)
+        return 1f / (c * c)
+    }
+
+    // ∫ sech²(x/s) dx = s·tanh(x/s): the extra room the growing rows take, summed up to d.
+    private fun arc(d: Float): Float =
+        sign(d) * (pitchPx * abs(d) + (bigPx - smallPx) * SizeFalloff * tanh(abs(d) / SizeFalloff))
+
+    fun angle(d: Float): Float = (arc(d) / radius).coerceIn(-MaxAngle, MaxAngle)
+
+    fun offset(d: Float): Float = radius * sin(angle(d))
+
+    fun scale(d: Float): Float = lerp(smallPx / bigPx, 1f, focus(d))
+
+    /** Rows each side of the centre that are still on the visible half of the drum. */
+    val visibleRows: Int = run {
+        var rows = 1
+        while (rows < MaxVisibleRows && abs(arc(rows.toFloat())) < radius * MaxAngle) rows++
+        rows
+    }
 }
 
-// Angle between neighbouring rows on the drum (~21°); rows past 90° are hidden.
-private const val RowAngle = 0.36f
 private const val MaxAngle = (PI / 2).toFloat()
-private val VisibleRows = (MaxAngle / RowAngle).toInt() + 1
+private const val MaxVisibleRows = 30
 
-// Small rows' text height as a share of the row pitch, and their opacity next to the centre.
+// How many rows out the size bell reaches: about half the centre's extra size is left one row out,
+// a tenth two rows out. Larger values start the growth earlier.
+private const val SizeFalloff = 1.2f
+
+// Far rows' text height as a share of the row pitch, and their opacity.
 private const val NeighbourRatio = 0.62f
-private const val NeighbourAlpha = 0.5f
+private const val NeighbourAlpha = 0.45f
 private const val CameraDistance = 12f
 private const val EdgeFade = 0.12f
 
