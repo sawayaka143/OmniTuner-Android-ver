@@ -59,6 +59,7 @@ import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SwitchRow
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.metronome.BPM_MAX
 import com.omnituner.core.metronome.BPM_MIN
 import com.omnituner.core.metronome.DENOMINATORS
@@ -152,7 +153,7 @@ private fun TempoCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onTap
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilledTonalButton(onClick = onTap) { Text("Tap tempo") }
+                FilledTonalButton(shape = SmoothShape.Full, onClick = onTap) { Text("Tap tempo") }
                 FilledTonalIconButton(
                     onClick = viewModel::toggle,
                     modifier = Modifier
@@ -210,7 +211,7 @@ private fun MeterCard(metronome: MetronomeState, viewModel: MetronomeViewModel) 
                         SegmentedButton(
                             selected = meter.denominator == denominator,
                             onClick = { viewModel.setTimeSignature(meter.numerator, denominator) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = DENOMINATORS.size),
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = DENOMINATORS.size, baseShape = SmoothShape.Full),
                         ) {
                             Text("/$denominator")
                         }
@@ -465,7 +466,7 @@ private fun PresetsCard(ui: MetronomeUiState, viewModel: MetronomeViewModel, onS
                     text = "Presets (${ui.presets.size}/$PRESETS_MAX)",
                     style = MaterialTheme.typography.titleMedium,
                 )
-                TextButton(onClick = onSave) { Text("Save current") }
+                TextButton(shape = SmoothShape.Full, onClick = onSave) { Text("Save current") }
             }
             ui.presets.forEach { preset ->
                 Row(
@@ -511,10 +512,10 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
             )
         },
         confirmButton = {
-            Button(onClick = { onSave(name) }) { Text("Save") }
+            Button(shape = SmoothShape.Full, onClick = { onSave(name) }) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(shape = SmoothShape.Full, onClick = onDismiss) { Text("Cancel") }
         },
     )
 }

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -15,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.ThemeMode
@@ -99,6 +101,16 @@ private val NeutralLight = lightColorScheme(
     surfaceContainer = Color(0xFFF3F3F2),
     surfaceContainerHigh = Color(0xFFF3F3F2),
     surfaceContainerHighest = Color(0xFFF3F3F2),
+)
+
+// Material's default corner sizes, drawn as continuous (squircle) corners. Cards, dialogs, sheets,
+// menus, text fields and chips read these; fully rounded buttons take SmoothShape.Full explicitly.
+private val SmoothShapes = Shapes(
+    extraSmall = SmoothShape(4.dp),
+    small = SmoothShape(8.dp),
+    medium = SmoothShape(12.dp),
+    large = SmoothShape(16.dp),
+    extraLarge = SmoothShape(28.dp),
 )
 
 @Immutable
@@ -187,6 +199,6 @@ fun OmniTunerTheme(
         LocalDarkTheme provides darkTheme,
         LocalNavBarColors provides if (darkTheme) NavBarDark else NavBarLight,
     ) {
-        MaterialTheme(colorScheme = colorScheme, content = content)
+        MaterialTheme(colorScheme = colorScheme, shapes = SmoothShapes, content = content)
     }
 }

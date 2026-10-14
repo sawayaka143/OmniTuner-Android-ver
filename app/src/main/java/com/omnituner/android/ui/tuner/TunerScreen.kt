@@ -676,7 +676,7 @@ private fun EmptyState(
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
-        Button(onClick = onAction, modifier = Modifier.padding(top = 8.dp)) {
+        Button(shape = SmoothShape.Full, onClick = onAction, modifier = Modifier.padding(top = 8.dp)) {
             Text(action)
         }
     }

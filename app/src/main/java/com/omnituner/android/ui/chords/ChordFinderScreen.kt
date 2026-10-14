@@ -36,6 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.data.PROGRESSION_PRESETS
 import com.omnituner.core.theory.VoicingShape
 
@@ -111,7 +112,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = viewModel::playProgression) { Text("Play progression") }
+                    TextButton(shape = SmoothShape.Full, onClick = viewModel::playProgression) { Text("Play progression") }
                 }
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

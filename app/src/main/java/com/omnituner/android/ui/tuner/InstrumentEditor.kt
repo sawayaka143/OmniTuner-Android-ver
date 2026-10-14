@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.audio.frequencyToMidiNote
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
@@ -94,7 +95,7 @@ fun TuningEditorDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                TextButton(onClick = { presetsOpen = true }) {
+                TextButton(shape = SmoothShape.Full, onClick = { presetsOpen = true }) {
                     Text(presetLabel ?: "Start from preset")
                 }
                 notes.indices.reversed().forEachIndexed { displayIndex, noteIndex ->
@@ -111,10 +112,10 @@ fun TuningEditorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { error = onSave(name.trim(), notes) }) { Text("Save") }
+            TextButton(shape = SmoothShape.Full, onClick = { error = onSave(name.trim(), notes) }) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(shape = SmoothShape.Full, onClick = onDismiss) { Text("Cancel") }
         },
     )
 
@@ -193,10 +194,10 @@ fun InstrumentEditorDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { error = onSave(name.trim(), stringCount, notes) }) { Text("Save") }
+            TextButton(shape = SmoothShape.Full, onClick = { error = onSave(name.trim(), stringCount, notes) }) { Text("Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(shape = SmoothShape.Full, onClick = onDismiss) { Text("Cancel") }
         },
     )
 }
@@ -249,13 +250,13 @@ fun CustomInstrumentsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onNew) {
+            TextButton(shape = SmoothShape.Full, onClick = onNew) {
                 Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
                 Text("New instrument")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(shape = SmoothShape.Full, onClick = onDismiss) { Text("Close") }
         },
     )
 }

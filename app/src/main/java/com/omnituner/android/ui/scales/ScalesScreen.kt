@@ -46,6 +46,7 @@ import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.SwitchRow
+import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.data.FLAT_NAMES
 import com.omnituner.core.data.SCALES
 import com.omnituner.core.data.SHARP_NAMES
@@ -174,7 +175,7 @@ private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
                         SegmentedButton(
                             selected = settings.accidental == accidental,
                             onClick = { viewModel.setAccidental(accidental) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = Accidental.entries.size),
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = Accidental.entries.size, baseShape = SmoothShape.Full),
                         ) {
                             Text(if (accidental == Accidental.Sharp) "Sharps" else "Flats")
                         }
@@ -231,7 +232,7 @@ private fun FretboardCard(ui: ScalesUiState, viewModel: ScalesViewModel, scaleLa
                         SegmentedButton(
                             selected = settings.fretCount == count,
                             onClick = { viewModel.setFretCount(count) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = FRET_COUNT_OPTIONS.size),
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = FRET_COUNT_OPTIONS.size, baseShape = SmoothShape.Full),
                         ) {
                             Text("$count")
                         }
@@ -242,7 +243,7 @@ private fun FretboardCard(ui: ScalesUiState, viewModel: ScalesViewModel, scaleLa
                         SegmentedButton(
                             selected = settings.labelMode == mode,
                             onClick = { viewModel.setLabelMode(mode) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = LabelMode.entries.size),
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = LabelMode.entries.size, baseShape = SmoothShape.Full),
                         ) {
                             Text(if (mode == LabelMode.NoteNames) "Notes" else "Degrees")
                         }
