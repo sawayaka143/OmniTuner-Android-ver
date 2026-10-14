@@ -111,9 +111,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 onCheckedChange = viewModel::setChime,
             )
             SwitchRow(
-                headline = "Glow pulse",
-                checked = tuner.glow,
-                onCheckedChange = viewModel::setGlow,
+                headline = "Vibrate",
+                checked = tuner.haptics,
+                onCheckedChange = viewModel::setHaptics,
             )
         }
     }

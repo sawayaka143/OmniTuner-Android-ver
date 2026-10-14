@@ -23,7 +23,7 @@ val INSTRUMENTS: List<Instrument> = listOf(
         tunings = listOf(
             Tuning(
                 id = "standard",
-                label = "E STANDARD",
+                label = "Standard",
                 strings = listOf(
                     NamedFrequency("E2", 82.41),
                     NamedFrequency("A2", 110.0),
@@ -47,7 +47,7 @@ val INSTRUMENTS: List<Instrument> = listOf(
             ),
             Tuning(
                 id = "eb",
-                label = "E♭ STANDARD",
+                label = "E♭ Standard",
                 strings = listOf(
                     NamedFrequency("E♭2", 77.78),
                     NamedFrequency("A♭2", 103.83),
@@ -78,7 +78,7 @@ val INSTRUMENTS: List<Instrument> = listOf(
         tunings = listOf(
             Tuning(
                 id = "standard",
-                label = "STANDARD",
+                label = "Standard",
                 strings = listOf(
                     NamedFrequency("G4", 392.0),
                     NamedFrequency("C4", 261.63),

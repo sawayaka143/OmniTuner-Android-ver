@@ -37,6 +37,7 @@ fun NeedleMeter(
     glow: Boolean,
     cents: Double?,
     modifier: Modifier = Modifier,
+    scaleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
     val pulse = rememberInfiniteTransition(label = "glow")
     val glowAlpha by pulse.animateFloat(
@@ -48,7 +49,7 @@ fun NeedleMeter(
         ),
         label = "glowAlpha",
     )
-    val baseColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val baseColor = scaleColor
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = TextStyle(fontSize = 11.sp, color = baseColor)
     val readout = cents?.coerceIn(-50.0, 50.0)?.roundToInt() ?: 0

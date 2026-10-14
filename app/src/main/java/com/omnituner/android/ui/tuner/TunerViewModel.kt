@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.PitchCapture
 import com.omnituner.android.audio.PitchFrame
+import com.omnituner.android.data.InstrumentTunings
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.TunerMode
 import com.omnituner.android.data.TunerSettings
@@ -58,6 +59,7 @@ data class TunerUiState(
     val instrument: Instrument = INSTRUMENTS.first(),
     val tunings: List<Tuning> = emptyList(),
     val tuning: Tuning = INSTRUMENTS.first().tunings.first(),
+    val catalog: List<InstrumentTunings> = emptyList(),
     val activeIndex: Int? = null,
     val cents: Double? = null,
     val tolerance: Int = 5,
@@ -68,6 +70,7 @@ data class TunerUiState(
     val status: TuneStatus = TuneStatus.Idle,
     val tunedStrings: Set<String> = emptySet(),
     val pulse: Boolean = false,
+    val haptics: Boolean = true,
 )
 
 private data class LockSnapshot(
@@ -240,16 +243,11 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun selectInstrument(instrumentId: String) {
-        if (library.state.value.instrument.id == instrumentId) return
+    fun selectTuning(instrumentId: String, tuningId: String) {
+        val current = library.state.value
+        if (current.instrument.id == instrumentId && current.tuning.id == tuningId) return
         resetHold()
-        viewModelScope.launch { library.selectInstrument(instrumentId) }
-    }
-
-    fun selectTuning(tuningId: String) {
-        if (library.state.value.tuning.id == tuningId) return
-        resetHold()
-        viewModelScope.launch { library.selectTuning(tuningId) }
+        viewModelScope.launch { library.select(instrumentId, tuningId) }
     }
 
     fun saveCustomTuning(editingId: String?, name: String, notes: List<Int>): String? {
@@ -325,7 +323,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 snapshot.tunedStrings
             }
-            val pulseUntil = if (settings.inTuneFeedback && settings.glow) now + LOCK_PULSE_MS else snapshot.pulseUntil
+            val pulseUntil = if (settings.inTuneFeedback) now + LOCK_PULSE_MS else snapshot.pulseUntil
             snapshot.copy(tunedStrings = tunedStrings, pulseUntil = pulseUntil)
         }
         if (settings.inTuneFeedback && settings.chime) noteAudio.playChime()
@@ -365,6 +363,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             instrument = state.library.instrument,
             tunings = state.library.tunings,
             tuning = state.library.tuning,
+            catalog = state.library.catalog,
             activeIndex = reading.activeIndex,
             cents = cents,
             tolerance = settings.tolerance,
@@ -375,6 +374,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             status = status,
             tunedStrings = current.lock.tunedStrings,
             pulse = current.lock.pulseUntil > SystemClock.elapsedRealtime(),
+            haptics = settings.inTuneFeedback && settings.haptics,
         )
     }
 

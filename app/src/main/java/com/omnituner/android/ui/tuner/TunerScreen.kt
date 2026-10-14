@@ -9,37 +9,49 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,30 +64,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
-import com.omnituner.android.ui.common.OptionSheet
-import com.omnituner.android.ui.common.PickerOption
-import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.core.audio.hzDisplay
 import com.omnituner.core.audio.midiNoteLabel
-import com.omnituner.core.audio.tuneCentsText
 import com.omnituner.core.audio.tuneColorProgress
-import com.omnituner.core.audio.tuneDirectionText
+import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.Tuning
-import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private sealed interface TunerDialog {
     data class EditTuning(val draft: TuningDraft) : TunerDialog
@@ -94,7 +111,6 @@ private fun Context.hasRecordPermission(): Boolean =
     ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
         PackageManager.PERMISSION_GRANTED
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     val state by viewModel.ui.collectAsState()
@@ -152,20 +168,31 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     }
 
     LaunchedEffect(viewModel) {
-        viewModel.lockEvents.collect { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
+        viewModel.lockEvents.collect {
+            if (viewModel.ui.value.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 16.dp),
     ) {
-        TuningCard(
+        TunerPanel(
             state = state,
+            hasPermission = hasPermission,
+            permanentlyDenied = permanentlyDenied,
+            onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            onOpenSettings = {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    ),
+                )
+            },
+            onRetry = viewModel::startCapture,
             onModeChange = viewModel::selectMode,
-            onInstrumentPicked = viewModel::selectInstrument,
             onTuningPicked = viewModel::selectTuning,
             onEditTuning = { tuning: Tuning ->
                 dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes()))
@@ -176,34 +203,17 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             },
             onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft()) },
             onManageInstruments = { dialog = TunerDialog.ManageInstruments },
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .weight(1f)
+                .fillMaxWidth(),
         )
 
-        MeterCard(state = state, onSelectString = viewModel::selectString)
-
-        if (!hasPermission) {
-            MicPermissionCard(
-                permanentDenial = permanentlyDenied,
-                onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                onOpenSettings = {
-                    context.startActivity(
-                        Intent(
-                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.fromParts("package", context.packageName, null),
-                        ),
-                    )
-                },
-            )
-        }
-
-        state.error?.let { message ->
-            Text(
-                text = message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        StringRow(
+            state = state,
+            onSelect = viewModel::selectString,
+            modifier = Modifier.padding(vertical = 12.dp),
+        )
     }
 
     when (val open = dialog) {
@@ -241,299 +251,509 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TuningCard(
+private fun TuningMenu(
     state: TunerUiState,
-    onModeChange: (TunerMode) -> Unit,
-    onInstrumentPicked: (String) -> Unit,
-    onTuningPicked: (String) -> Unit,
+    onTuningPicked: (instrumentId: String, tuningId: String) -> Unit,
     onEditTuning: (Tuning) -> Unit,
     onDeleteTuning: (String) -> Unit,
     onNewTuning: () -> Unit,
     onNewInstrument: () -> Unit,
     onManageInstruments: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var instrumentSheet by rememberSaveable { mutableStateOf(false) }
-    var tuningSheet by rememberSaveable { mutableStateOf(false) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val close = { expanded = false }
+    Box(modifier = modifier) {
+        Surface(
+            onClick = { expanded = true },
+            shape = MaterialTheme.shapes.large,
+            color = Color.Transparent,
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Text(
+                        text = state.instrument.menuTitle(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = LocalContentColor.current.copy(alpha = 0.75f),
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = state.tuning.label,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                    contentDescription = "Choose tuning",
+                )
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = close) {
+            state.catalog.forEachIndexed { index, entry ->
+                if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text(
-                    text = "Current tuning",
+                    text = entry.instrument.menuTitle(),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                Text(text = state.tuning.label, style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    text = "${state.instrument.label} · ${state.tuning.strings.joinToString(" ") { it.name }}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    val modes = TunerMode.entries
-                    modes.forEachIndexed { index, mode ->
-                        SegmentedButton(
-                            selected = state.mode == mode,
-                            onClick = { onModeChange(mode) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
-                        ) {
-                            Text(if (mode == TunerMode.Auto) "Auto detect" else "Manual")
-                        }
-                    }
+                entry.tunings.forEach { tuning ->
+                    val selected = entry.instrument.id == state.instrument.id && tuning.id == state.tuning.id
+                    val editable = tuning.isCustom && tuning.id != "${entry.instrument.id}-default"
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = tuning.label,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        },
+                        onClick = {
+                            close()
+                            onTuningPicked(entry.instrument.id, tuning.id)
+                        },
+                        leadingIcon = {
+                            if (selected) {
+                                Icon(Icons.Filled.Check, contentDescription = null)
+                            } else {
+                                Spacer(Modifier.size(24.dp))
+                            }
+                        },
+                        trailingIcon = if (editable) {
+                            {
+                                Row {
+                                    IconButton(onClick = {
+                                        close()
+                                        onTuningPicked(entry.instrument.id, tuning.id)
+                                        onEditTuning(tuning)
+                                    }) {
+                                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}")
+                                    }
+                                    IconButton(onClick = { onDeleteTuning(tuning.id) }) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "Delete ${tuning.label}",
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                    )
                 }
             }
-            PickerRow(
-                headline = "Instrument",
-                value = state.instrument.label,
-                onClick = { instrumentSheet = true },
-            )
-            PickerRow(
-                headline = "Tuning",
-                value = state.tuning.label,
-                onClick = { tuningSheet = true },
-            )
-        }
-    }
-
-    if (instrumentSheet) {
-        OptionSheet(
-            title = "Instrument",
-            options = state.instruments.map { PickerOption(it.id, it.label) },
-            selected = state.instrument.id,
-            onSelect = { id ->
-                onInstrumentPicked(id)
-                instrumentSheet = false
-            },
-            onDismiss = { instrumentSheet = false },
-            footer = {
-                TextButton(onClick = {
-                    instrumentSheet = false
-                    onNewInstrument()
-                }) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
-                    Text("New instrument")
-                }
-                TextButton(onClick = {
-                    instrumentSheet = false
-                    onManageInstruments()
-                }) {
-                    Text("Manage instruments")
-                }
-            },
-        )
-    }
-
-    if (tuningSheet) {
-        OptionSheet(
-            title = "Tuning",
-            options = state.tunings.map { PickerOption(it.id, it.label) },
-            selected = state.tuning.id,
-            onSelect = { id ->
-                onTuningPicked(id)
-                tuningSheet = false
-            },
-            onDismiss = { tuningSheet = false },
-            trailing = { id ->
-                val tuning = state.tunings.firstOrNull { it.id == id }
-                if (tuning != null && tuning.isCustom) {
-                    IconButton(onClick = {
-                        tuningSheet = false
-                        onEditTuning(tuning)
-                    }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}")
-                    }
-                    IconButton(onClick = { onDeleteTuning(tuning.id) }) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Delete ${tuning.label}",
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-            },
-            footer = {
-                TextButton(onClick = {
-                    tuningSheet = false
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            DropdownMenuItem(
+                text = { Text("New tuning for ${state.instrument.label}…") },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                onClick = {
+                    close()
                     onNewTuning()
-                }) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
-                    Text("New tuning")
-                }
-            },
-        )
-    }
-}
-
-@Composable
-private fun MeterCard(state: TunerUiState, onSelectString: (Int) -> Unit) {
-    val color = needleColor(state)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            TunePrompt(state = state, color = color)
-            NeedleMeter(
-                needlePercent = state.needlePercent,
-                needleColor = color,
-                glow = state.pulse,
-                cents = state.cents,
+                },
             )
-            NoteReadout(state = state, color = color)
-            StringChips(state = state, onSelect = onSelectString)
+            DropdownMenuItem(
+                text = { Text("New instrument…") },
+                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                onClick = {
+                    close()
+                    onNewInstrument()
+                },
+            )
+            if (state.catalog.any { it.instrument.isCustom }) {
+                DropdownMenuItem(
+                    text = { Text("Manage instruments…") },
+                    leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null) },
+                    onClick = {
+                        close()
+                        onManageInstruments()
+                    },
+                )
+            }
         }
     }
 }
 
+private fun Instrument.menuTitle(): String = "$label $stringCount-string"
+
 @Composable
-private fun TunePrompt(state: TunerUiState, color: Color) {
-    val tolerance = state.tolerance.toDouble()
-    val promptColor = if (state.tuned) MaterialTheme.colorScheme.primary else color
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .toggleable(
+                value = auto,
+                role = Role.Switch,
+                onValueChange = { onModeChange(if (it) TunerMode.Auto else TunerMode.Manual) },
+            )
+            .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = tuneDirectionText(state.cents, tolerance),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = promptColor,
-            maxLines = 1,
-        )
-        Text(
-            text = tuneCentsText(state.cents, tolerance),
-            style = MaterialTheme.typography.labelLarge,
-            color = if (state.tuned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-        )
+        Text(text = "Auto", style = MaterialTheme.typography.labelLarge)
+        Switch(checked = auto, onCheckedChange = null)
     }
 }
 
-@Composable
-private fun NoteReadout(state: TunerUiState, color: Color) {
-    val label = state.noteMidi?.let { midiNoteLabel(it) }
-    val name = label?.takeWhile { it != '-' && !it.isDigit() } ?: "—"
-    val octave = label?.drop(name.length) ?: ""
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.Bold,
-                color = color,
-            )
-            Text(
-                text = octave,
-                style = MaterialTheme.typography.headlineSmall,
-                color = color,
-                modifier = Modifier.padding(bottom = 12.dp),
-            )
-        }
-        Text(
-            text = hzDisplay(state.frequency),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = statusText(state.status),
-            style = MaterialTheme.typography.labelLarge,
-            color = if (state.tuned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-private fun statusText(status: TuneStatus): String = when (status) {
-    TuneStatus.Idle -> "IDLE"
-    TuneStatus.Listening -> "LISTENING FOR A NOTE"
-    is TuneStatus.Adjusting -> "TUNING ${status.stringName}"
-    TuneStatus.InTune -> "IN TUNE"
-}
+private class TuneColors(val container: Color, val content: Color, val accent: Color)
 
 @Composable
-private fun needleColor(state: TunerUiState): Color {
+private fun animatedTuneColors(state: TunerUiState): TuneColors {
     val scheme = MaterialTheme.colorScheme
     val cents = state.cents
-    return when {
-        state.tuned -> scheme.primary
-        cents == null || abs(cents) <= state.tolerance -> scheme.onSurface
-        else -> lerp(
-            scheme.error,
-            scheme.primary,
-            tuneColorProgress(cents, state.tolerance.toDouble()).toFloat(),
-        )
+    val target = when {
+        state.tuned -> TuneColors(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.primary)
+        cents == null -> TuneColors(scheme.surfaceContainerHigh, scheme.onSurfaceVariant, scheme.onSurface)
+        else -> {
+            val progress = tuneColorProgress(cents, state.tolerance.toDouble()).toFloat()
+            TuneColors(
+                container = lerp(scheme.errorContainer, scheme.primaryContainer, progress),
+                content = lerp(scheme.onErrorContainer, scheme.onPrimaryContainer, progress),
+                accent = lerp(scheme.error, scheme.primary, progress),
+            )
+        }
     }
+    val spec = spring<Color>(stiffness = Spring.StiffnessLow)
+    val container by animateColorAsState(target.container, spec, label = "tuneContainer")
+    val content by animateColorAsState(target.content, spec, label = "tuneContent")
+    val accent by animateColorAsState(target.accent, spec, label = "tuneAccent")
+    return TuneColors(container, content, accent)
 }
 
-private val CheckIcon: @Composable () -> Unit = {
-    Icon(
-        imageVector = Icons.Filled.Check,
-        contentDescription = null,
-        modifier = Modifier.size(FilterChipDefaults.IconSize),
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StringChips(state: TunerUiState, onSelect: (Int) -> Unit) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+private fun TunerPanel(
+    state: TunerUiState,
+    hasPermission: Boolean,
+    permanentlyDenied: Boolean,
+    onAllow: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRetry: () -> Unit,
+    onModeChange: (TunerMode) -> Unit,
+    onTuningPicked: (instrumentId: String, tuningId: String) -> Unit,
+    onEditTuning: (Tuning) -> Unit,
+    onDeleteTuning: (String) -> Unit,
+    onNewTuning: () -> Unit,
+    onNewInstrument: () -> Unit,
+    onManageInstruments: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = animatedTuneColors(state)
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(32.dp),
+        color = colors.container,
+        contentColor = colors.content,
     ) {
-        state.tuning.strings.forEachIndexed { index, string ->
-            val active = state.activeIndex == index
-            val tuned = (state.tuned && active) || string.name in state.tunedStrings
-            FilterChip(
-                selected = active,
-                onClick = { onSelect(index) },
-                label = { Text(string.name) },
-                leadingIcon = if (tuned) CheckIcon else null,
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 12.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TuningMenu(
+                    state = state,
+                    onTuningPicked = onTuningPicked,
+                    onEditTuning = onEditTuning,
+                    onDeleteTuning = onDeleteTuning,
+                    onNewTuning = onNewTuning,
+                    onNewInstrument = onNewInstrument,
+                    onManageInstruments = onManageInstruments,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
+            }
+            PanelContent(
+                state = state,
+                colors = colors,
+                hasPermission = hasPermission,
+                permanentlyDenied = permanentlyDenied,
+                onAllow = onAllow,
+                onOpenSettings = onOpenSettings,
+                onRetry = onRetry,
             )
         }
     }
 }
 
 @Composable
-private fun MicPermissionCard(
-    permanentDenial: Boolean,
+private fun PanelContent(
+    state: TunerUiState,
+    colors: TuneColors,
+    hasPermission: Boolean,
+    permanentlyDenied: Boolean,
     onAllow: () -> Unit,
     onOpenSettings: () -> Unit,
+    onRetry: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    val error = state.error
+    when {
+        !hasPermission -> EmptyState(
+            icon = Icons.Filled.MicOff,
+            title = "Microphone access needed",
+            body = "OmniTuner listens to your instrument to show how far off each string is.",
+            action = if (permanentlyDenied) "Open settings" else "Allow",
+            onAction = if (permanentlyDenied) onOpenSettings else onAllow,
+        )
+        error != null -> EmptyState(
+            icon = Icons.Filled.ErrorOutline,
+            title = "Can't use the microphone",
+            body = error,
+            action = "Try again",
+            onAction = onRetry,
+        )
+        else -> Readout(state = state, colors = colors)
+    }
+}
+
+@Composable
+private fun Readout(state: TunerUiState, colors: TuneColors) {
+    val noteScale = remember { Animatable(1f) }
+    LaunchedEffect(state.pulse) {
+        if (state.pulse) {
+            noteScale.animateTo(1.15f, spring(stiffness = Spring.StiffnessMediumLow))
+            noteScale.animateTo(
+                1f,
+                spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+            )
+        }
+    }
+    val needle by animateFloatAsState(
+        targetValue = state.needlePercent,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+        label = "needle",
+    )
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        val noteSize = with(LocalDensity.current) { (maxHeight * 0.26f).coerceIn(56.dp, 168.dp).toSp() }
+        val meterHeight = min(120.dp, maxHeight * 0.28f)
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Icon(
-                imageVector = Icons.Filled.MicOff,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
+            NoteName(
+                state = state,
+                size = noteSize,
+                color = colors.accent,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = noteScale.value
+                    scaleY = noteScale.value
+                },
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = centsLabel(state.cents),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = state.frequency?.let { hzDisplay(it) } ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LocalContentColor.current.copy(alpha = 0.7f),
+                )
+            }
+            NeedleMeter(
+                needlePercent = needle,
+                needleColor = colors.accent,
+                scaleColor = colors.content,
+                glow = state.pulse,
+                cents = state.cents,
+                modifier = Modifier.height(meterHeight),
             )
             Text(
-                text = "Microphone needed to tune",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
+                text = statusLabel(state),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (state.tuned) colors.accent else colors.content,
+                textAlign = TextAlign.Center,
             )
-            TextButton(onClick = if (permanentDenial) onOpenSettings else onAllow) {
-                Text(if (permanentDenial) "Open settings" else "Allow")
+        }
+    }
+}
+
+@Composable
+private fun NoteName(state: TunerUiState, size: TextUnit, color: Color, modifier: Modifier = Modifier) {
+    val label = state.noteMidi?.let { midiNoteLabel(it) }
+    val name = label?.takeWhile { it != '-' && !it.isDigit() }
+    val octave = if (label != null && name != null) label.drop(name.length) else ""
+    val big = MaterialTheme.typography.displayLarge.copy(
+        fontSize = size,
+        lineHeight = size,
+        fontWeight = FontWeight.Bold,
+    )
+    Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
+        Text(
+            text = name ?: "—",
+            style = big,
+            color = if (name == null) LocalContentColor.current.copy(alpha = 0.35f) else color,
+            modifier = Modifier.alignByBaseline(),
+        )
+        if (octave.isNotEmpty()) {
+            Text(
+                text = octave,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = color,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
+    }
+}
+
+private fun centsLabel(cents: Double?): String {
+    if (cents == null || !cents.isFinite()) return ""
+    val rounded = cents.roundToInt()
+    return when {
+        rounded > 0 -> "+$rounded cents"
+        rounded < 0 -> "−${-rounded} cents"
+        else -> "0 cents"
+    }
+}
+
+private fun statusLabel(state: TunerUiState): String {
+    val cents = state.cents
+    return when {
+        state.tuned -> "In tune"
+        cents == null -> ""
+        cents < -state.tolerance -> "Tune up"
+        cents > state.tolerance -> "Tune down"
+        else -> ""
+    }
+}
+
+@Composable
+private fun EmptyState(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    action: String,
+    onAction: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(48.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+        Button(onClick = onAction, modifier = Modifier.padding(top = 8.dp)) {
+            Text(action)
+        }
+    }
+}
+
+private val StringButtonMinWidth = 48.dp
+private val StringButtonScrollWidth = 56.dp
+private val StringButtonSpacing = 8.dp
+
+@Composable
+private fun StringRow(
+    state: TunerUiState,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val strings = state.tuning.strings
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val count = strings.size
+        val fits = StringButtonMinWidth * count + StringButtonSpacing * (count - 1) <= maxWidth
+        Row(
+            modifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(StringButtonSpacing),
+        ) {
+            val itemModifier = if (fits) Modifier.weight(1f) else Modifier.width(StringButtonScrollWidth)
+            strings.forEachIndexed { index, string ->
+                val active = state.activeIndex == index
+                StringButton(
+                    label = string.name,
+                    selected = active,
+                    tuned = (state.tuned && active) || string.name in state.tunedStrings,
+                    onClick = { onSelect(index) },
+                    modifier = itemModifier,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StringButton(
+    label: String,
+    selected: Boolean,
+    tuned: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val container by animateColorAsState(
+        targetValue = when {
+            selected -> scheme.primary
+            tuned -> scheme.tertiaryContainer
+            else -> scheme.surfaceContainerHighest
+        },
+        label = "stringContainer",
+    )
+    val content by animateColorAsState(
+        targetValue = when {
+            selected -> scheme.onPrimary
+            tuned -> scheme.onTertiaryContainer
+            else -> scheme.onSurface
+        },
+        label = "stringContent",
+    )
+    val corner: Dp by animateDpAsState(
+        targetValue = if (selected) 12.dp else 28.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "stringCorner",
+    )
+    Surface(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier
+            .height(56.dp)
+            .semantics { if (tuned) stateDescription = "In tune" },
+        shape = RoundedCornerShape(corner),
+        color = container,
+        contentColor = content,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+            if (tuned) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 4.dp, end = 6.dp)
+                        .size(14.dp),
+                )
             }
         }
     }

@@ -48,8 +48,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         edit { it.copy(chime = enabled) }
     }
 
-    fun setGlow(enabled: Boolean) {
-        edit { it.copy(glow = enabled) }
+    fun setHaptics(enabled: Boolean) {
+        edit { it.copy(haptics = enabled) }
     }
 
     private fun edit(transform: (TunerSettings) -> TunerSettings) {

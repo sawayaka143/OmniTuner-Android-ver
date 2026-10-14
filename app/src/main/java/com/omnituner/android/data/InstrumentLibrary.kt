@@ -23,11 +23,17 @@ data class InstrumentSelection(
     val tuningId: String = "standard",
 )
 
+data class InstrumentTunings(
+    val instrument: Instrument,
+    val tunings: List<Tuning>,
+)
+
 data class LibraryState(
     val instruments: List<Instrument>,
     val instrument: Instrument,
     val tunings: List<Tuning>,
     val tuning: Tuning,
+    val catalog: List<InstrumentTunings>,
 )
 
 private val customInstrumentsKey = stringPreferencesKey("instruments.custom")
@@ -83,6 +89,10 @@ class InstrumentLibrary(dataStore: DataStore<Preferences>, scope: CoroutineScope
         selection.update { it.copy(tuningId = tuningId) }
     }
 
+    suspend fun select(instrumentId: String, tuningId: String) {
+        selection.update { InstrumentSelection(instrumentId, tuningId) }
+    }
+
     suspend fun saveInstrument(editingId: String?, name: String, stringCount: Int, notes: List<Int>) {
         val id = editingId ?: "instr-${UUID.randomUUID()}"
         val record = CustomInstrument(id, name, stringCount, notes)
@@ -117,10 +127,13 @@ private fun resolve(
     current: InstrumentSelection,
 ): LibraryState {
     val all = INSTRUMENTS + instruments.map { it.toInstrument() }
+    val catalog = all.map { entry ->
+        InstrumentTunings(entry, entry.tunings + tunings.filter { it.instrumentId == entry.id }.map { it.toTuning() })
+    }
     val instrument = all.firstOrNull { it.id == current.instrumentId } ?: INSTRUMENTS.first()
-    val available = instrument.tunings + tunings.filter { it.instrumentId == instrument.id }.map { it.toTuning() }
+    val available = catalog.first { it.instrument.id == instrument.id }.tunings
     val tuning = available.firstOrNull { it.id == current.tuningId } ?: available.first()
-    return LibraryState(all, instrument, available, tuning)
+    return LibraryState(all, instrument, available, tuning, catalog)
 }
 
 private fun CustomInstrument.toInstrument(): Instrument = Instrument(
@@ -130,7 +143,7 @@ private fun CustomInstrument.toInstrument(): Instrument = Instrument(
     tunings = listOf(
         Tuning(
             id = "$id-default",
-            label = "DEFAULT",
+            label = "Default",
             strings = defaultNotes.map { it.toNamedFrequency() },
             isCustom = true,
         ),

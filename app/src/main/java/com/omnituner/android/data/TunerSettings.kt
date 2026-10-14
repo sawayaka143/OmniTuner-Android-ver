@@ -17,7 +17,7 @@ data class TunerSettings(
     val referencePitch: Int = 440,
     val inTuneFeedback: Boolean = true,
     val chime: Boolean = true,
-    val glow: Boolean = true,
+    val haptics: Boolean = true,
     val tolerance: Int = 5,
     val holdMs: Int = 500,
 ) {
@@ -38,7 +38,7 @@ private val startupKey = stringPreferencesKey("tuner.startup")
 private val referencePitchKey = intPreferencesKey("tuner.referencePitch")
 private val inTuneFeedbackKey = booleanPreferencesKey("tuner.inTune.feedback")
 private val chimeKey = booleanPreferencesKey("tuner.inTune.chime")
-private val glowKey = booleanPreferencesKey("tuner.inTune.glow")
+private val hapticsKey = booleanPreferencesKey("tuner.inTune.haptics")
 private val toleranceKey = intPreferencesKey("tuner.inTune.tolerance")
 private val holdMsKey = intPreferencesKey("tuner.inTune.holdMs")
 
@@ -54,7 +54,7 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
                 referencePitch = (prefs[referencePitchKey] ?: 440).coerceIn(REFERENCE_PITCH_RANGE),
                 inTuneFeedback = prefs[inTuneFeedbackKey] ?: true,
                 chime = prefs[chimeKey] ?: true,
-                glow = prefs[glowKey] ?: true,
+                haptics = prefs[hapticsKey] ?: true,
                 tolerance = (prefs[toleranceKey] ?: 5).coerceIn(TOLERANCE_RANGE),
                 holdMs = (prefs[holdMsKey] ?: 500).coerceIn(HOLD_MS_RANGE),
             )
@@ -65,7 +65,7 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
             prefs[referencePitchKey] = settings.referencePitch.coerceIn(REFERENCE_PITCH_RANGE)
             prefs[inTuneFeedbackKey] = settings.inTuneFeedback
             prefs[chimeKey] = settings.chime
-            prefs[glowKey] = settings.glow
+            prefs[hapticsKey] = settings.haptics
             prefs[toleranceKey] = settings.tolerance.coerceIn(TOLERANCE_RANGE)
             prefs[holdMsKey] = settings.holdMs.coerceIn(HOLD_MS_RANGE)
         },
