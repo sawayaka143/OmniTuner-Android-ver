@@ -1,11 +1,10 @@
 package com.omnituner.core.metronome
 
+import kotlinx.serialization.Serializable
+
 const val BPM_MIN = 1
 const val BPM_MAX = 800
 const val BPM_DEFAULT = 100
-
-const val NUMERATOR_MIN = 1
-const val NUMERATOR_MAX = 32
 
 val DENOMINATORS: List<Int> = listOf(2, 4, 8, 16)
 
@@ -36,26 +35,27 @@ const val PATTERN_MAX_BARS = 16
 const val POLY_MIN = 1
 const val POLY_MAX = 32
 
-const val VOLUME_MIN = 0.0
-const val VOLUME_MAX = 1.0
-
+@Serializable
 data class TimeSignature(
     val numerator: Int,
     val denominator: Int,
 )
 
+@Serializable
 data class PolyState(
     val enabled: Boolean,
     val events: Int,
     val accentFirst: Boolean,
 )
 
+@Serializable
 data class SoundRole(
     val id: String,
     val vol: Double,
     val accentVol: Double? = null,
 )
 
+@Serializable
 data class MetronomeSoundRoles(
     val downbeat: SoundRole,
     val beat: SoundRole,
@@ -63,6 +63,7 @@ data class MetronomeSoundRoles(
     val poly: SoundRole,
 )
 
+@Serializable
 data class TempoRamp(
     val enabled: Boolean,
     val targetBpm: Double,
@@ -74,6 +75,7 @@ const val RAMP_BARS_MAX = 32
 
 val DEFAULT_METRONOME_RAMP: TempoRamp = TempoRamp(enabled = false, targetBpm = 120.0, bars = 8)
 
+@Serializable
 data class MetronomeState(
     val bpm: Double,
     val timeSignature: TimeSignature,
@@ -86,6 +88,7 @@ data class MetronomeState(
     val ramp: TempoRamp,
 )
 
+@Serializable
 data class MetronomePreset(
     val id: String,
     val name: String,
@@ -138,16 +141,4 @@ val PATTERN_PRESETS: List<PatternPreset> = listOf(
     PatternPreset("2 : 2", listOf(1, 1, 0, 0)),
     PatternPreset("3 : 1", listOf(1, 1, 1, 0)),
     PatternPreset("4 : 4", listOf(1, 1, 1, 1, 0, 0, 0, 0)),
-)
-
-val POLY_PRESETS: List<Pair<Int, Int>> = listOf(
-    2 to 3,
-    3 to 4,
-    4 to 3,
-    3 to 5,
-    4 to 5,
-    5 to 4,
-    5 to 7,
-    7 to 5,
-    9 to 7,
 )
