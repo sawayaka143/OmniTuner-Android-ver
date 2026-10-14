@@ -63,6 +63,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
@@ -388,12 +389,15 @@ private fun Instrument.menuTitle(): String = "$label $stringCount-string"
 private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
+            // Label and switch are one tap target; clip so its press highlight matches the tuning
+            // menu's opposite it instead of drawing a hard-edged rectangle.
+            .clip(TuningMenuShape)
             .toggleable(
                 value = auto,
                 role = Role.Switch,
                 onValueChange = { onModeChange(if (it) TunerMode.Auto else TunerMode.Manual) },
             )
-            .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
