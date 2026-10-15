@@ -2,69 +2,57 @@ package com.omnituner.core.theory
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class KeyDetectorTest {
 
-    private fun chord(symbol: String): ParsedChord {
-        val result = parseChord(symbol)
-        assertTrue(result is ChordParseResult.Ok, "parse failed: $symbol")
-        return (result as ChordParseResult.Ok).chord
+    private fun chord(symbol: String): ParsedChord = when (val r = parseChord(symbol)) {
+        is ChordParseResult.Ok -> r.chord
+        is ChordParseResult.Error -> error("parse failed: $symbol: ${r.error}")
     }
 
     private fun chords(vararg symbols: String): List<ParsedChord> = symbols.map { chord(it) }
 
+    private fun detect(vararg symbols: String): DetectedKey = assertNotNull(detectKey(chords(*symbols)))
+
+    private fun DetectedKey.name() = "$tonicName $mode"
+
     @Test
     fun detectsCIonianForCFG() {
-        val dk = detectKey(chords("C", "F", "G"))
-        assertTrue(dk != null)
-        assertEquals("C", dk!!.tonicName)
-        assertEquals(ModeName.Ionian, dk.mode)
+        val dk = detect("C", "F", "G")
+        assertEquals("C Ionian", dk.name())
         assertEquals("strong", dk.confidence)
     }
 
     @Test
     fun resolvesAmDmEToCIonianScoringAAeolianEqually() {
         val progression = chords("Am", "Dm", "E")
-        val dk = detectKey(progression)
-        assertTrue(dk != null)
-        assertEquals("C", dk!!.tonicName)
-        assertEquals(ModeName.Ionian, dk.mode)
-
+        assertEquals("C Ionian", assertNotNull(detectKey(progression)).name())
         val ranked = rankKeys(progression)
         val aeolian = ranked.first { it.tonicName == "A" && it.mode == ModeName.Aeolian }
         assertEquals(ranked[0].score, aeolian.score)
     }
 
     @Test
-    fun detectsCIonianForIiViI() {
-        val dk = detectKey(chords("Dm7", "G7", "Cmaj7"))
-        assertTrue(dk != null)
-        assertEquals("C", dk!!.tonicName)
-        assertEquals(ModeName.Ionian, dk.mode)
+    fun detectsCIonianForTwoFiveOne() {
+        assertEquals("C Ionian", detect("Dm7", "G7", "Cmaj7").name())
     }
 
     @Test
     fun spellsFlatsForBbEbF() {
-        val dk = detectKey(chords("Bb", "Eb", "F"))
-        assertTrue(dk != null)
-        assertEquals("Bb", dk!!.tonicName)
-        assertEquals(ModeName.Ionian, dk.mode)
+        assertEquals("Bb Ionian", detect("Bb", "Eb", "F").name())
     }
 
     @Test
-    fun handlesSingleChord() {
-        val dk = detectKey(chords("C"))
-        assertTrue(dk != null)
-        assertEquals("C", dk!!.tonicName)
+    fun handlesASingleChord() {
+        assertEquals("C", detect("C").tonicName)
     }
 
     @Test
-    fun returnsWeakOrModerateForChromaticProgression() {
-        val dk = detectKey(chords("Cmaj7", "Bbmaj7", "Abmaj7"))
-        assertTrue(dk != null)
-        assertTrue(dk!!.confidence == "weak" || dk.confidence == "moderate")
+    fun chromaticProgressionIsWeakOrModerate() {
+        assertTrue(detect("Cmaj7", "Bbmaj7", "Abmaj7").confidence in setOf("weak", "moderate"))
     }
 
     @Test
@@ -74,34 +62,62 @@ class KeyDetectorTest {
 
     @Test
     fun detectsCIonianForPopProgression() {
-        val dk = detectKey(chords("C", "G", "Am", "F"))
-        assertTrue(dk != null)
-        assertEquals("C", dk!!.tonicName)
-        assertEquals(ModeName.Ionian, dk.mode)
+        assertEquals("C Ionian", detect("C", "G", "Am", "F").name())
     }
 
     @Test
-    fun rankKeysReturnsSortedList() {
+    fun rankKeysIsSorted() {
         val ranked = rankKeys(chords("C", "F", "G"))
-        assertTrue(ranked.isNotEmpty())
         assertTrue(ranked[0].score >= ranked[1].score)
     }
 
     @Test
-    fun alternativesPresentForStrongKey() {
-        val dk = detectKey(chords("C", "F", "G", "Am"))
-        assertEquals("C", dk!!.tonicName)
-        assertEquals(ModeName.Ionian, dk.mode)
+    fun strongKeyHasLowerScoringAlternatives() {
+        val dk = detect("C", "F", "G", "Am")
+        assertEquals("C Ionian", dk.name())
         assertEquals("strong", dk.confidence)
         assertTrue(dk.alternatives.isNotEmpty())
-        for (alt in dk.alternatives) {
-            assertTrue(alt.score <= dk.score)
-        }
+        for (alt in dk.alternatives) assertTrue(alt.score <= dk.score)
     }
 
     @Test
     fun respectsFlatSpellingForFlatChords() {
-        val dk = detectKey(chords("Bb", "Eb"))
-        assertTrue(dk!!.tonicName.contains("b"))
+        assertTrue("b" in detect("Bb", "Eb").tonicName)
+    }
+
+    @Test
+    fun detectsCIonianForMixtureProgression() {
+        val dk = detect("Fmaj7", "Fm(maj7)", "C/E", "C#dim/E")
+        assertEquals("weak", dk.confidence)
+        assertEquals(
+            listOf("C Ionian", "F Ionian", "D Aeolian"),
+            listOf(dk.name()) + dk.alternatives.map { it.name() },
+        )
+    }
+
+    @Test
+    fun detectsCIonianForExtendedProgressionWithSlashChords() {
+        assertEquals(
+            "C Ionian",
+            detect("Fmaj7", "Fm(maj7)", "C/E", "A7(#5)/C#", "Dm9", "Fmaj7sus2(#11)", "Cmaj9").name(),
+        )
+    }
+
+    @Test
+    fun doesNotCreditABorrowWhenTheTonicChordNeverSounds() {
+        // C#dim is the leading-tone chord of D, but Dm never appears, so the borrow is
+        // chromaticism rather than evidence for D Aeolian.
+        val ranked = rankKeys(chords("Fmaj7", "Fm(maj7)", "C/E", "C#dim/E"))
+        val dAeolian = ranked.first { it.tonicName == "D" && it.mode == ModeName.Aeolian }
+        val cIonian = ranked.first { it.tonicName == "C" && it.mode == ModeName.Ionian }
+        assertTrue(cIonian.score >= dAeolian.score)
+        assertEquals("C", ranked[0].tonicName)
+    }
+
+    @Test
+    fun creditsABorrowWhenTheTonicChordSounds() {
+        // C#dim is the leading tone back to Dm, a textbook minor-key cadence.
+        val ranked = rankKeys(chords("Dm", "C#dim", "Dm"))
+        assertEquals("D Aeolian", ranked[0].name())
     }
 }

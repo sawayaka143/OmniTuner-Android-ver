@@ -29,24 +29,29 @@ private fun confidenceFor(coverage: Double): String = when {
 fun rankKeys(chords: List<ParsedChord>, tuningFlats: Boolean? = null): List<DetectedKey> {
     if (chords.isEmpty()) return emptyList()
     val hasFlatChord = chords.any { it.flats }
+    val tonicPcs = chords.map { it.rootPc }.toSet()
     val candidates = mutableListOf<DetectedKey>()
 
     for (tonicPc in 0 until 12) {
         val flatsForTonic = flatsForPc(tonicPc)
         val useFlats = hasFlatChord || (tuningFlats ?: flatsForTonic)
         val tonicName = pcName(tonicPc, useFlats || tuningFlats == true)
+        // A chord borrowed from the parallel major/minor only supports a key that otherwise
+        // sounds: if the tonic chord never appears, the borrow is mere chromaticism.
+        val tonicPresent = tonicPc in tonicPcs
         for (mode in MODE_NAMES) {
             var score = 0
             var good = 0
             for (chord in chords) {
                 val badge = computeBadgeForPc(chord, tonicPc, mode, tuningFlats == true, useFlats)
-                if (badge == null) continue
                 when (badge.kind) {
-                    "good" -> {
+                    BadgeKind.Good -> {
                         score += 2
                         good++
                     }
-                    "warn" -> score += 1
+                    BadgeKind.Warn -> score += 1
+                    BadgeKind.Borrowed -> if (tonicPresent) score += 1
+                    BadgeKind.Bad -> Unit
                 }
             }
             val coverage = good.toDouble() / chords.size

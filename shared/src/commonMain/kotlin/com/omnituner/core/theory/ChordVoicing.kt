@@ -1,12 +1,43 @@
 package com.omnituner.core.theory
 
+import com.omnituner.core.data.CHORD_FORMS
+import com.omnituner.core.data.ChordForm
+
 const val MAX_FRET = 12
-const val RESULTS_PER_CHORD = 6
+const val DEFAULT_VOICING_COUNT = 6
+const val MIN_VOICING_COUNT = 1
+const val MAX_VOICING_COUNT = 12
 
 private const val MAX_SPAN = 4
 private const val MAX_THUMB_REACH = 4
+private const val MAX_FINGERS = 4
 private const val MIN_NOTES = 3
 private const val MIN_DISTINCT = 3
+private const val OPEN_STRING_MAX_FRET = 3
+private const val FIRST_POSITION_MAX_FRET = 4
+private const val COMFORTABLE_SPAN = 2
+private const val COMFORTABLE_RANGE = 24
+private const val REVERSE_STRETCH_FRETS = 3
+
+private object Weights {
+    const val ROOT_IN_BASS = 100
+    const val OTHER_BASS = -150
+    const val PER_NOTE = 14
+    const val PER_DISTINCT_PC = 8
+    const val PER_FINGER = -8
+    const val PER_BARRE = -55
+    const val PER_POSITION_FRET = -6
+    const val PER_INTERIOR_MUTE = -30
+    const val PER_OUT_OF_POSITION_OPEN = -30
+    const val PER_SPAN_FRET_BEYOND_COMFORT = -15
+    const val PER_SEMITONE_BEYOND_RANGE = -2
+    const val PER_REVERSE_STRETCH_FRET = -50
+    const val EXTENSION_ON_TOP = 10
+    const val STANDARD_GRIP = 45
+}
+
+val EXTENSION_INTERVALS: Set<Int> = setOf(13, 14, 15, 17, 18, 20, 21)
+private val ALTERED_EXTENSION_INTERVALS: Set<Int> = setOf(13, 15, 18, 20)
 
 data class SoundingNote(
     val stringIndex: Int,
@@ -25,397 +56,342 @@ data class VoicingShape(
     val cost: Int,
 )
 
-private fun diagramToKey(diagram: List<Int?>): String =
-    diagram.joinToString(",") { f -> f?.toString() ?: "x" }
-
-private data class ChordOptions(
-    val noteCurve: Map<Int, Int>,
-    val defaultNotePenalty: Int,
-    val openPenaltyThreshold: Int,
-    val openPenaltyPer: Int,
-    val upperSpanLimit: Int,
-    val upperSpanPenaltyPerSemitone: Int,
-    val lowHalfstepPenalty: Int,
-    val lowWholestepPenalty: Int,
-    val rootBias: Int,
-    val doublingMultiplier: Double,
+data class Fingering(
+    val fingers: Int,
+    val barres: Int,
 )
 
-private val VOICING_STYLES: Map<String, ChordOptions> = mapOf(
-    "open_pop" to ChordOptions(
-        noteCurve = mapOf(3 to 50, 4 to 80, 5 to 92, 6 to 96),
-        defaultNotePenalty = -25,
-        openPenaltyThreshold = 3,
-        openPenaltyPer = 25,
-        upperSpanLimit = 17,
-        upperSpanPenaltyPerSemitone = 2,
-        lowHalfstepPenalty = 12,
-        lowWholestepPenalty = 6,
-        rootBias = 120,
-        doublingMultiplier = 1.0,
-    ),
-    "jazz_comping" to ChordOptions(
-        noteCurve = mapOf(3 to 45, 4 to 92, 5 to 40, 6 to -35),
-        defaultNotePenalty = -35,
-        openPenaltyThreshold = 3,
-        openPenaltyPer = 30,
-        upperSpanLimit = 12,
-        upperSpanPenaltyPerSemitone = 5,
-        lowHalfstepPenalty = 25,
-        lowWholestepPenalty = 10,
-        rootBias = 140,
-        doublingMultiplier = 1.2,
-    ),
+private class ShapeFeatures(
+    val frets: List<Int?>,
+    val sounding: List<SoundingNote>,
+    val pcs: Set<Int>,
+    val bassMidi: Int,
+    val topPc: Int,
+    val range: Int,
+    val position: Int,
+    val maxFret: Int,
+    val span: Int,
+    val openCount: Int,
+    val interiorMutes: Int,
+    val fingering: Fingering,
 )
 
-private val TEMPLATE_BONUSES: Map<String, Map<String, Int>> = mapOf(
-    "Cm" to mapOf(
-        "x,3,5,5,4,3" to 300,
-        "8,10,10,8,8,8" to 300,
-        "x,3,5,5,4,x" to 250,
-        "8,10,10,8,x,x" to 220,
-    ),
-    "C" to mapOf(
-        "x,3,2,0,1,0" to 300,
-        "8,10,10,9,8,8" to 300,
-        "x,3,5,5,5,3" to 280,
-    ),
-    "G" to mapOf(
-        "3,2,0,0,0,3" to 300,
-        "3,2,0,0,3,3" to 300,
-        "3,5,5,4,3,3" to 280,
-    ),
-    "Cm7" to mapOf(
-        "x,3,5,3,4,3" to 300,
-        "8,10,8,8,8,8" to 300,
-        "x,3,5,3,4,x" to 270,
-        "x,3,1,3,4,x" to 260,
-        "8,x,8,8,8,x" to 250,
-        "8,10,8,8,x,x" to 240,
-    ),
-    "Cm9" to mapOf(
-        "x,3,1,3,3,x" to 350,
-        "8,6,8,8,8,x" to 320,
-        "x,3,5,3,3,3" to 220,
-    ),
-    "Dm9" to mapOf(
-        "x,5,3,5,5,x" to 350,
-        "10,8,10,10,10,x" to 320,
-        "x,5,7,5,6,5" to 220,
-    ),
-    "Gmaj7" to mapOf("3,x,4,4,3,x" to 250),
-    "B7" to mapOf("x,2,1,2,0,2" to 250),
-    "C7" to mapOf(
-        "x,3,2,3,1,0" to 250,
-        "x,3,2,3,1,x" to 250,
-    ),
-    "Em7" to mapOf("0,2,0,0,0,0" to 250),
-    "C#m7b5" to mapOf("x,4,5,4,5,x" to 250),
-    "D7" to mapOf("x,x,0,2,1,2" to 250),
-)
+private class RankedShape(val features: ShapeFeatures, val score: Int)
 
-private val JAZZ_QUALITIES = setOf("maj7", "m7", "m7b5", "dim7", "7")
+private fun fretsKey(frets: List<Int?>): String = frets.joinToString(",") { it?.toString() ?: "x" }
 
-private fun resolveStyle(chord: ParsedChord): ChordOptions {
-    val q = chord.quality
-    if (q in JAZZ_QUALITIES) return VOICING_STYLES.getValue("jazz_comping")
-    if (q.contains("maj7") || q.contains("m7b5") || q.contains("ø")) {
-        return VOICING_STYLES.getValue("jazz_comping")
+/** The frets of [form] rooted on [rootPc], or null when the form doesn't fit [tuning] or the neck. */
+fun instantiateForm(form: ChordForm, tuning: ParsedTuning, rootPc: Int): List<Int?>? {
+    if (form.offsets.size != tuning.midi.size) return null
+    val anchorFret = mod12(rootPc - tuning.midi[form.anchor])
+    val frets = mutableListOf<Int?>()
+    for (offset in form.offsets) {
+        if (offset == null) {
+            frets.add(null)
+            continue
+        }
+        val fret = anchorFret + offset
+        if (fret < 0 || fret > MAX_FRET) return null
+        frets.add(fret)
     }
-    if (chord.intervals.contains(11) || chord.intervals.contains(10)) {
-        return VOICING_STYLES.getValue("jazz_comping")
-    }
-    return VOICING_STYLES.getValue("open_pop")
+    return frets
 }
 
-private fun makeShape(
-    frets: List<Int?>,
-    tuning: ParsedTuning,
-    chord: ParsedChord,
-    cost: Int,
-): VoicingShape {
-    val sounding = mutableListOf<SoundingNote>()
-    for (i in frets.indices) {
-        val fret = frets[i]
-        if (fret != null) sounding.add(SoundingNote(i, fret, tuning.midi[i] + fret))
+/**
+ * Chord tones every voicing must contain: everything but optional tones and extensions, and
+ * without the natural fifth once a third and a sixth/seventh already define the chord.
+ */
+fun requiredPitchClasses(chord: ParsedChord): Set<Int> {
+    val optional = chord.optionalPcs.toSet()
+    val hasThird = 3 in chord.intervals || 4 in chord.intervals
+    val hasGuideTone = listOf(9, 10, 11).any { it in chord.intervals }
+    val dropFifth = hasThird && hasGuideTone
+    return chord.pcs.filterIndexed { index, pc ->
+        val interval = chord.intervals[index]
+        pc !in optional && interval !in EXTENSION_INTERVALS && !(dropFifth && interval == 7)
+    }.toSet()
+}
+
+/** The extensions a voicing should carry: the highest one plus every altered tension. */
+fun requiredExtensions(chord: ParsedChord): List<Int> {
+    val extensions = chord.intervals.filter { it in EXTENSION_INTERVALS }
+    if (extensions.isEmpty()) return emptyList()
+    val highest = extensions.max()
+    return chord.pcs.filterIndexed { index, _ ->
+        val interval = chord.intervals[index]
+        interval == highest || interval in ALTERED_EXTENSION_INTERVALS
     }
-    val frettedOnly = frets.filterNotNull().filter { it > 0 }
-    val span = if (frettedOnly.isNotEmpty()) frettedOnly.max() - frettedOnly.min() else 0
-    var bass = Int.MAX_VALUE
-    for (note in sounding) if (note.midi < bass) bass = note.midi
-    val bassIsRoot = sounding.isNotEmpty() && mod12(bass - chord.rootPc) == 0
-    val position = if (frettedOnly.isNotEmpty()) frettedOnly.min() else 0
-    val openCount = frets.count { it == 0 }
-    return VoicingShape(
-        frets = frets.toList(),
+}
+
+/** True when [narrow] is [wide] with zero or more strings muted. */
+fun isNarrowingOf(narrow: List<Int?>, wide: List<Int?>): Boolean =
+    narrow.indices.all { i -> narrow[i] == null || narrow[i] == wide.getOrNull(i) }
+
+/**
+ * Fingers needed to hold [frets], barring where more than four notes are fretted, or null when
+ * four fingers can't do it. A barre runs under higher frets but is broken by an open string or
+ * a lower fret between its strings.
+ */
+fun analyseFingering(frets: List<Int?>): Fingering? {
+    val fretted = frets.indices.filter { (frets[it] ?: 0) > 0 }
+    if (fretted.size <= MAX_FINGERS) return Fingering(fretted.size, 0)
+
+    val groupSizes = mutableListOf<Int>()
+    for (fret in fretted.map { frets[it]!! }.distinct()) {
+        val strings = fretted.filter { frets[it] == fret }
+        var size = 1
+        for (k in 1 until strings.size) {
+            var blocked = false
+            for (s in strings[k - 1] + 1 until strings[k]) {
+                val between = frets[s]
+                if (between == 0 || (between != null && between < fret)) blocked = true
+            }
+            if (blocked) {
+                groupSizes.add(size)
+                size = 1
+            } else {
+                size++
+            }
+        }
+        groupSizes.add(size)
+    }
+
+    var fingers = fretted.size
+    var barres = 0
+    for (size in groupSizes.filter { it > 1 }.sortedDescending()) {
+        if (fingers <= MAX_FINGERS) break
+        fingers -= size - 1
+        barres++
+    }
+    return if (fingers <= MAX_FINGERS) Fingering(fingers, barres) else null
+}
+
+private fun describeShape(frets: List<Int?>, tuning: ParsedTuning): ShapeFeatures? {
+    val fingering = analyseFingering(frets) ?: return null
+    val sounding = frets.indices.mapNotNull { s ->
+        frets[s]?.let { SoundingNote(s, it, tuning.midi[s] + it) }
+    }
+    if (sounding.isEmpty()) return null
+    val midis = sounding.map { it.midi }
+    val pressed = sounding.map { it.fret }.filter { it > 0 }
+    val position = pressed.minOrNull() ?: 0
+    val maxFret = pressed.maxOrNull() ?: 0
+    return ShapeFeatures(
+        frets = frets,
         sounding = sounding,
-        span = span,
-        bassMidi = bass,
-        bassIsRoot = bassIsRoot,
+        pcs = midis.map { mod12(it) }.toSet(),
+        bassMidi = midis.min(),
+        topPc = mod12(midis.max()),
+        range = midis.max() - midis.min(),
         position = position,
-        openCount = openCount,
-        cost = cost,
+        maxFret = maxFret,
+        span = maxFret - position,
+        openCount = sounding.count { it.fret == 0 },
+        interiorMutes = sounding.last().stringIndex - sounding.first().stringIndex + 1 - sounding.size,
+        fingering = fingering,
     )
 }
 
-private class BiomechanicalEngine(
+private val RANKED_ORDER: Comparator<RankedShape> =
+    compareByDescending<RankedShape> { it.score }
+        .thenByDescending { it.features.sounding.size }
+        .thenBy { it.features.span }
+        .thenBy { it.features.maxFret }
+        .thenBy { fretsKey(it.features.frets) }
+
+private class VoicingSearch(
     private val tuning: ParsedTuning,
     private val chord: ParsedChord,
+    enforceBass: Boolean,
+    enforceExtensions: Boolean,
 ) {
-    private val pcs: Set<Int> = chord.pcs.toSet()
-    private val requiredPcs: Set<Int> = chord.pcs.filter { pc -> pc !in chord.optionalPcs.toSet() }.toSet()
-    private val style: ChordOptions = resolveStyle(chord)
-    private val options: List<List<Int?>> = buildStringOptions()
+    private val chordPcs: Set<Int> = chord.pcs.toSet()
+    private val requiredPcs: Set<Int> =
+        requiredPitchClasses(chord) + if (enforceExtensions) requiredExtensions(chord) else emptyList()
+    private val extensionPcs: Set<Int> =
+        chord.pcs.filterIndexed { index, _ -> chord.intervals[index] in EXTENSION_INTERVALS }.toSet()
+    private val bassPc: Int? = if (enforceBass) chord.bassPc else null
+    private val allowedPcs: Set<Int> = if (bassPc == null) chordPcs else chordPcs + bassPc
+    // Root-in-bass scoring only makes sense when the first string is the lowest (not a
+    // re-entrant tuning like a ukulele's).
+    private val hasBassString: Boolean = tuning.midi[0] == tuning.midi.min()
+    private val grips: List<List<Int?>> = CHORD_FORMS
+        .filter { chord.quality in it.qualities }
+        .mapNotNull { instantiateForm(it, tuning, chord.rootPc) }
+    private val standardGrips: Set<String> = grips.map { fretsKey(it) }.toSet()
 
-    private fun buildStringOptions(): List<List<Int?>> {
-        val options = mutableListOf<List<Int?>>()
-        for (s in tuning.midi.indices) {
-            val stringOpts = mutableListOf<Int?>(null)
-            for (fret in 0..MAX_FRET) {
-                if (mod12(tuning.midi[s] + fret) in pcs) stringOpts.add(fret)
-            }
-            options.add(stringOpts)
+    fun run(count: Int): List<VoicingShape> {
+        // The enumeration never repeats a shape, so only playable keys need remembering to keep
+        // a grip from being added twice.
+        val seen = mutableSetOf<String>()
+        val ranked = mutableListOf<RankedShape>()
+        fun consider(frets: List<Int?>) {
+            val key = fretsKey(frets)
+            if (key in seen) return
+            val features = describeShape(frets, tuning) ?: return
+            if (!isPlayable(features)) return
+            seen.add(key)
+            ranked.add(RankedShape(features, score(features)))
         }
-        return options
+        enumerate(::consider)
+        for (grip in grips) consider(grip)
+        ranked.sortWith(RANKED_ORDER)
+        return pickDistinct(ranked, count).map(::toShape)
     }
 
-    fun generate(limit: Int = RESULTS_PER_CHORD): List<Pair<Int, List<Int?>>> {
-        val n = tuning.midi.size
-        val suffixCover = Array(n + 1) { mutableSetOf<Int>() }
+    private fun stringOptions(): List<List<Int?>> = tuning.midi.map { open ->
+        listOf<Int?>(null) + (0..MAX_FRET).filter { mod12(open + it) in allowedPcs }
+    }
+
+    private fun enumerate(visit: (List<Int?>) -> Unit) {
+        val options = stringOptions()
+        val n = options.size
+        // reachable[s]: pitch classes some string from s upward can still supply.
+        val reachable = Array(n + 1) { mutableSetOf<Int>() }
         for (s in n - 1 downTo 0) {
-            suffixCover[s].addAll(suffixCover[s + 1])
-            for (fret in options[s]) {
-                if (fret == null) continue
-                suffixCover[s].add(mod12(tuning.midi[s] + fret))
-            }
+            reachable[s].addAll(reachable[s + 1])
+            for (fret in options[s]) if (fret != null) reachable[s].add(mod12(tuning.midi[s] + fret))
         }
-
-        val seen = mutableSetOf<String>()
-        val scored = mutableListOf<Pair<Int, List<Int?>>>()
         val current = mutableListOf<Int?>()
-        val covered = mutableSetOf<Int>()
+        val counts = IntArray(12)
+        val needsDistinct = requiredPcs.size >= MIN_DISTINCT
 
-        fun dfs(idx: Int, voiced: Int) {
-            for (pc in requiredPcs) {
-                if (pc !in covered && pc !in suffixCover[idx]) return
-            }
-            if (voiced + (n - idx) < MIN_NOTES) return
-            val pcsNow = pcsForPartial(current, covered)
-            if (pcsNow.size + (n - idx) < MIN_DISTINCT) return
-
+        fun walk(idx: Int, played: Int) {
+            for (pc in requiredPcs) if (counts[pc] == 0 && pc !in reachable[idx]) return
+            if (played + (n - idx) < MIN_NOTES) return
+            if (needsDistinct && distinctChordTones(counts) + (n - idx) < MIN_DISTINCT) return
             if (idx == n) {
-                val key = diagramToKey(current)
-                if (key in seen) return
-                seen.add(key)
-                if (!isValid(current)) return
-                scored.add(score(current) to current.toList())
+                visit(current.toList())
                 return
             }
-
             for (fret in options[idx]) {
                 current.add(fret)
-                var added = false
-                var pc: Int? = null
-                if (fret != null) {
-                    val f = mod12(tuning.midi[idx] + fret)
-                    pc = f
-                    if (f in requiredPcs && f !in covered) {
-                        covered.add(f)
-                        added = true
-                    }
-                }
-                dfs(idx + 1, voiced + if (fret != null) 1 else 0)
-                if (added && pc != null) covered.remove(pc)
+                val pc = fret?.let { mod12(tuning.midi[idx] + it) }
+                if (pc != null) counts[pc]++
+                walk(idx + 1, played + if (pc == null) 0 else 1)
+                if (pc != null) counts[pc]--
                 current.removeAt(current.size - 1)
             }
         }
-
-        dfs(0, 0)
-
-        scored.sortWith { a, b ->
-            val ka = sortKey(a.first, a.second)
-            val kb = sortKey(b.first, b.second)
-            for (i in ka.indices) {
-                val va = ka[i]
-                val vb = kb[i]
-                if (va != vb) return@sortWith va - vb
-            }
-            0
-        }
-
-        return scored.take(limit)
+        walk(0, 0)
     }
 
-    private fun pcsForPartial(partial: List<Int?>, covered: Set<Int>): Set<Int> {
-        val s = covered.toMutableSet()
-        for (i in partial.indices) {
-            val fret = partial[i] ?: continue
-            val pc = mod12(tuning.midi[i] + fret)
-            if (pc in pcs) s.add(pc)
-        }
-        return s
+    private fun distinctChordTones(counts: IntArray): Int = chordPcs.count { counts[it] > 0 }
+
+    private fun isPlayable(shape: ShapeFeatures): Boolean {
+        if (shape.sounding.size < MIN_NOTES) return false
+        if (bassPc != null && mod12(shape.bassMidi) != bassPc) return false
+        if (shape.pcs.size < MIN_DISTINCT && requiredPcs.size >= MIN_DISTINCT) return false
+        if (!shape.pcs.containsAll(requiredPcs)) return false
+        return mutesReachable(shape.frets) && spanReachable(shape)
     }
 
-    private fun playedIndices(diagram: List<Int?>): List<Int> =
-        diagram.withIndex().filter { it.value != null }.map { it.index }
-
-    private fun pcAt(stringIdx: Int, fret: Int): Int = mod12(tuning.midi[stringIdx] + fret)
-
-    private fun pcsForDiagram(diagram: List<Int?>): Set<Int> =
-        playedIndices(diagram).map { pcAt(it, diagram[it]!!) }.toSet()
-
-    private fun bassIntervalForDiagram(diagram: List<Int?>): Int? {
-        val played = playedIndices(diagram)
-        if (played.isEmpty()) return null
-        val bassPc = pcAt(played[0], diagram[played[0]]!!)
-        return mod12(bassPc - chord.rootPc)
-    }
-
-    private fun isValid(diagram: List<Int?>): Boolean {
-        val played = playedIndices(diagram)
-        if (played.size < MIN_NOTES) return false
-        val diagramPcs = pcsForDiagram(diagram)
-        if (diagramPcs.size < MIN_DISTINCT && requiredPcs.size >= MIN_DISTINCT) return false
-        if (!requiredPcs.all { it in diagramPcs }) return false
-        if (!dampingOk(diagram, played)) return false
-        if (!frettedCountOk(diagram)) return false
-        if (!spanOk(diagram)) return false
-        return true
-    }
-
-    private fun dampingOk(diagram: List<Int?>, played: List<Int>): Boolean {
+    // A muted string between sounding ones has to be damped by a fretting finger next to it.
+    private fun mutesReachable(frets: List<Int?>): Boolean {
+        val played = frets.indices.filter { frets[it] != null }
         if (played.size < 2) return true
-        val minP = played.min()
-        val maxP = played.max()
-        for (i in (minP + 1) until maxP) {
-            if (diagram[i] == null) {
-                val ok = listOf(-1, 1).any { adj ->
-                    val adjIdx = i + adj
-                    adjIdx in diagram.indices && diagram[adjIdx] != null && diagram[adjIdx]!! > 0
-                }
-                if (!ok) return false
-            }
+        for (i in played.first() + 1 until played.last()) {
+            if (frets[i] != null) continue
+            val touched = listOf(frets[i - 1], frets[i + 1]).any { it != null && it > 0 }
+            if (!touched) return false
         }
         return true
     }
 
-    private fun spanOk(diagram: List<Int?>): Boolean {
-        val positives = diagram.filterNotNull().filter { it > 0 }
-        if (positives.isEmpty()) return true
-        if (positives.max() - positives.min() <= MAX_SPAN) return true
-        val thumbF = diagram[0]
-        if (thumbF != null && thumbF > 0 && diagram.size >= 4) {
-            val others = diagram.withIndex()
-                .filter { it.index != 0 && (it.value ?: -1) > 0 }
-                .map { it.value!! }
-            if (others.isNotEmpty() &&
-                others.max() - others.min() <= MAX_SPAN &&
-                thumbF <= others.min() &&
-                others.min() - thumbF <= MAX_THUMB_REACH
-            ) {
-                return true
-            }
-        }
-        return false
+    // Spans past MAX_SPAN are only allowed when the thumb takes the lowest string from behind.
+    private fun spanReachable(shape: ShapeFeatures): Boolean {
+        if (shape.span <= MAX_SPAN) return true
+        val thumb = shape.frets[0]
+        if (thumb == null || thumb == 0 || shape.frets.size < 4) return false
+        val others = shape.frets.drop(1).filterNotNull().filter { it > 0 }
+        if (others.isEmpty()) return false
+        val low = others.min()
+        return others.max() - low <= MAX_SPAN && thumb <= low && low - thumb <= MAX_THUMB_REACH
     }
 
-    private fun frettedCountOk(diagram: List<Int?>): Boolean {
-        val positives = diagram.filterNotNull().filter { it > 0 }
-        if (positives.isEmpty()) return true
-        return minFingersRequired(diagram) <= 4
-    }
-
-    private fun minFingersRequired(diagram: List<Int?>): Int {
-        val n = diagram.size
-        val INF = 99
-        val dp = IntArray(n + 1) { INF }
-        dp[n] = 0
-        for (i in n - 1 downTo 0) {
-            val v = diagram[i]
-            if (v == null || v == 0) {
-                dp[i] = dp[i + 1]
-                continue
-            }
-            val f = v
-            var best = INF
-            for (j in i until n) {
-                val w = diagram[j]
-                if (w == 0 || (w != null && w > 0 && w != f)) break
-                if (w == f) {
-                    val candidate = 1 + dp[j + 1]
-                    if (candidate < best) best = candidate
-                }
-            }
-            dp[i] = best
-        }
-        return dp[0]
-    }
-
-    private fun score(diagram: List<Int?>): Int {
-        val played = playedIndices(diagram)
-        val diagramPcs = pcsForDiagram(diagram)
-        val noteCount = played.size
-        val distinct = diagramPcs.size
+    private fun score(shape: ShapeFeatures): Int {
         var score = 0
-        score += style.noteCurve[noteCount] ?: style.defaultNotePenalty
-        score += distinct * 28
-
-        val bassInterval = bassIntervalForDiagram(diagram)
-        if (bassInterval == 0) score += style.rootBias else score -= 150
-
-        val hasExtension = chord.intervals.any { it in setOf(13, 14, 15, 18, 20, 21) }
-        val hi = diagram.size - 1
-        val hiPrev = diagram.size - 2
-        if (hasExtension && diagram.size >= 2) {
-            if (diagram[hi] == null) {
-                score += 60
-            } else if (diagram[hi] == diagram[hiPrev] && diagram[hi]!! > 0) {
-                score -= 70
-            }
+        if (bassPc == null && hasBassString) {
+            score += if (mod12(shape.bassMidi) == chord.rootPc) Weights.ROOT_IN_BASS else Weights.OTHER_BASS
         }
-
-        for (i in 0 until diagram.size - 1) {
-            val di = diagram[i]
-            if (di != null && di > 0) {
-                for (j in (i + 1) until minOf(i + 3, diagram.size)) {
-                    val dj = diagram[j]
-                    if (dj != null && dj > 0 && di > dj + 1) {
-                        score -= (di - dj) * 50
-                    }
-                }
-            }
+        score += shape.sounding.size * Weights.PER_NOTE
+        score += shape.pcs.size * Weights.PER_DISTINCT_PC
+        score += shape.fingering.fingers * Weights.PER_FINGER
+        score += shape.fingering.barres * Weights.PER_BARRE
+        if (shape.maxFret > FIRST_POSITION_MAX_FRET) {
+            score += (shape.position - 1) * Weights.PER_POSITION_FRET
         }
-
-        val positives = diagram.filterNotNull().filter { it > 0 }
-        val maxFret = if (positives.isNotEmpty()) positives.max() else 0
-        val openCount = diagram.count { it == 0 }
-        if (maxFret >= style.openPenaltyThreshold) score -= openCount * style.openPenaltyPer
-
-        if (diagram.size >= 2 && diagram[hi] != null && diagram[hiPrev] == null) score -= 40
-
-        if (diagram.size == 6) {
-            val bonuses = TEMPLATE_BONUSES[chord.symbol]
-            val key = diagramToKey(diagram)
-            bonuses?.get(key)?.let { score += it }
+        score += shape.interiorMutes * Weights.PER_INTERIOR_MUTE
+        if (shape.maxFret > OPEN_STRING_MAX_FRET) {
+            score += shape.openCount * Weights.PER_OUT_OF_POSITION_OPEN
         }
-
-        score -= minFingersRequired(diagram) * 10
+        score += maxOf(0, shape.span - COMFORTABLE_SPAN) * Weights.PER_SPAN_FRET_BEYOND_COMFORT
+        score += maxOf(0, shape.range - COMFORTABLE_RANGE) * Weights.PER_SEMITONE_BEYOND_RANGE
+        score += reverseStretch(shape.frets) * Weights.PER_REVERSE_STRETCH_FRET
+        if (shape.topPc in extensionPcs) score += Weights.EXTENSION_ON_TOP
+        if (fretsKey(shape.frets) in standardGrips) score += Weights.STANDARD_GRIP
         return score
     }
 
-    private fun sortKey(score: Int, diagram: List<Int?>): List<Int> {
-        val played = playedIndices(diagram)
-        val positives = diagram.filterNotNull().filter { it > 0 }
-        val maxF = if (positives.isNotEmpty()) positives.max() else 0
-        val minF = if (positives.isNotEmpty()) positives.min() else 0
-        val span = if (maxF != 0) maxF - minF else 0
-        return listOf(-score, -played.size, span, maxF) +
-            diagram.map { f -> f ?: -1 }
+    // Frets by which a lower string sits more than REVERSE_STRETCH_FRETS above one of the next
+    // two strings, a stretch the hand can't make comfortably.
+    private fun reverseStretch(frets: List<Int?>): Int {
+        var total = 0
+        for (i in 0 until frets.size - 1) {
+            val low = frets[i]
+            if (low == null || low == 0) continue
+            for (j in i + 1 until minOf(i + 3, frets.size)) {
+                val high = frets[j]
+                if (high != null && high > 0 && low > high + REVERSE_STRETCH_FRETS) total += low - high
+            }
+        }
+        return total
+    }
+
+    // Skips a shape that is just a better-ranked one with strings muted (or vice versa).
+    private fun pickDistinct(ranked: List<RankedShape>, count: Int): List<RankedShape> {
+        val picked = mutableListOf<RankedShape>()
+        for (entry in ranked) {
+            if (picked.size >= count) break
+            val frets = entry.features.frets
+            val duplicate = picked.any {
+                isNarrowingOf(frets, it.features.frets) || isNarrowingOf(it.features.frets, frets)
+            }
+            if (!duplicate) picked.add(entry)
+        }
+        return picked
+    }
+
+    private fun toShape(entry: RankedShape): VoicingShape {
+        val f = entry.features
+        return VoicingShape(
+            frets = f.frets,
+            sounding = f.sounding,
+            span = f.span,
+            bassMidi = f.bassMidi,
+            bassIsRoot = mod12(f.bassMidi) == chord.rootPc,
+            position = f.position,
+            openCount = f.openCount,
+            cost = entry.score,
+        )
     }
 }
 
-fun searchChord(tuning: ParsedTuning, chord: ParsedChord): List<VoicingShape> {
-    val engine = BiomechanicalEngine(tuning, chord)
-    val ranked = engine.generate(RESULTS_PER_CHORD)
-    return ranked.map { (score, diagram) -> makeShape(diagram, tuning, chord, score) }
+/**
+ * The [count] best-ranked playable voicings of [chord] on [tuning]. Tries the strictest rules
+ * first (slash bass under the chord, extensions present), then relaxes the extensions, then the
+ * bass, and returns the first non-empty result.
+ */
+fun searchChord(
+    tuning: ParsedTuning,
+    chord: ParsedChord,
+    count: Int = DEFAULT_VOICING_COUNT,
+): List<VoicingShape> {
+    val attempts = listOf(true to true, true to false, false to false)
+    for ((enforceBass, enforceExtensions) in attempts) {
+        if (!enforceBass && chord.bassPc == null) break
+        val shapes = VoicingSearch(tuning, chord, enforceBass, enforceExtensions).run(count)
+        if (shapes.isNotEmpty()) return shapes
+    }
+    return emptyList()
 }

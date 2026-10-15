@@ -8,6 +8,7 @@ import com.omnituner.android.data.LibraryState
 import com.omnituner.core.audio.frequencyToMidiNote
 import com.omnituner.core.data.ProgressionPreset
 import com.omnituner.core.data.Tuning
+import com.omnituner.core.theory.BadgeKind
 import com.omnituner.core.theory.ChordParseResult
 import com.omnituner.core.theory.DetectedKey
 import com.omnituner.core.theory.DiatonicBadge
@@ -146,7 +147,7 @@ class ChordFinderViewModel(application: Application) : AndroidViewModel(applicat
         var first: DiatonicBadge? = null
         for (mode in MODE_NAMES) {
             val candidate = computeBadgeForPc(chord, tonicPc, mode, tuningFlats = false, tonicFlats = false)
-            if (candidate?.kind == "good") return candidate
+            if (candidate.kind == BadgeKind.Good) return candidate
             if (first == null) first = candidate
         }
         return first

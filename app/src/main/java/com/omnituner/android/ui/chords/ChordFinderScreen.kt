@@ -38,6 +38,7 @@ import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.data.PROGRESSION_PRESETS
+import com.omnituner.core.theory.BadgeKind
 import com.omnituner.core.theory.VoicingShape
 
 private val TONIC_NAMES = listOf("C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
@@ -85,7 +86,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
                     )
                     ui.badge?.let { badge ->
                         Text(
-                            text = badge.text,
+                            text = "${badge.numeral} · ${badge.detail}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = badgeColor(badge.kind),
                         )
@@ -277,8 +278,8 @@ private fun VoicingRow(shape: VoicingShape) {
 }
 
 @Composable
-private fun badgeColor(kind: String): Color = when (kind) {
-    "good" -> MaterialTheme.colorScheme.tertiary
-    "warn" -> MaterialTheme.colorScheme.secondary
-    else -> MaterialTheme.colorScheme.error
+private fun badgeColor(kind: BadgeKind): Color = when (kind) {
+    BadgeKind.Good -> MaterialTheme.colorScheme.tertiary
+    BadgeKind.Warn, BadgeKind.Borrowed -> MaterialTheme.colorScheme.secondary
+    BadgeKind.Bad -> MaterialTheme.colorScheme.error
 }

@@ -8,6 +8,10 @@ val FLAT_PC_NAMES: List<String> = listOf(
     "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B",
 )
 
+val DEGREE_LABELS: List<String> = listOf(
+    "R", "b2", "2", "b3", "3", "4", "b5", "5", "#5", "6", "b7", "7",
+)
+
 val PC_LETTER: Map<String, Int> = mapOf(
     "C" to 0, "D" to 2, "E" to 4, "F" to 5, "G" to 7, "A" to 9, "B" to 11,
 )
@@ -95,6 +99,10 @@ val QUALITY_ALIASES: Map<String, String> = mapOf(
     "m7" to "m7",
     "mMaj7" to "mMaj7",
     "m(maj7)" to "mMaj7",
+    "mmaj" to "mMaj7",
+    "m(maj)" to "mMaj7",
+    "mM7" to "mMaj7",
+    "mΔ7" to "mMaj7",
     "dim" to "dim",
     "°" to "dim",
     "o" to "dim",
@@ -287,6 +295,8 @@ data class ParsedChord(
     val pcs: List<Int>,
     val optionalPcs: List<Int>,
     val flats: Boolean,
+    // Slash-chord bass ("C/G" -> 7); not part of pcs. Null for a plain chord.
+    val bassPc: Int? = null,
 )
 
 sealed interface ChordParseResult {
@@ -294,10 +304,32 @@ sealed interface ChordParseResult {
     data class Error(val symbol: String, val error: String) : ChordParseResult
 }
 
-private fun normalizeQuality(raw: String): String =
-    raw.replace("♯", "#").replace("♭", "b").lowercase()
+// Drops the parentheses and any commas/spaces inside them: "7(b9, 13)" -> "7b913".
+private fun stripParens(raw: String): String? {
+    var depth = 0
+    val out = StringBuilder()
+    for (char in raw) {
+        if (char == '(') {
+            depth++
+            continue
+        }
+        if (char == ')') {
+            depth--
+            if (depth < 0) return null
+            continue
+        }
+        if (depth > 0 && (char == ',' || char.isWhitespace())) continue
+        out.append(char)
+    }
+    return if (depth == 0) out.toString() else null
+}
 
-private val ALTERATION_RE = Regex("(?:b|#)?(?:5|9|11|13)|add(?:9|11)")
+private fun normalizeQuality(raw: String): String? =
+    stripParens(raw.replace("♯", "#").replace("♭", "b"))?.lowercase()
+
+private val ALTERATION_RE = Regex("(?:b|#)?(?:5|9|11|13)|[b#]6|add(?:9|11)|sus(?:2|4)?|[+-]5")
+
+private val CANONICAL_TOKENS: Map<String, String> = mapOf("+5" to "#5", "-5" to "b5", "sus" to "sus4")
 
 private data class ComposedQuality(
     val key: String,
@@ -307,20 +339,25 @@ private data class ComposedQuality(
 
 private fun composeQuality(raw: String): ComposedQuality? {
     val normalized = normalizeQuality(raw)
-    if (normalized.isEmpty()) return null
+    if (normalized.isNullOrEmpty()) return null
 
     var baseKey: String? = null
     var prefixLength = 0
-    for ((key, _) in CHORD_FORMULAS) {
+    for (key in CHORD_FORMULAS.keys) {
         val lowerKey = key.lowercase()
         if (normalized.startsWith(lowerKey) && (baseKey == null || key.length > baseKey.length)) {
             baseKey = key
             prefixLength = lowerKey.length
         }
     }
-    if (baseKey == null && normalized.startsWith("m")) {
-        baseKey = "min"
-        prefixLength = 1
+    if (baseKey == null) {
+        if (normalized.startsWith("m")) {
+            baseKey = "min"
+            prefixLength = 1
+        } else if (normalized.startsWith("sus")) {
+            baseKey = "sus4"
+            prefixLength = 3
+        }
     }
     baseKey ?: return null
 
@@ -329,9 +366,8 @@ private fun composeQuality(raw: String): ComposedQuality? {
     val intervals = base.intervals.toMutableList()
     val optional = base.optional.toMutableList()
     val tokens = mutableListOf<String>()
-    val matches = ALTERATION_RE.findAll(remainder).toList()
     var cursor = 0
-    for (match in matches) {
+    for (match in ALTERATION_RE.findAll(remainder)) {
         if (match.range.first != cursor) return null
         tokens.add(match.value)
         cursor = match.range.last + 1
@@ -339,30 +375,28 @@ private fun composeQuality(raw: String): ComposedQuality? {
     if (cursor != remainder.length) return null
 
     fun drop(value: Int) {
-        val i = intervals.indexOf(value)
-        if (i >= 0) intervals.removeAt(i)
+        intervals.remove(value)
     }
 
     fun removeOptional(value: Int) {
-        val i = optional.indexOf(value)
-        if (i >= 0) optional.removeAt(i)
+        optional.remove(value)
     }
 
     fun add(value: Int) {
-        if (!intervals.contains(value)) intervals.add(value)
+        if (value !in intervals) intervals.add(value)
     }
 
     fun addOptional(value: Int) {
         add(value)
-        if (!optional.contains(value)) optional.add(value)
+        if (value !in optional) optional.add(value)
     }
 
     for (token in tokens) {
         when (token) {
-            "b5" -> {
+            "b5", "-5" -> {
                 drop(7); add(6); removeOptional(6)
             }
-            "#5" -> {
+            "#5", "+5" -> {
                 drop(7); add(8); removeOptional(8)
             }
             "b9" -> {
@@ -378,32 +412,48 @@ private fun composeQuality(raw: String): ComposedQuality? {
             "#11" -> addOptional(18)
             "13" -> addOptional(21)
             "b13" -> addOptional(20)
+            "b6" -> add(8)
+            "#6" -> add(10)
+            "sus2" -> {
+                drop(3); drop(4); add(2)
+            }
+            "sus4", "sus" -> {
+                drop(3); drop(4); add(5)
+            }
             "add9" -> add(14)
             "add11" -> addOptional(17)
         }
     }
 
     return ComposedQuality(
-        key = baseKey + tokens.joinToString(""),
+        key = baseKey + tokens.joinToString("") { CANONICAL_TOKENS[it] ?: it },
         intervals = intervals.distinct().sorted(),
         optional = optional.distinct().sorted(),
     )
 }
 
-private val CHORD_SYMBOL_RE = Regex("^([A-Ga-g])\\s*([#b♯♭]?)\\s*(.*?)\\s*$")
+private val ROOT_RE = Regex("^([A-Ga-g])\\s*([#b♯♭]?)\\s*(.*?)\\s*$")
+private val BASS_NOTE_RE = Regex("^\\s*([A-Ga-g])\\s*([#b♯♭]?)\\s*$")
+
+private fun pcOf(letter: String, accidental: String): Int {
+    var pc = PC_LETTER.getValue(letter.uppercase())
+    if (accidental == "#" || accidental == "♯") pc += 1
+    if (accidental == "b" || accidental == "♭") pc -= 1
+    return mod12(pc)
+}
+
+private fun isFlat(accidental: String): Boolean = accidental == "b" || accidental == "♭"
 
 fun parseChord(raw: String): ChordParseResult {
     val symbol = raw.trim()
-    val match = CHORD_SYMBOL_RE.matchEntire(symbol)
+    val slash = symbol.lastIndexOf('/')
+    val bassMatch = if (slash >= 0) BASS_NOTE_RE.matchEntire(symbol.substring(slash + 1)) else null
+    val chordPart = if (bassMatch != null) symbol.substring(0, slash) else symbol
+    val bassPc = bassMatch?.let { pcOf(it.groupValues[1], it.groupValues[2]) }
+
+    val match = ROOT_RE.matchEntire(chordPart)
         ?: return ChordParseResult.Error(symbol, "'$symbol' is not a chord symbol")
-    var rootPc = PC_LETTER[match.groupValues[1].uppercase()] ?: return ChordParseResult.Error(
-        symbol,
-        "'$symbol' is not a chord symbol",
-    )
-    val accidental = match.groupValues[2]
-    if (accidental == "#" || accidental == "♯") rootPc += 1
-    if (accidental == "b" || accidental == "♭") rootPc -= 1
-    rootPc = mod12(rootPc)
+    val rootPc = pcOf(match.groupValues[1], match.groupValues[2])
     val qualityRaw = match.groupValues[3]
     var quality: String? = QUALITY_ALIASES[qualityRaw] ?: QUALITY_ALIASES[qualityRaw.lowercase()]
     var formula: ChordFormula? = quality?.let { CHORD_FORMULAS[it] }
@@ -421,7 +471,6 @@ fun parseChord(raw: String): ChordParseResult {
         )
     }
     val intervals = formula.intervals
-    val optionalIntervals = formula.optional
     return ChordParseResult.Ok(
         ParsedChord(
             symbol = symbol,
@@ -429,25 +478,85 @@ fun parseChord(raw: String): ChordParseResult {
             quality = quality,
             intervals = intervals,
             pcs = intervals.map { mod12(rootPc + it) },
-            optionalPcs = optionalIntervals.map { mod12(rootPc + it) },
-            flats = accidental == "b" || accidental == "♭",
+            optionalPcs = formula.optional.map { mod12(rootPc + it) },
+            flats = isFlat(match.groupValues[2]) || (bassMatch != null && isFlat(bassMatch.groupValues[2])),
+            bassPc = bassPc,
         ),
     )
 }
 
+private val STRONG_SEPARATORS = setOf(',', ';', '|', '→', '—', '–')
+private const val NOTE_OR_END = "(?=$|[\\s,;|→—–]|->)"
+private val BASS_SLASH_RE = Regex("^\\s*[A-Ga-g][#b♯♭]?$NOTE_OR_END")
+private val BASS_SLASH_SPACES_RE = Regex("\\s*/\\s*(?=[A-Ga-g][#b♯♭]?$NOTE_OR_END)")
+private val DIGIT_RE = Regex("^\\s*\\d")
+
+/**
+ * Splits a progression into chord tokens. A slash followed by a lone note ("C/E", "Cmaj9 / G")
+ * or a digit ("6/9") stays inside the token; any other slash separates chords. Commas and
+ * spaces inside balanced parentheses ("C7(b9, 13)") stay inside the token too.
+ */
 fun tokenizeProgression(raw: String): List<String> {
-    val trimmed = raw.trim()
-    if (trimmed.isEmpty()) return emptyList()
-    return trimmed.split(Regex("(?:->|→|—|–|,|;|\\|)|/(?![0-9])"))
-        .flatMap { it.split(Regex("\\s+")) }
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
+    val text = BASS_SLASH_SPACES_RE.replace(raw, "/")
+    val tokens = mutableListOf<String>()
+    val balanced = text.count { it == '(' } == text.count { it == ')' }
+    val current = StringBuilder()
+    var depth = 0
+
+    fun flush() {
+        val token = current.toString().trim()
+        if (token.isNotEmpty() && token != "/") tokens.add(token)
+        current.clear()
+    }
+
+    var i = 0
+    while (i < text.length) {
+        val char = text[i]
+        when {
+            balanced && char == '(' -> {
+                depth++
+                current.append(char)
+            }
+            balanced && char == ')' -> {
+                depth = maxOf(0, depth - 1)
+                current.append(char)
+            }
+            depth > 0 -> current.append(char)
+            char in STRONG_SEPARATORS -> flush()
+            char == '-' && text.getOrNull(i + 1) == '>' -> {
+                flush()
+                i++
+            }
+            char == '/' -> {
+                val rest = text.substring(i + 1)
+                if (BASS_SLASH_RE.containsMatchIn(rest) || DIGIT_RE.containsMatchIn(rest)) {
+                    current.append('/')
+                } else {
+                    flush()
+                }
+            }
+            char.isWhitespace() -> flush()
+            else -> current.append(char)
+        }
+        i++
+    }
+    flush()
+    return tokens
 }
 
+enum class BadgeKind { Good, Warn, Borrowed, Bad }
+
 data class DiatonicBadge(
-    val kind: String,
-    val text: String,
+    val kind: BadgeKind,
+    val numeral: String,
+    val detail: String,
 )
+
+fun keyName(tonicName: String, mode: ModeName): String = when (mode) {
+    ModeName.Ionian -> "$tonicName major"
+    ModeName.Aeolian -> "$tonicName minor"
+    else -> "$tonicName $mode"
+}
 
 private val EXPECTED: Map<String, String> = mapOf(
     "3,6" to "dim",
@@ -482,8 +591,7 @@ private fun numeralFor(degreeIndex: Int, expectedQuality: String, steps: List<In
         "aug" -> "+"
         else -> ""
     }
-    val diff = mod12(steps[degreeIndex] - ModeName.Ionian.steps[degreeIndex])
-    val prefix = when (diff) {
+    val prefix = when (mod12(steps[degreeIndex] - ModeName.Ionian.steps[degreeIndex])) {
         11 -> "b"
         1 -> "#"
         else -> ""
@@ -491,90 +599,59 @@ private fun numeralFor(degreeIndex: Int, expectedQuality: String, steps: List<In
     return "$prefix$lower$suffix"
 }
 
-private fun accidentalPrefixFor(chord: ParsedChord, tonicPc: Int, steps: List<Int>): String {
-    if (chord.rootPc == mod12(tonicPc + steps[0])) return ""
-    var flats = 0
-    var sharps = 0
-    for (i in 0 until 7) {
-        if (mod12(tonicPc + steps[i] - 1) == chord.rootPc) flats++
-        if (mod12(tonicPc + steps[i] + 1) == chord.rootPc) sharps++
-    }
-    if (flats > 0 && sharps == 0) return "b"
-    if (sharps > 0 && flats == 0) return "#"
-    return ""
-}
-
-private fun lookupIn(chord: ParsedChord, tonicPc: Int, steps: List<Int>): DegreeLookup? {
-    var degreeIndex = -1
-    for (i in 0 until 7) {
-        if (mod12(tonicPc + steps[i]) == chord.rootPc) {
-            degreeIndex = i
-            break
-        }
-    }
-    if (degreeIndex < 0) return null
+private fun lookupIn(rootPc: Int, tonicPc: Int, steps: List<Int>): DegreeLookup? {
+    val degreeIndex = (0 until 7).firstOrNull { mod12(tonicPc + steps[it]) == rootPc } ?: return null
     val third = mod12(steps[(degreeIndex + 2) % 7] - steps[degreeIndex])
     val fifth = mod12(steps[(degreeIndex + 4) % 7] - steps[degreeIndex])
     val expectedQuality = EXPECTED["$third,$fifth"] ?: "maj"
-    val prefix = accidentalPrefixFor(chord, tonicPc, steps)
-    val numeral = prefix + numeralFor(degreeIndex, expectedQuality, steps)
-    return DegreeLookup(degreeIndex, third, fifth, expectedQuality, numeral)
+    return DegreeLookup(degreeIndex, third, fifth, expectedQuality, numeralFor(degreeIndex, expectedQuality, steps))
 }
 
-private fun qualityMatches(lookup: DegreeLookup, actualThird: Int?, actualFifth: Int?): Boolean =
-    (actualThird == null || actualThird == lookup.third) &&
-        (actualFifth == null || actualFifth == lookup.fifth)
-
+/**
+ * Where [chord] sits in the key of [tonicPc] [modeName]: Good when its root and quality are
+ * diatonic, Warn when the root is diatonic but the quality isn't, Borrowed when it is diatonic
+ * to the parallel major or minor instead, Bad otherwise. Only the third and fifth are compared.
+ */
 fun computeBadgeForPc(
     chord: ParsedChord,
     tonicPc: Int,
     modeName: ModeName,
     tuningFlats: Boolean,
     tonicFlats: Boolean,
-): DiatonicBadge? {
+): DiatonicBadge {
     val scaleRootName = pcName(tonicPc, tonicFlats || tuningFlats)
+    val key = keyName(scaleRootName, modeName)
     val rootName = pcName(chord.rootPc, chord.flats || tuningFlats)
 
     val actualThird = when {
-        chord.intervals.contains(4) -> 4
-        chord.intervals.contains(3) -> 3
+        4 in chord.intervals -> 4
+        3 in chord.intervals -> 3
         else -> null
     }
-    var actualFifth: Int? = null
-    for (candidate in listOf(7, 6, 8)) {
-        if (chord.intervals.contains(candidate)) {
-            actualFifth = candidate
-            break
-        }
-    }
+    val actualFifth = listOf(7, 6, 8).firstOrNull { it in chord.intervals }
 
-    val primary = lookupIn(chord, tonicPc, modeName.steps)
+    fun qualityMatches(lookup: DegreeLookup): Boolean =
+        (actualThird == null || actualThird == lookup.third) &&
+            (actualFifth == null || actualFifth == lookup.fifth)
+
+    val primary = lookupIn(chord.rootPc, tonicPc, modeName.steps)
     if (primary != null) {
-        if (qualityMatches(primary, actualThird, actualFifth)) {
-            return DiatonicBadge(
-                kind = "good",
-                text = "◈ ${primary.numeral} — diatonic to $scaleRootName $modeName",
-            )
+        if (qualityMatches(primary)) {
+            return DiatonicBadge(BadgeKind.Good, primary.numeral, "diatonic to $key")
         }
-        val qualityWord = QUALITY_WORD[primary.expectedQuality] ?: primary.expectedQuality
         return DiatonicBadge(
-            kind = "warn",
-            text = "◈ ${primary.numeral} — borrowed: $modeName expects ${primary.expectedQuality} ($qualityWord) here",
+            BadgeKind.Warn,
+            primary.numeral,
+            "altered: $key expects ${QUALITY_WORD[primary.expectedQuality]} here",
         )
     }
 
     for ((steps, label) in listOf(ModeName.Ionian.steps to "major", ModeName.Aeolian.steps to "minor")) {
-        val lookup = lookupIn(chord, tonicPc, steps)
-        if (lookup != null && qualityMatches(lookup, actualThird, actualFifth)) {
-            return DiatonicBadge(
-                kind = "warn",
-                text = "◈ ${lookup.numeral} — borrowed from $scaleRootName $label",
-            )
+        val lookup = lookupIn(chord.rootPc, tonicPc, steps)
+        if (lookup != null && qualityMatches(lookup)) {
+            return DiatonicBadge(BadgeKind.Borrowed, lookup.numeral, "borrowed from $scaleRootName $label")
         }
     }
 
-    return DiatonicBadge(
-        kind = "bad",
-        text = "◈ chromatic — $rootName isn't in $scaleRootName $modeName",
-    )
+    return DiatonicBadge(BadgeKind.Bad, "—", "chromatic: $rootName isn't in $key")
 }
