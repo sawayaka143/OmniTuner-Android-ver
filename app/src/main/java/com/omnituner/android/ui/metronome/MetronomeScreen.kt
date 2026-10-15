@@ -5,14 +5,18 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -38,6 +42,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -70,6 +75,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -78,9 +85,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
+import androidx.compose.ui.util.lerp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
@@ -90,6 +100,7 @@ import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentSliderColors
 import com.omnituner.core.metronome.BPM_MAX
@@ -108,6 +119,7 @@ import com.omnituner.core.sound.MetronomeVoices
 import com.omnituner.core.timing.getTempoMarking
 import com.omnituner.core.timing.meterModel
 import com.omnituner.core.timing.tapBpm
+import kotlinx.coroutines.delay
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -133,18 +145,13 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
         TempoPanel(
             ui = ui,
             viewModel = viewModel,
+            onTap = tapTempo,
+            onOptions = { optionsOpen = true },
             onSavePreset = { savingPreset = true },
             modifier = Modifier
-                .padding(top = 8.dp)
+                .padding(top = 8.dp, bottom = 12.dp)
                 .weight(1f)
                 .fillMaxWidth(),
-        )
-        TransportRow(
-            isPlaying = ui.isPlaying,
-            onTap = tapTempo,
-            onToggle = viewModel::toggle,
-            onOptions = { optionsOpen = true },
-            modifier = Modifier.padding(vertical = 12.dp),
         )
     }
 
@@ -173,9 +180,29 @@ private val HeaderMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
 private fun TempoPanel(
     ui: MetronomeUiState,
     viewModel: MetronomeViewModel,
+    onTap: () -> Unit,
+    onOptions: () -> Unit,
     onSavePreset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The wheel unfolds while it is being turned and folds back into a plain readout once the tempo
+    // has been left alone for a moment, or right away when the metronome starts. Any tempo change
+    // (steppers, tap, a preset, typing) restarts the wait without unfolding it.
+    var wheelOpen by remember { mutableStateOf(false) }
+    var wheelBusy by remember { mutableStateOf(false) }
+    val bpm = ui.state.bpm.roundToInt()
+    LaunchedEffect(wheelOpen, wheelBusy, bpm) {
+        if (wheelOpen && !wheelBusy) {
+            delay(WheelIdleMs)
+            wheelOpen = false
+        }
+    }
+    val fold = animateFloatAsState(
+        targetValue = if (wheelOpen) 0f else 1f,
+        animationSpec = FoldSpring,
+        label = "wheelFold",
+    )
+
     Surface(
         modifier = modifier,
         shape = SmoothShape(PanelCorner),
@@ -203,10 +230,32 @@ private fun TempoPanel(
                     modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            TempoReadout(ui = ui, viewModel = viewModel)
+            TempoReadout(
+                ui = ui,
+                viewModel = viewModel,
+                fold = { fold.value },
+                onWheelInteraction = { active ->
+                    if (active) wheelOpen = true
+                    wheelBusy = active
+                },
+                onTap = onTap,
+                modifier = Modifier.weight(1f),
+            )
+            TransportRow(
+                isPlaying = ui.isPlaying,
+                onToggle = {
+                    if (!ui.isPlaying) wheelOpen = false
+                    viewModel.toggle()
+                },
+                onOptions = onOptions,
+                modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
+            )
         }
     }
 }
+
+private const val WheelIdleMs = 2500L
+private val FoldSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
 
 /** The panel-header trigger shared by both menus: a small caption over a large value. */
 @Composable
@@ -337,7 +386,14 @@ private fun PresetMenu(
 }
 
 @Composable
-private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
+private fun TempoReadout(
+    ui: MetronomeUiState,
+    viewModel: MetronomeViewModel,
+    fold: () -> Float,
+    onWheelInteraction: (Boolean) -> Unit,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val metronome = ui.state
     val beats = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator).beatsPerBar
     val currentBeat = if (ui.isPlaying) floor(ui.progress * beats).toInt().coerceIn(0, beats - 1) else null
@@ -353,14 +409,22 @@ private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
 
     var typingTempo by rememberSaveable { mutableStateOf(false) }
 
+    // The value lights in the accent while the metronome runs, like the tuner's in-tune note.
+    val numberColor by animateColorAsState(
+        targetValue = if (ui.isPlaying) LocalAccentColors.current.accent else MaterialTheme.colorScheme.onSurface,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "bpmColor",
+    )
+
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
+            .fillMaxWidth()
             .padding(horizontal = ReadoutInset, vertical = 16.dp),
     ) {
-        // Three digits must fit between the steppers, and the drum needs room for rows around them.
-        val bpmSize = min(maxHeight * 0.2f, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp)
-        val rowPitch = (bpmSize * 0.36f).coerceIn(28.dp, 44.dp)
+        // Three digits must fit between the steppers (also once grown by CompactScale when folded),
+        // and the drum needs room for rows around them.
+        val bpmSize = min(maxHeight * 0.2f, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp) * NumberShare
+        val rowPitch = (bpmSize * 0.36f).coerceIn(24.dp, 38.dp)
         val dotsHeight = min(32.dp, maxHeight * 0.08f)
 
         Column(
@@ -377,58 +441,90 @@ private fun TempoReadout(ui: MetronomeUiState, viewModel: MetronomeViewModel) {
                     .padding(horizontal = 12.dp)
                     .height(dotsHeight),
             )
-            Box(
+            Layout(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                // Selection band behind the centre row; the steppers sit at its two ends.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(bpmSize + 20.dp)
-                        .background(MaterialTheme.colorScheme.surface, BandShape),
-                )
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
-                        RepeatingIconButton(label = "Decrease tempo", onStep = { viewModel.changeBpm(-1) }) {
-                            Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                content = {
+                    Box(contentAlignment = Alignment.Center) {
+                        // Selection band behind the centre row; the steppers sit at its two ends.
+                        // It goes with the neighbours when the wheel folds.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(bpmSize + 20.dp)
+                                .graphicsLayer { alpha = 1f - fold() }
+                                .background(MaterialTheme.colorScheme.surface, BandShape),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
+                                RepeatingIconButton(label = "Decrease tempo", onStep = { viewModel.changeBpm(-1) }) {
+                                    Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                            BpmWheel(
+                                value = metronome.bpm.roundToInt(),
+                                range = BPM_MIN..BPM_MAX,
+                                onValueChange = { viewModel.setBpm(it.toDouble()) },
+                                onCenterClick = { typingTempo = true },
+                                centerSize = bpmSize,
+                                pitch = rowPitch,
+                                centerScale = { bpmScale.value },
+                                collapse = fold,
+                                onInteractionChange = onWheelInteraction,
+                                centerColor = numberColor,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                            )
+                            Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
+                                RepeatingIconButton(label = "Increase tempo", onStep = { viewModel.changeBpm(1) }) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
                         }
                     }
-                    BpmWheel(
-                        value = metronome.bpm.roundToInt(),
-                        range = BPM_MIN..BPM_MAX,
-                        onValueChange = { viewModel.setBpm(it.toDouble()) },
-                        onCenterClick = { typingTempo = true },
-                        centerSize = bpmSize,
-                        pitch = rowPitch,
-                        centerScale = { bpmScale.value },
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(WheelHeightShare),
-                    )
-                    Box(modifier = Modifier.width(StepperSlot), contentAlignment = Alignment.Center) {
-                        RepeatingIconButton(label = "Increase tempo", onStep = { viewModel.changeBpm(1) }) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                        }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "BPM · ${getTempoMarking(metronome.bpm)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = LocalContentColor.current.copy(alpha = 0.7f),
+                        )
+                        Text(
+                            text = statusLabel(ui),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                        // Rides with the readout as it folds; tapping only sets the tempo, it never
+                        // unfolds the wheel.
+                        TapButton(onTap = onTap, modifier = Modifier.padding(top = 8.dp))
                     }
+                },
+            ) { measurables, constraints ->
+                val width = constraints.maxWidth
+                val area = constraints.maxHeight
+                val caption = measurables[1].measure(constraints.copy(minWidth = 0, minHeight = 0))
+                val gap = CaptionGap.roundToPx()
+                // The drum is bent onto the wheel's height, so this also sets how many neighbours show.
+                val wheelHeight = ((area - caption.height - gap) * WheelHeightShare).roundToInt().coerceAtLeast(0)
+                val wheel = measurables[0].measure(Constraints.fixed(width, wheelHeight))
+                layout(width, area) {
+                    val f = fold()
+                    val folded = bpmSize.toPx() * CompactScale
+                    // Open, the wheel and caption are centred together. Folded, the value rises by
+                    // part of the room its neighbours gave up and the caption follows it up.
+                    val openCenter = (area - caption.height - gap) / 2f
+                    val foldedCenter = openCenter - (wheelHeight - folded) * FoldLift
+                    val center = lerp(openCenter, foldedCenter, f)
+                    val captionTop = lerp(openCenter + wheelHeight / 2f, foldedCenter + folded / 2f, f) + gap
+                    wheel.place(0, (center - wheelHeight / 2f).roundToInt())
+                    caption.place((width - caption.width) / 2, captionTop.roundToInt())
                 }
             }
-            Text(
-                text = "BPM · ${getTempoMarking(metronome.bpm)}",
-                style = MaterialTheme.typography.titleMedium,
-                color = LocalContentColor.current.copy(alpha = 0.7f),
-            )
-            Text(
-                text = statusLabel(ui),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 4.dp),
-            )
         }
     }
 
@@ -449,7 +545,14 @@ private val StepperSlot = 56.dp
 
 // Share of the space between the beat dots and the caption the wheel spans; it bends its rows onto
 // a drum that tall, so this also sets how many neighbours show.
-private const val WheelHeightShare = 0.75f
+private const val WheelHeightShare = 0.56f
+
+// The centre value's size relative to what fits (leaves room for its CompactScale growth).
+private const val NumberShare = 0.85f
+private val CaptionGap = 8.dp
+
+// How far the folded value rises, as a share of the wheel height its neighbours gave up.
+private const val FoldLift = 0.5f
 
 // Concentric with the panel corner at the readout's inset.
 private val BandShape = SmoothShape(PanelCorner - ReadoutInset)
@@ -542,30 +645,22 @@ private fun BeatDots(
 @Composable
 private fun TransportRow(
     isPlaying: Boolean,
-    onTap: () -> Unit,
     onToggle: () -> Unit,
     onOptions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val accent = LocalAccentColors.current
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FilledTonalButton(
-            onClick = onTap,
-            shape = SmoothShape.Full,
-            modifier = Modifier
-                .weight(1f)
-                .height(TransportHeight),
-        ) {
-            Text("Tap", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        }
         Button(
             onClick = onToggle,
             shape = SmoothShape.Full,
+            colors = ButtonDefaults.buttonColors(containerColor = accent.accent, contentColor = accent.onAccent),
             modifier = Modifier
-                .weight(1.4f)
+                .weight(1f)
                 .height(TransportHeight)
                 .semantics { contentDescription = if (isPlaying) "Stop metronome" else "Start metronome" },
         ) {
@@ -581,53 +676,77 @@ private fun TransportRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+        // Icon only: the row is too narrow inside the panel for a "More" label.
         FilledTonalButton(
             onClick = onOptions,
             shape = SmoothShape.Full,
+            colors = panelTonalColors(),
+            contentPadding = PaddingValues(0.dp),
             modifier = Modifier
-                .weight(1f)
+                .width(MoreButtonWidth)
                 .height(TransportHeight),
         ) {
-            Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.width(6.dp))
-            Text("More", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Filled.Tune, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
 
 private val TransportHeight = 56.dp
+private val MoreButtonWidth = 72.dp
+
+// The panel is the tonal grey itself, so tonal buttons on it take the page color to stand out.
+@Composable
+private fun panelTonalColors() =
+    ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+
+/** Tap tempo; it flashes the accent while pressed so each tap registers visibly. */
+@Composable
+private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val accent = LocalAccentColors.current
+    val base = panelTonalColors()
+    val container by animateColorAsState(
+        targetValue = if (pressed) accent.accent else base.containerColor,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "tapContainer",
+    )
+    val content by animateColorAsState(
+        targetValue = if (pressed) accent.onAccent else base.contentColor,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "tapContent",
+    )
+    FilledTonalButton(
+        onClick = onTap,
+        shape = CircleShape,
+        colors = ButtonDefaults.filledTonalButtonColors(containerColor = container, contentColor = content),
+        interactionSource = interaction,
+        contentPadding = PaddingValues(0.dp),
+        modifier = modifier.size(TapButtonSize),
+    ) {
+        Text("Tap", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private val TapButtonSize = 64.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewModel, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    // Laid out like Settings: an inset grouped list on the grouped-list page color.
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = LocalGroupedListColors.current.page) {
         Column(
             modifier = Modifier
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 16.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp),
         ) {
-            SheetSection("Meter")
-            MeterOptions(metronome, viewModel)
-            SheetSection("Bar mute pattern")
-            PatternOptions(metronome, viewModel)
-            SheetSection("Polyrhythm")
-            PolyOptions(metronome, viewModel)
-            SheetSection("Practice")
-            PracticeOptions(metronome, viewModel)
-            SheetSection("Sounds")
-            SoundOptions(metronome, viewModel)
+            GroupedSection("Meter") { MeterOptions(metronome, viewModel) }
+            GroupedSection("Bar mute pattern") { PatternOptions(metronome, viewModel) }
+            GroupedSection("Polyrhythm") { PolyOptions(metronome, viewModel) }
+            GroupedSection("Practice") { PracticeOptions(metronome, viewModel) }
+            GroupedSection("Sounds") { SoundOptions(metronome, viewModel) }
         }
     }
-}
-
-@Composable
-private fun SheetSection(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-    )
 }
 
 @Composable
@@ -659,6 +778,7 @@ private fun MeterOptions(metronome: MetronomeState, viewModel: MetronomeViewMode
         options = (DIVISIONS_MIN..DIVISIONS_MAX).map { PickerOption(it, subdivisionLabel(it)) },
         selected = metronome.divisionsPerBeat,
         onSelect = viewModel::setDivisionsPerBeat,
+        menuColor = LocalGroupedListColors.current.group,
     )
 }
 
@@ -676,9 +796,10 @@ private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewMo
         options = options,
         selected = metronome.barPattern,
         onSelect = viewModel::setBarPattern,
+        menuColor = LocalGroupedListColors.current.group,
     )
     FlowRow(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -760,6 +881,7 @@ private fun SoundOptions(metronome: MetronomeState, viewModel: MetronomeViewMode
                 viewModel.setVoice(slot, id)
                 viewModel.previewVoice(id, role.vol)
             },
+            menuColor = LocalGroupedListColors.current.group,
         )
     }
     Text(
@@ -774,7 +896,7 @@ private fun SoundOptions(metronome: MetronomeState, viewModel: MetronomeViewMode
         valueRange = 0f..1f,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
             .semantics { contentDescription = "Master volume" },
     )
 }

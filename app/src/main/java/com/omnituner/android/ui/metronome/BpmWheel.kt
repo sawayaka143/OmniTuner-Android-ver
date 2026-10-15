@@ -68,6 +68,11 @@ import kotlin.math.tanh
  * [value] is the committed value. While the user drags or flings, the wheel is the source of truth
  * and [onValueChange] fires once, when it settles; outside an interaction, external changes
  * (steppers, tap tempo, presets) animate the wheel to [value].
+ *
+ * [collapse] folds the wheel into a plain readout: at 1 the neighbours have slid into the centre and
+ * faded out, the centre value is drawn [CompactScale] larger and only a tap on it (or a drag, which
+ * the caller should answer by unfolding) does anything. [onInteractionChange] reports when a drag,
+ * fling or row tap starts (true) and when the wheel has settled and committed (false).
  */
 @Composable
 fun BpmWheel(
@@ -79,6 +84,9 @@ fun BpmWheel(
     pitch: Dp,
     modifier: Modifier = Modifier,
     centerScale: () -> Float = { 1f },
+    collapse: () -> Float = { 0f },
+    onInteractionChange: (Boolean) -> Unit = {},
+    centerColor: Color = Color.Unspecified,
 ) {
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -86,6 +94,8 @@ fun BpmWheel(
     val latestValue by rememberUpdatedState(value)
     val latestOnChange by rememberUpdatedState(onValueChange)
     val latestOnCenterClick by rememberUpdatedState(onCenterClick)
+    val latestOnInteraction by rememberUpdatedState(onInteractionChange)
+    val latestCollapse by rememberUpdatedState(collapse)
 
     val maxIndex = range.last - range.first
     val position = remember(range) {
@@ -100,9 +110,15 @@ fun BpmWheel(
     val bigPx = with(density) { centerSize.toPx() }
     val pitchPx = with(density) { pitch.toPx() }
 
+    fun setInteracting(active: Boolean) {
+        if (interacting == active) return
+        interacting = active
+        latestOnInteraction(active)
+    }
+
     fun commit() {
         val settled = range.first + position.value.roundToInt()
-        interacting = false
+        setInteracting(false)
         if (settled != latestValue) latestOnChange(settled)
     }
 
@@ -137,7 +153,11 @@ fun BpmWheel(
     LaunchedEffect(value) {
         if (interacting) return@LaunchedEffect
         val target = (value.coerceIn(range) - range.first).toFloat()
-        if (position.value != target) position.animateTo(target, SyncSpring)
+        // Folded there is no drum to roll, only the value: rolling would flick through every
+        // number in between, so it just changes.
+        if (position.value != target) {
+            if (latestCollapse() > 0.5f) position.snapTo(target) else position.animateTo(target, SyncSpring)
+        }
     }
 
     val dragState = rememberDraggableState { delta ->
@@ -171,21 +191,25 @@ fun BpmWheel(
             .draggable(
                 state = dragState,
                 orientation = Orientation.Vertical,
-                onDragStarted = { interacting = true },
+                onDragStarted = { setInteracting(true) },
                 onDragStopped = { velocity -> scope.launch { fling(-velocity / pitchPx) } },
             )
             .pointerInput(bigPx, pitchPx, range) {
                 detectTapGestures { offset ->
                     val dy = offset.y - size.height / 2f
-                    if (abs(dy) <= bigPx / 2f) {
+                    val folded = latestCollapse() > 0.5f
+                    val centerHalf = bigPx / 2f * if (folded) CompactScale else 1f
+                    if (abs(dy) <= centerHalf) {
                         latestOnCenterClick()
                         return@detectTapGestures
                     }
+                    // Folded, there are no neighbours to tap.
+                    if (folded) return@detectTapGestures
                     val tapGeometry = DrumGeometry(bigPx, pitchPx, size.height / 2f)
                     val first = (position.value.roundToInt() - tapGeometry.visibleRows).coerceAtLeast(0)
                     val last = (position.value.roundToInt() + tapGeometry.visibleRows).coerceAtMost(maxIndex)
                     val row = (first..last).minBy { abs(tapGeometry.offset(it - position.value) - dy) }
-                    interacting = true
+                    setInteracting(true)
                     scope.launch { settleTo(row) }
                 }
             }
@@ -218,19 +242,26 @@ fun BpmWheel(
                 Text(
                     text = "${range.first + row}",
                     style = style,
+                    color = if (row == centerRow) centerColor else Color.Unspecified,
                     maxLines = 1,
                     softWrap = false,
                     modifier = Modifier.graphicsLayer {
                         val d = row - position.value
+                        val fold = collapse()
                         val focus = geometry.focus(d)
                         val angle = geometry.angle(d)
-                        translationY = geometry.offset(d)
-                        val scale = geometry.scale(d) * lerp(1f, centerScale(), focus)
+                        // Folding, the neighbours slide into the centre row and fade (faster than
+                        // they slide, so they are gone before reaching it) while the centre grows.
+                        val isCenter = abs(d) < 0.5f
+                        translationY = geometry.offset(d) * (1f - fold)
+                        val foldScale = if (isCenter) lerp(1f, CompactScale, fold) else lerp(1f, FoldedNeighbourScale, fold)
+                        val scale = geometry.scale(d) * geometry.depth(angle) * lerp(1f, centerScale(), focus) * foldScale
                         scaleX = scale
                         scaleY = scale
                         rotationX = -Math.toDegrees(angle.toDouble()).toFloat()
                         cameraDistance = CameraDistance * this.density
-                        alpha = lerp(NeighbourAlpha, 1f, focus) * cos(angle).coerceAtLeast(0f)
+                        val foldAlpha = if (isCenter) 1f else (1f - fold) * (1f - fold)
+                        alpha = lerp(NeighbourAlpha, 1f, focus) * cos(angle).coerceAtLeast(0f) * foldAlpha
                     },
                 )
             }
@@ -245,10 +276,13 @@ fun BpmWheel(
  * Size follows a bell curve ([focus]) instead of jumping over the last row, so a number grows
  * steadily as it approaches the centre. Rows are stacked by that size, so the spacing opens up
  * around the large number exactly as much as the numbers need: the distance along the drum is the
- * integral of row height (pitch + the extra size), and the drum (radius = half the wheel's height)
- * then bends that onto a curve, tilting rows away and hiding them past 90°.
+ * integral of row height (pitch + the extra size), and the drum then bends that onto a curve,
+ * tilting rows away, pushing them back (smaller) and hiding them past 90°. The drum is a little
+ * narrower than the wheel ([DrumRadiusShare]) so it curls visibly right next to the centre row; the
+ * last rows bunch up inside the edge fade.
  */
-private class DrumGeometry(private val bigPx: Float, private val pitchPx: Float, private val radius: Float) {
+private class DrumGeometry(private val bigPx: Float, private val pitchPx: Float, halfHeight: Float) {
+    private val radius = halfHeight * DrumRadiusShare
     private val smallPx = NeighbourRatio * pitchPx
 
     /** 1 at the centre, easing to 0 a few rows out: how much of the centre's size a row has. */
@@ -266,6 +300,9 @@ private class DrumGeometry(private val bigPx: Float, private val pitchPx: Float,
     fun offset(d: Float): Float = radius * sin(angle(d))
 
     fun scale(d: Float): Float = lerp(smallPx / bigPx, 1f, focus(d))
+
+    /** Perspective shrink of a row turned [angle] away: it sits further back on the drum. */
+    fun depth(angle: Float): Float = 1f / (1f + DepthShrink * (1f - cos(angle)))
 
     /** Rows each side of the centre that are still on the visible half of the drum. */
     val visibleRows: Int = run {
@@ -285,8 +322,18 @@ private const val SizeFalloff = 1.2f
 // Far rows' text height as a share of the row pitch, and their opacity.
 private const val NeighbourRatio = 0.62f
 private const val NeighbourAlpha = 0.45f
-private const val CameraDistance = 12f
+// Lower = stronger perspective on the tilted rows.
+private const val CameraDistance = 6f
 private const val EdgeFade = 0.12f
+
+// Drum radius as a share of half the wheel's height, and how much smaller a row gets once it has
+// turned 90° back (1 / (1 + DepthShrink)).
+private const val DrumRadiusShare = 0.9f
+private const val DepthShrink = 0.4f
+
+// Folded readout: the centre value's growth and the size the neighbours shrink to as they leave.
+const val CompactScale = 1.15f
+private const val FoldedNeighbourScale = 0.6f
 
 // Lower than 1 so a fling travels further than a stock list's, closer to the iOS picker.
 private const val FlingFriction = 0.5f

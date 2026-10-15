@@ -205,16 +205,11 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             },
             onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft()) },
             onManageInstruments = { dialog = TunerDialog.ManageInstruments },
+            onSelectString = viewModel::selectString,
             modifier = Modifier
-                .padding(top = 8.dp)
+                .padding(top = 8.dp, bottom = 12.dp)
                 .weight(1f)
                 .fillMaxWidth(),
-        )
-
-        StringRow(
-            state = state,
-            onSelect = viewModel::selectString,
-            modifier = Modifier.padding(vertical = 12.dp),
         )
     }
 
@@ -431,6 +426,7 @@ private fun TunerPanel(
     onNewTuning: () -> Unit,
     onNewInstrument: () -> Unit,
     onManageInstruments: () -> Unit,
+    onSelectString: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = animatedTuneColors(state)
@@ -460,14 +456,21 @@ private fun TunerPanel(
                 )
                 AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
             }
-            PanelContent(
+            Box(modifier = Modifier.weight(1f)) {
+                PanelContent(
+                    state = state,
+                    colors = colors,
+                    hasPermission = hasPermission,
+                    permanentlyDenied = permanentlyDenied,
+                    onAllow = onAllow,
+                    onOpenSettings = onOpenSettings,
+                    onRetry = onRetry,
+                )
+            }
+            StringRow(
                 state = state,
-                colors = colors,
-                hasPermission = hasPermission,
-                permanentlyDenied = permanentlyDenied,
-                onAllow = onAllow,
-                onOpenSettings = onOpenSettings,
-                onRetry = onRetry,
+                onSelect = onSelectString,
+                modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
             )
         }
     }
@@ -669,12 +672,15 @@ private fun StringRow(
     val strings = state.tuning.strings
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val count = strings.size
-        val fits = StringButtonMinWidth * count + StringButtonSpacing * (count - 1) <= maxWidth
+        // Circles as large as an even share of the row allows, up to the scroll width; below the
+        // minimum the row scrolls instead.
+        val share = (maxWidth - StringButtonSpacing * (count - 1)) / count
+        val fits = share >= StringButtonMinWidth
+        val size = if (fits) share.coerceAtMost(StringButtonScrollWidth) else StringButtonScrollWidth
         Row(
             modifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(StringButtonSpacing),
+            horizontalArrangement = if (fits) Arrangement.SpaceBetween else Arrangement.spacedBy(StringButtonSpacing),
         ) {
-            val itemModifier = if (fits) Modifier.weight(1f) else Modifier.width(StringButtonScrollWidth)
             strings.forEachIndexed { index, string ->
                 val active = state.activeIndex == index
                 StringButton(
@@ -682,7 +688,7 @@ private fun StringRow(
                     selected = active,
                     tuned = (state.tuned && active) || string.name in state.tunedStrings,
                     onClick = { onSelect(index) },
-                    modifier = itemModifier,
+                    size = size,
                 )
             }
         }
@@ -695,15 +701,18 @@ private fun StringButton(
     selected: Boolean,
     tuned: Boolean,
     onClick: () -> Unit,
+    size: Dp,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
     val accent = LocalAccentColors.current
+    // On the grey panel the idle strings take the page color (black in dark), like the metronome's
+    // in-panel buttons.
     val container by animateColorAsState(
         targetValue = when {
             selected -> accent.accent
-            tuned -> accent.accent.copy(alpha = 0.18f).compositeOver(scheme.surfaceContainerHighest)
-            else -> scheme.surfaceContainerHighest
+            tuned -> accent.accent.copy(alpha = 0.18f).compositeOver(scheme.surface)
+            else -> scheme.surface
         },
         label = "stringContainer",
     )
@@ -716,7 +725,7 @@ private fun StringButton(
         label = "stringContent",
     )
     val corner: Dp by animateDpAsState(
-        targetValue = if (selected) 18.dp else 28.dp,
+        targetValue = if (selected) 18.dp else size / 2,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "stringCorner",
     )
@@ -724,7 +733,7 @@ private fun StringButton(
         selected = selected,
         onClick = onClick,
         modifier = modifier
-            .height(56.dp)
+            .size(size)
             .semantics { if (tuned) stateDescription = "In tune" },
         shape = SmoothShape(corner),
         color = container,

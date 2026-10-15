@@ -3,16 +3,12 @@ package com.omnituner.android.ui.tuner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,13 +21,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.StartupMode
 import com.omnituner.android.data.ThemeMode
+import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalDarkTheme
 import com.omnituner.android.ui.theme.LocalGroupedListColors
-import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentColors
 import com.omnituner.android.ui.theme.wallpaperAccentAvailable
 
@@ -58,7 +54,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        SettingsSection(title = "Appearance") {
+        GroupedSection(title = "Appearance") {
             ChoiceRow(
                 headline = "Theme",
                 selected = appearance.themeMode,
@@ -68,7 +64,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             AccentRow(selected = appearance.accent, onSelect = viewModel::setAccent)
         }
 
-        SettingsSection(title = "Tuner") {
+        GroupedSection(title = "Tuner") {
             ChoiceRow(
                 headline = "Open tuner in",
                 selected = tuner.startupMode,
@@ -89,7 +85,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             )
         }
 
-        SettingsSection(title = "In-tune feedback") {
+        GroupedSection(title = "In-tune feedback") {
             SwitchRow(
                 headline = "Show in-tune feedback",
                 checked = tuner.inTuneFeedback,
@@ -105,29 +101,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 checked = tuner.haptics,
                 onCheckedChange = viewModel::setHaptics,
             )
-        }
-    }
-}
-
-private val SectionShape = SmoothShape(20.dp)
-
-// Inset grouped list: a secondary-grey title over a card in the group color, on the grey page
-// AppRoot puts behind Settings.
-@Composable
-private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
-        )
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = SectionShape,
-            colors = CardDefaults.cardColors(containerColor = LocalGroupedListColors.current.group),
-        ) {
-            Column(content = content)
         }
     }
 }
