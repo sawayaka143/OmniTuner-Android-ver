@@ -84,8 +84,9 @@ class ChordTheoryTest {
 
         val thirteen = chord("C13")
         assertEquals("13", thirteen.quality)
-        assertEquals(listOf(0, 4, 7, 10, 2, 5, 9), thirteen.pcs)
-        assertEquals(listOf(5, 9), thirteen.optionalPcs)
+        // No natural 11 in a dominant 13th: it clashes with the third.
+        assertEquals(listOf(0, 4, 7, 10, 2, 9), thirteen.pcs)
+        assertEquals(listOf(9), thirteen.optionalPcs)
 
         val b13 = chord("C7b13")
         assertEquals("7b13", b13.quality)
@@ -197,6 +198,59 @@ class ChordTheoryTest {
         assertTrue(flatBass.flats)
 
         assertNull(chord("C").bassPc)
+    }
+
+    @Test
+    fun capitalMMeansMajorAndLowercaseMMeansMinor() {
+        assertEquals(listOf(0, 4, 7, 9), chord("CM6").intervals)
+        assertEquals(listOf(0, 4, 6, 11), chord("CM7b5").intervals)
+        assertEquals(listOf(0, 4, 7, 11, 14, 18), chord("CM9#11").intervals)
+        assertEquals("maj7", chord("CM7").quality)
+        assertEquals(listOf(0, 3, 7, 9), chord("Cm6").intervals)
+        assertEquals("m7b5", chord("Cm7b5").quality)
+        assertEquals("mMaj7", chord("CmM7").quality)
+    }
+
+    @Test
+    fun spelledOutAndEuropeanQualities() {
+        assertEquals("m7", chord("Cmin7").quality)
+        assertEquals("m7b5", chord("Cmin7b5").quality)
+        assertEquals("m7", chord("Cmi7").quality)
+        assertEquals("m7", chord("C-7").quality)
+        assertEquals("min", chord("C-").quality)
+        assertEquals("maj7", chord("C7M").quality)
+        assertEquals("mMaj7", chord("Cm7M").quality)
+        assertEquals("maj7", chord("CMaj7").quality)
+    }
+
+    @Test
+    fun alteredTensionsReplaceTheNaturalOnes() {
+        val c13s11 = chord("C13#11")
+        assertEquals(listOf(0, 4, 7, 10, 14, 18, 21), c13s11.intervals)
+        assertFalse(17 in c13s11.intervals)
+        assertEquals(listOf(0, 4, 7, 11, 14, 21), chord("Cmaj13").intervals)
+        assertEquals(listOf(0, 4, 7, 10, 14, 20), chord("C9b13").intervals)
+    }
+
+    @Test
+    fun augmentedNinthCarriesTheSeventh() {
+        for (symbol in listOf("Caug9", "C+9", "C9+5", "C9#5", "Caug(9)")) {
+            assertEquals(listOf(0, 4, 8, 10, 14), chord(symbol).intervals, symbol)
+        }
+        assertEquals(listOf(0, 4, 8, 14), chord("Caug(add9)").intervals)
+        assertEquals(listOf(0, 4, 8, 10, 14, 21), chord("Caug13").intervals)
+    }
+
+    @Test
+    fun parsesAltAndAddedTones() {
+        assertEquals(listOf(0, 4, 10, 15, 20), chord("C7alt").intervals)
+        assertEquals("7alt", chord("Calt").quality)
+        assertEquals(listOf(0, 4, 7, 21), chord("Cadd13").intervals)
+        assertEquals(listOf(0, 4, 7, 18), chord("Cadd#11").intervals)
+        assertEquals(listOf(0, 3, 7, 14), chord("Cmadd2").intervals)
+        assertEquals("madd9", chord("Cmadd2").quality)
+        assertEquals(listOf(0, 4, 7, 14), chord("Cadd2").intervals)
+        assertEquals(listOf(0, 4, 7, 13), chord("C(b9)").intervals)
     }
 
     @Test

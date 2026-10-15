@@ -256,4 +256,39 @@ class ChordVoicingTest {
         val constrained = searchChord(standard, chord("Am/G"))
         assertEquals(3, constrained[0].frets[0], key(constrained[0].frets))
     }
+
+    @Test
+    fun handFitsRejectsPrefixesNoHandCanHold() {
+        assertTrue(handFits(listOf(1, 3, 3, 2, 1, 1), 6))
+        assertTrue(handFits(listOf(5, 5, 5, 5, 5, 5), 6))
+        assertTrue(handFits(listOf(3, null, null), 6))
+        assertFalse(handFits(listOf(null, 1, 6), 6), "five-fret span without the thumb")
+        assertFalse(handFits(listOf(1, 2, 3, 4, 5), 6), "five fingers")
+        assertTrue(handFits(listOf(1, 6), 6), "thumb below the hand")
+        assertFalse(handFits(listOf(6, 1), 6), "thumb above the hand")
+        assertFalse(handFits(listOf(1, 10), 6), "thumb too far below")
+    }
+
+    @Test
+    fun thirteenthsLeaveOutTheNatural11() {
+        for (symbol in listOf("C13", "Cmaj13", "C13#11")) {
+            val f = mod12(chord(symbol).rootPc + 5)
+            for (shape in searchChord(standard, chord(symbol))) {
+                assertFalse(f in pcsOf(shape), "$symbol ${key(shape.frets)}")
+            }
+        }
+    }
+
+    @Test
+    fun findsTheAlteredGrip() {
+        assertEquals("x,3,2,3,4,4", fretsOf("C7alt")[0])
+    }
+
+    @Test
+    fun searchesExtendedRangeTunings() {
+        val eight = tuning("F#1 B1 E2 A2 D3 G3 B3 E4")
+        for (symbol in listOf("C", "Cmaj13", "C13#11")) {
+            assertTrue(searchChord(eight, chord(symbol)).isNotEmpty(), symbol)
+        }
+    }
 }

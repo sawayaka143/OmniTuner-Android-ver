@@ -28,7 +28,8 @@ val CHORD_FORMULAS: Map<String, ChordFormula> = mapOf(
     "maj7" to ChordFormula(listOf(0, 4, 7, 11)),
     "maj9" to ChordFormula(listOf(0, 4, 7, 11, 14)),
     "maj11" to ChordFormula(listOf(0, 4, 7, 11, 14, 17), listOf(17)),
-    "maj13" to ChordFormula(listOf(0, 4, 7, 11, 14, 17, 21), listOf(17, 21)),
+    // Major and dominant 13ths leave out the natural 11: it clashes with the major third.
+    "maj13" to ChordFormula(listOf(0, 4, 7, 11, 14, 21), listOf(21)),
     "maj7#11" to ChordFormula(listOf(0, 4, 7, 11, 18), listOf(18)),
     "maj13#11" to ChordFormula(listOf(0, 4, 7, 11, 14, 18, 21), listOf(18, 21)),
     "maj7#5" to ChordFormula(listOf(0, 4, 8, 11)),
@@ -37,7 +38,7 @@ val CHORD_FORMULAS: Map<String, ChordFormula> = mapOf(
     "7" to ChordFormula(listOf(0, 4, 7, 10)),
     "9" to ChordFormula(listOf(0, 4, 7, 10, 14)),
     "11" to ChordFormula(listOf(0, 4, 7, 10, 14, 17), listOf(17)),
-    "13" to ChordFormula(listOf(0, 4, 7, 10, 14, 17, 21), listOf(17, 21)),
+    "13" to ChordFormula(listOf(0, 4, 7, 10, 14, 21), listOf(21)),
     "7b5" to ChordFormula(listOf(0, 4, 6, 10)),
     "7#5" to ChordFormula(listOf(0, 4, 8, 10)),
     "7b9" to ChordFormula(listOf(0, 4, 7, 10, 13)),
@@ -47,6 +48,8 @@ val CHORD_FORMULAS: Map<String, ChordFormula> = mapOf(
     "9#11" to ChordFormula(listOf(0, 4, 7, 10, 14, 18), listOf(18)),
     "13b9" to ChordFormula(listOf(0, 4, 7, 10, 13, 21), listOf(21)),
     "7#9b13" to ChordFormula(listOf(0, 4, 7, 10, 15, 20), listOf(20)),
+    // The common altered grip: third, seventh, #9 and b13, no fifth.
+    "7alt" to ChordFormula(listOf(0, 4, 10, 15, 20)),
 
     "min" to ChordFormula(listOf(0, 3, 7)),
     "m6" to ChordFormula(listOf(0, 3, 7, 9)),
@@ -153,7 +156,9 @@ val QUALITY_ALIASES: Map<String, String> = mapOf(
     "maj9#5" to "maj9#5",
     "M9#5" to "maj9#5",
     "Δ9#5" to "maj9#5",
-    "9+5" to "maj9#5",
+    "9+5" to "9#5",
+    "aug9" to "9#5",
+    "+9" to "9#5",
     "maj6" to "6",
     "6/9" to "6/9",
     "69" to "6/9",
@@ -175,6 +180,8 @@ val QUALITY_ALIASES: Map<String, String> = mapOf(
     "9#11" to "9#11",
     "13b9" to "13b9",
     "7#9b13" to "7#9b13",
+    "7alt" to "7alt",
+    "alt" to "7alt",
 
     "m11" to "m11",
     "m13" to "m13",
@@ -208,6 +215,7 @@ val QUALITY_ALIASES: Map<String, String> = mapOf(
     "add11" to "add11",
     "add4" to "add11",
     "madd9" to "madd9",
+    "madd2" to "madd9",
     "madd11" to "madd11",
     "madd4" to "madd11",
     "+maj7" to "maj7#5",
@@ -324,12 +332,38 @@ private fun stripParens(raw: String): String? {
     return if (depth == 0) out.toString() else null
 }
 
-private fun normalizeQuality(raw: String): String? =
-    stripParens(raw.replace("♯", "#").replace("♭", "b"))?.lowercase()
+// A capital M means major ("CM7", "CmM7", "C7M") while a lowercase m means minor, so it is
+// rewritten before the quality is lowercased. "Ma"/"Mi" are spelled-out words ("Maj7", "Min7").
+private val MAJOR_M_RE = Regex("M(?![aAiI])")
+private val BARE_DELTA_RE = Regex("(?:Δ|delta)(?!\\d)")
+private val DELTA_RE = Regex("Δ|delta")
+private val MINOR_WORD_RE = Regex("^min?")
+private val MINUS_MINOR_RE = Regex("^-(?!5)")
+private val SEVEN_MAJOR_RE = Regex("^(m?)7maj")
 
-private val ALTERATION_RE = Regex("(?:b|#)?(?:5|9|11|13)|[b#]6|add(?:9|11)|sus(?:2|4)?|[+-]5")
+/**
+ * One lowercase spelling per quality, or null for unbalanced parentheses: unicode accidentals
+ * become #/b, parentheses go, "M"/"Δ" become "maj", "min"/"mi"/"-" become "m", and the European
+ * "7M" becomes "maj7". "CM6" -> "maj6", "Cmin7b5" -> "m7b5", "C-7" -> "m7", "Cm7M" -> "mmaj7".
+ */
+private fun canonicalQuality(raw: String): String? {
+    var text = stripParens(raw.replace("♯", "#").replace("♭", "b")) ?: return null
+    text = BARE_DELTA_RE.replace(text, "maj7")
+    text = DELTA_RE.replace(text, "maj")
+    text = MAJOR_M_RE.replace(text, "maj").lowercase()
+    text = MINOR_WORD_RE.replace(text, "m")
+    text = MINUS_MINOR_RE.replace(text, "m")
+    return SEVEN_MAJOR_RE.replace(text, "$1maj7")
+}
 
-private val CANONICAL_TOKENS: Map<String, String> = mapOf("+5" to "#5", "-5" to "b5", "sus" to "sus4")
+private val CANONICAL_ALIASES: Map<String, String> =
+    QUALITY_ALIASES.entries.associate { (key, quality) -> canonicalQuality(key)!! to quality }
+
+private val ALTERATION_RE =
+    Regex("(?:b|#)?(?:5|9|11|13)|[b#]6|add(?:[b#]?(?:9|11|13)|2|4|6)|sus(?:2|4)?|[+-]5")
+
+private val CANONICAL_TOKENS: Map<String, String> =
+    mapOf("+5" to "#5", "-5" to "b5", "sus" to "sus4", "add2" to "add9", "add4" to "add11")
 
 private data class ComposedQuality(
     val key: String,
@@ -338,7 +372,7 @@ private data class ComposedQuality(
 )
 
 private fun composeQuality(raw: String): ComposedQuality? {
-    val normalized = normalizeQuality(raw)
+    val normalized = canonicalQuality(raw)
     if (normalized.isNullOrEmpty()) return null
 
     var baseKey: String? = null
@@ -357,9 +391,12 @@ private fun composeQuality(raw: String): ComposedQuality? {
         } else if (normalized.startsWith("sus")) {
             baseKey = "sus4"
             prefixLength = 3
+        } else {
+            // A bare list of alterations on a major triad: "C(b9)", "Cadd13", "Cadd#11".
+            baseKey = "maj"
+            prefixLength = 0
         }
     }
-    baseKey ?: return null
 
     val base = CHORD_FORMULAS.getValue(baseKey)
     val remainder = normalized.substring(prefixLength)
@@ -391,6 +428,13 @@ private fun composeQuality(raw: String): ComposedQuality? {
         if (value !in optional) optional.add(value)
     }
 
+    // "aug9", "aug13": a natural extension straight after aug implies the dominant seventh, as
+    // it does after a bare root ("C9"). "aug(add9)" stays a triad with an added ninth.
+    if (baseKey == "aug" && tokens.firstOrNull() in setOf("9", "11", "13")) {
+        intervals.add(10)
+        if (tokens.first() != "9") intervals.add(14)
+    }
+
     for (token in tokens) {
         when (token) {
             "b5", "-5" -> {
@@ -408,10 +452,19 @@ private fun composeQuality(raw: String): ComposedQuality? {
             "9" -> {
                 drop(13); drop(15); add(14)
             }
-            "11" -> addOptional(17)
-            "#11" -> addOptional(18)
-            "13" -> addOptional(21)
-            "b13" -> addOptional(20)
+            // An altered 11th or 13th replaces the natural one ("C13#11" has no F).
+            "11" -> {
+                drop(18); removeOptional(18); addOptional(17)
+            }
+            "#11" -> {
+                drop(17); removeOptional(17); addOptional(18)
+            }
+            "13" -> {
+                drop(20); removeOptional(20); addOptional(21)
+            }
+            "b13" -> {
+                drop(21); removeOptional(21); addOptional(20)
+            }
             "b6" -> add(8)
             "#6" -> add(10)
             "sus2" -> {
@@ -420,8 +473,14 @@ private fun composeQuality(raw: String): ComposedQuality? {
             "sus4", "sus" -> {
                 drop(3); drop(4); add(5)
             }
-            "add9" -> add(14)
-            "add11" -> addOptional(17)
+            "add9", "add2" -> add(14)
+            "addb9" -> add(13)
+            "add#9" -> add(15)
+            "add11", "add4" -> addOptional(17)
+            "add#11" -> add(18)
+            "add6" -> add(9)
+            "add13" -> add(21)
+            "addb13" -> add(20)
         }
     }
 
@@ -455,7 +514,7 @@ fun parseChord(raw: String): ChordParseResult {
         ?: return ChordParseResult.Error(symbol, "'$symbol' is not a chord symbol")
     val rootPc = pcOf(match.groupValues[1], match.groupValues[2])
     val qualityRaw = match.groupValues[3]
-    var quality: String? = QUALITY_ALIASES[qualityRaw] ?: QUALITY_ALIASES[qualityRaw.lowercase()]
+    var quality: String? = canonicalQuality(qualityRaw)?.let { CANONICAL_ALIASES[it] }
     var formula: ChordFormula? = quality?.let { CHORD_FORMULAS[it] }
     if (formula == null) {
         val composed = composeQuality(qualityRaw)

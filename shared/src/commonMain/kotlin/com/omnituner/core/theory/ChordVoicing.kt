@@ -18,6 +18,14 @@ private const val FIRST_POSITION_MAX_FRET = 4
 private const val COMFORTABLE_SPAN = 2
 private const val COMFORTABLE_RANGE = 24
 private const val REVERSE_STRETCH_FRETS = 3
+// Muted strings between sounding ones (each costs PER_INTERIOR_MUTE); more is never a voicing
+// worth showing and only multiplies the search on long tunings.
+private const val MAX_INTERIOR_MUTES = 2
+// Adjacent strings one strum covers. A no-op up to 8-string tunings; on 9-12 strings it keeps
+// the search to one 8-string window at a time instead of every combination of the whole neck.
+private const val MAX_SOUNDING_STRINGS = 8
+// How many ranked shapes the search holds at a time (see VoicingSearch.run).
+private const val RANKED_KEEP = 400
 
 private object Weights {
     const val ROOT_IN_BASS = 100
@@ -166,6 +174,54 @@ fun analyseFingering(frets: List<Int?>): Fingering? {
     return if (fingers <= MAX_FINGERS) Fingering(fingers, barres) else null
 }
 
+/**
+ * Whether the fretting hand can still hold [prefix], the frets chosen so far on the lowest
+ * strings of a [stringCount]-string shape. False means no completion is playable: adding strings
+ * only widens the span and adds finger groups, so the search can drop the branch.
+ */
+fun handFits(prefix: List<Int?>, stringCount: Int): Boolean =
+    fingerGroups(prefix) <= MAX_FINGERS && spanFits(prefix, stringCount)
+
+// Fingers the shape needs at best: one per run of same-fret notes a barre can cover (see
+// analyseFingering). Later strings never merge earlier runs, so the count only grows.
+private fun fingerGroups(frets: List<Int?>): Int {
+    var groups = 0
+    for (s in frets.indices) {
+        val fret = frets[s] ?: continue
+        if (fret == 0) continue
+        var joins = false
+        for (p in s - 1 downTo 0) {
+            val other = frets[p] ?: continue
+            if (other == 0 || other < fret) break
+            if (other == fret) {
+                joins = true
+                break
+            }
+        }
+        if (!joins) groups++
+    }
+    return groups
+}
+
+// The partial form of spanReachable: a span past MAX_SPAN can only work with the thumb on the
+// lowest string, below every other fretted note and at most MAX_THUMB_REACH under them.
+private fun spanFits(frets: List<Int?>, stringCount: Int): Boolean {
+    var low = Int.MAX_VALUE
+    var high = Int.MIN_VALUE
+    for (s in 1 until frets.size) {
+        val fret = frets[s] ?: continue
+        if (fret == 0) continue
+        low = minOf(low, fret)
+        high = maxOf(high, fret)
+    }
+    val others = low <= high
+    if (others && high - low > MAX_SPAN) return false
+    val thumb = frets.firstOrNull()?.takeIf { it > 0 } ?: return true
+    if (!others || maxOf(high, thumb) - minOf(low, thumb) <= MAX_SPAN) return true
+    if (stringCount < 4 || thumb > low) return false
+    return high - thumb <= MAX_SPAN + MAX_THUMB_REACH
+}
+
 private fun describeShape(frets: List<Int?>, tuning: ParsedTuning): ShapeFeatures? {
     val fingering = analyseFingering(frets) ?: return null
     val sounding = frets.indices.mapNotNull { s ->
@@ -221,20 +277,21 @@ private class VoicingSearch(
     private val standardGrips: Set<String> = grips.map { fretsKey(it) }.toSet()
 
     fun run(count: Int): List<VoicingShape> {
-        // The enumeration never repeats a shape, so only playable keys need remembering to keep
-        // a grip from being added twice.
-        val seen = mutableSetOf<String>()
+        // The enumeration never repeats a shape and its pruning only drops unplayable branches,
+        // so every playable standard grip comes out of it too; the grips only add a score bonus.
+        // Only the best RANKED_KEEP shapes are kept: on long-scale or 12-string tunings there are
+        // millions of playable shapes, and pickDistinct rarely looks past the first few dozen.
+        val keep = maxOf(RANKED_KEEP, count * 20)
         val ranked = mutableListOf<RankedShape>()
-        fun consider(frets: List<Int?>) {
-            val key = fretsKey(frets)
-            if (key in seen) return
-            val features = describeShape(frets, tuning) ?: return
-            if (!isPlayable(features)) return
-            seen.add(key)
+        enumerate { frets ->
+            val features = describeShape(frets, tuning) ?: return@enumerate
+            if (!isPlayable(features)) return@enumerate
             ranked.add(RankedShape(features, score(features)))
+            if (ranked.size >= keep * 2) {
+                ranked.sortWith(RANKED_ORDER)
+                ranked.subList(keep, ranked.size).clear()
+            }
         }
-        enumerate(::consider)
-        for (grip in grips) consider(grip)
         ranked.sortWith(RANKED_ORDER)
         return pickDistinct(ranked, count).map(::toShape)
     }
@@ -255,8 +312,20 @@ private class VoicingSearch(
         val current = mutableListOf<Int?>()
         val counts = IntArray(12)
         val needsDistinct = requiredPcs.size >= MIN_DISTINCT
+        val muteOnly = listOf<Int?>(null)
 
-        fun walk(idx: Int, played: Int) {
+        // muteRest: an earlier muted string has no fretted neighbour, so it may only stay
+        // unplayed if every string from here on is muted too (see mutesReachable).
+        // pendingMutes: muted strings since the last sounding one, interior once a string sounds.
+        // firstSounding: the lowest sounding string so far, -1 before any.
+        fun walk(
+            idx: Int,
+            played: Int,
+            muteRest: Boolean,
+            pendingMutes: Int,
+            interiorMutes: Int,
+            firstSounding: Int,
+        ) {
             for (pc in requiredPcs) if (counts[pc] == 0 && pc !in reachable[idx]) return
             if (played + (n - idx) < MIN_NOTES) return
             if (needsDistinct && distinctChordTones(counts) + (n - idx) < MIN_DISTINCT) return
@@ -264,16 +333,40 @@ private class VoicingSearch(
                 visit(current.toList())
                 return
             }
-            for (fret in options[idx]) {
+            val outOfReach = firstSounding >= 0 && idx - firstSounding >= MAX_SOUNDING_STRINGS
+            for (fret in if (muteRest || outOfReach) muteOnly else options[idx]) {
+                val interior = if (fret != null && played > 0) interiorMutes + pendingMutes else interiorMutes
+                if (interior > MAX_INTERIOR_MUTES) continue
                 current.add(fret)
-                val pc = fret?.let { mod12(tuning.midi[idx] + it) }
-                if (pc != null) counts[pc]++
-                walk(idx + 1, played + if (pc == null) 0 else 1)
-                if (pc != null) counts[pc]--
+                val lock = muteRest || strandsMute(current, played)
+                if ((fret == null || !lock) && handFits(current, n)) {
+                    val pc = fret?.let { mod12(tuning.midi[idx] + it) }
+                    if (pc != null) counts[pc]++
+                    val pending = when {
+                        fret != null -> 0
+                        played > 0 -> pendingMutes + 1
+                        else -> 0
+                    }
+                    val first = if (firstSounding < 0 && fret != null) idx else firstSounding
+                    walk(idx + 1, played + if (pc == null) 0 else 1, lock, pending, interior, first)
+                    if (pc != null) counts[pc]--
+                }
                 current.removeAt(current.size - 1)
             }
         }
-        walk(0, 0)
+        walk(0, 0, false, 0, 0, -1)
+    }
+
+    // True when the string before the newest one is muted between a sounding string and a
+    // string that isn't fretted, so nothing may sound after it. [playedBefore] counts the
+    // sounding strings before the newest one.
+    private fun strandsMute(frets: List<Int?>, playedBefore: Int): Boolean {
+        val last = frets.size - 1
+        if (last < 1 || frets[last - 1] != null) return false
+        if (playedBefore == 0) return false
+        val below = frets.getOrNull(last - 2)
+        val above = frets[last]
+        return !(below != null && below > 0) && !(above != null && above > 0)
     }
 
     private fun distinctChordTones(counts: IntArray): Int = chordPcs.count { counts[it] > 0 }
