@@ -4,6 +4,7 @@ import android.content.ClipData
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,13 +22,21 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,7 +45,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,10 +73,14 @@ import com.omnituner.android.data.ChordSettings
 import com.omnituner.android.data.DiagramLabels
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.VoicingView
-import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.android.ui.common.PullDownMenu
+import com.omnituner.android.ui.common.PullDownMenuDivider
+import com.omnituner.android.ui.common.PullDownMenuItem
+import com.omnituner.android.ui.common.PullDownMenuSection
+import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalStatusColors
 import com.omnituner.android.ui.theme.SmoothShape
@@ -162,54 +174,6 @@ private fun VoicingsTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel)
                 }
             }
         }
-        NumberStepper(
-            headline = "Fingerings per chord",
-            valueText = "${ui.settings.voicingCount}",
-            onDecrement = { viewModel.changeVoicingCount(-1) },
-            onIncrement = { viewModel.changeVoicingCount(1) },
-        )
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SegmentedRow(
-                options = VoicingView.entries,
-                selected = ui.settings.view,
-                label = { if (it == VoicingView.Fretboard) "Fretboard" else "Tab" },
-                onSelect = viewModel::setView,
-                modifier = Modifier.weight(1f),
-            )
-            SegmentedRow(
-                options = DiagramLabels.entries,
-                selected = ui.settings.labels,
-                label = { if (it == DiagramLabels.Notes) "Notes" else "R b3" },
-                onSelect = viewModel::setLabels,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            TextButton(
-                shape = SmoothShape.Full,
-                enabled = ui.results != null,
-                onClick = {
-                    val text = viewModel.tabText() ?: return@TextButton
-                    scope.launch {
-                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Chord tab", text)))
-                        copied = true
-                        delay(COPIED_FEEDBACK_MS)
-                        copied = false
-                    }
-                },
-            ) { Text(if (copied) "Copied" else "Copy tab") }
-            TextButton(shape = SmoothShape.Full, enabled = ui.results != null, onClick = viewModel::clear) {
-                Text("Clear")
-            }
-        }
     }
 
     if (ui.generating) {
@@ -219,9 +183,23 @@ private fun VoicingsTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel)
     if (results == null) {
         if (!ui.generating) EmptyResults()
     } else {
-        results.key?.let { key ->
-            KeyRow(keyName(key.tonicName, key.mode), key.alternatives.map { keyName(it.tonicName, it.mode) })
-        }
+        ResultsHeader(
+            results = results,
+            settings = ui.settings,
+            viewModel = viewModel,
+            copied = copied,
+            onCopy = {
+                val text = viewModel.tabText()
+                if (text != null) {
+                    scope.launch {
+                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Chord tab", text)))
+                        copied = true
+                        delay(COPIED_FEEDBACK_MS)
+                        copied = false
+                    }
+                }
+            },
+        )
         ChordCards(results, ui.settings, onPlay = viewModel::playShape)
     }
 
@@ -304,13 +282,105 @@ private fun EmptyResults() {
     }
 }
 
+/**
+ * Sits above the chord cards: the detected key on the left, then the display options (view,
+ * labels, fingerings per chord) and an overflow with Copy tab / Clear. These only change or act
+ * on the results, so they stay out of the input card and appear only once there is something to show.
+ */
+@Composable
+private fun ResultsHeader(
+    results: GeneratedVoicings,
+    settings: ChordSettings,
+    viewModel: ChordFinderViewModel,
+    copied: Boolean,
+    onCopy: () -> Unit,
+) {
+    var optionsOpen by remember { mutableStateOf(false) }
+    var moreOpen by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            results.key?.let { key ->
+                KeyRow(keyName(key.tonicName, key.mode), key.alternatives.map { keyName(it.tonicName, it.mode) })
+            }
+        }
+        Box {
+            IconButton(onClick = { optionsOpen = true }) {
+                Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
+            }
+            PullDownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
+                PullDownMenuSection("View")
+                VoicingView.entries.forEach { view ->
+                    PullDownMenuItem(
+                        text = if (view == VoicingView.Fretboard) "Fretboard" else "Tab",
+                        selected = settings.view == view,
+                        onClick = { viewModel.setView(view) },
+                    )
+                }
+                PullDownMenuDivider()
+                PullDownMenuSection("Labels")
+                DiagramLabels.entries.forEach { labels ->
+                    PullDownMenuItem(
+                        text = if (labels == DiagramLabels.Notes) "Notes" else "Degrees",
+                        selected = settings.labels == labels,
+                        onClick = { viewModel.setLabels(labels) },
+                    )
+                }
+                PullDownMenuDivider()
+                PullDownMenuSection("Fingerings per chord")
+                // A stepper rather than a list: the count runs 1-12. Lined up with the item labels above.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    RepeatingIconButton(label = "Fewer fingerings", onStep = { viewModel.changeVoicingCount(-1) }) {
+                        Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text("${settings.voicingCount}", style = MaterialTheme.typography.titleMedium)
+                    RepeatingIconButton(label = "More fingerings", onStep = { viewModel.changeVoicingCount(1) }) {
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        }
+        Box {
+            IconButton(onClick = { moreOpen = true }) {
+                // Brief check after copying, since the menu has already closed by then.
+                Icon(
+                    imageVector = if (copied) Icons.Filled.Check else Icons.Filled.MoreVert,
+                    contentDescription = if (copied) "Tab copied" else "More",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            PullDownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+                PullDownMenuItem(
+                    text = "Copy tab",
+                    icon = Icons.Filled.ContentCopy,
+                    onClick = {
+                        moreOpen = false
+                        onCopy()
+                    },
+                )
+                PullDownMenuItem(
+                    text = "Clear",
+                    icon = Icons.Filled.Clear,
+                    onClick = {
+                        moreOpen = false
+                        viewModel.clear()
+                    },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun KeyRow(key: String, alternatives: List<String>) {
     var open by rememberSaveable(key) { mutableStateOf(false) }
-    Column(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (alternatives.isEmpty()) {
             Text("Key: $key", style = MaterialTheme.typography.titleSmall)
         } else {
