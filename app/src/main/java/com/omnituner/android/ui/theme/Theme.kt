@@ -103,13 +103,14 @@ private val NeutralLight = lightColorScheme(
     surfaceContainerHighest = Color(0xFFF3F3F2),
 )
 
-// Material's default corner sizes, drawn as continuous (squircle) corners. Cards, dialogs, sheets,
+// Corner sizes a step rounder than Material's defaults (4/8/12/16/28 dp), drawn as continuous
+// (squircle) corners; large matches the Settings group cards. Cards, dialogs, sheets,
 // menus, text fields and chips read these; fully rounded buttons take SmoothShape.Full explicitly.
 private val SmoothShapes = Shapes(
-    extraSmall = SmoothShape(4.dp),
-    small = SmoothShape(8.dp),
-    medium = SmoothShape(12.dp),
-    large = SmoothShape(16.dp),
+    extraSmall = SmoothShape(12.dp),
+    small = SmoothShape(12.dp),
+    medium = SmoothShape(16.dp),
+    large = SmoothShape(20.dp),
     extraLarge = SmoothShape(28.dp),
 )
 
