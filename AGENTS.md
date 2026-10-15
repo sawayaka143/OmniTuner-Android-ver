@@ -24,10 +24,10 @@
 
 ## Colors & theme
 
-- **Minimal accent.** `MaterialTheme.colorScheme` is a neutral grey scheme (`ui/theme/Theme.kt`), so stock components render black/white. The user's accent (Settings → Accent color: match wallpaper by default, or a preset) lives in `LocalAccentColors` and is used only where it carries meaning: the tuner needle, the in-tune note, the metronome's sounding beat dot, every `Switch` and `Slider` (via `accentSwitchColors()` / `accentSliderColors()` in `ui/theme/AccentControls.kt`), the active/tuned string chips and the selected bottom-nav tab's icon and label (its pill stays neutral, from `LocalNavBarColors`). Do not spread it to other chrome.
+- **Minimal accent.** `MaterialTheme.colorScheme` is a neutral grey scheme (`ui/theme/Theme.kt`), so stock components render black/white. The user's accent (Settings → Accent color: match wallpaper by default, or a preset) lives in `LocalAccentColors` and is used only where it carries meaning: the tuner needle, the in-tune note, the metronome's sounding beat dot, every `Switch` and `Slider` (via `accentSwitchColors()` / `accentSliderColors()` in `ui/theme/AccentControls.kt`), the active/tuned string chips, the selected bottom-nav tab's icon and label (its pill stays neutral, from `LocalNavBarColors`), and in the Chords section (copied from the web app) the chord diagram's root ring and chord-symbol header, an "altered" numeral chip and a "moderate" key-finder result. Do not spread it to other chrome.
 - Settings is an inset grouped list (iOS-style): `LocalGroupedListColors` gives the page (#F3F3F2 light / black dark) and group card (white / #1C1C1C) colors, section titles use `onSurfaceVariant`. Rows inside cards or sheets are `ListItem`s with a transparent container so the card color shows through.
 - Hex values live only in `ui/theme/Theme.kt`. Screens read `MaterialTheme.colorScheme` or `LocalAccentColors`.
-- Semantic roles: in-tune = accent, out-of-tune = `error`, good/valid = `tertiary`.
+- Semantic roles: in-tune = accent, out-of-tune = `error`, good/valid = `tertiary`. `LocalStatusColors` adds the web app's `warn` (sevenths/altered tones in the chord diagram, chromatic chords, weak key matches) and `info` (extensions, borrowed chords, chord-tone lines); they belong to the Chords section, not general chrome.
 
 ## Typography & icons
 

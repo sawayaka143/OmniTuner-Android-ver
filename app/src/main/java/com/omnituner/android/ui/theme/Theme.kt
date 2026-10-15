@@ -183,6 +183,20 @@ private val GroupedListDark = GroupedListColors(page = Color(0xFF000000), group 
 
 val LocalGroupedListColors = staticCompositionLocalOf { GroupedListLight }
 
+// The two status colors Material has no role for, from the web app's palette: warn marks
+// sevenths and altered tones in the chord diagram (and a weak key match), info marks extensions
+// (and borrowed chords). Good/valid stays tertiary and wrong stays error.
+@Immutable
+data class StatusColors(
+    val warn: Color,
+    val info: Color,
+)
+
+private val StatusLight = StatusColors(warn = Color(0xFF8A4D00), info = Color(0xFF544A8F))
+private val StatusDark = StatusColors(warn = Color(0xFFC07A5E), info = Color(0xFF9A8FB8))
+
+val LocalStatusColors = staticCompositionLocalOf { StatusLight }
+
 @Composable
 fun OmniTunerTheme(
     themeMode: ThemeMode,
@@ -212,6 +226,7 @@ fun OmniTunerTheme(
         LocalDarkTheme provides darkTheme,
         LocalNavBarColors provides if (darkTheme) NavBarDark else NavBarLight,
         LocalGroupedListColors provides if (darkTheme) GroupedListDark else GroupedListLight,
+        LocalStatusColors provides if (darkTheme) StatusDark else StatusLight,
     ) {
         MaterialTheme(colorScheme = colorScheme, shapes = SmoothShapes, content = content)
     }
