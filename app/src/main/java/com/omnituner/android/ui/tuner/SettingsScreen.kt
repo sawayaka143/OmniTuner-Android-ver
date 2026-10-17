@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -14,13 +15,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.AccentColor
+import com.omnituner.android.data.AppearanceSettings
 import com.omnituner.android.data.StartupMode
 import com.omnituner.android.data.ThemeMode
+import com.omnituner.android.data.TunerSettings
 import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.MenuPickerRow
@@ -53,55 +57,67 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        GroupedSection(title = "Appearance") {
-            ChoiceRow(
-                headline = "Theme",
-                selected = appearance.themeMode,
-                choices = themeChoices,
-                onSelect = viewModel::setTheme,
-            )
-            AccentRow(selected = appearance.accent, onSelect = viewModel::setAccent)
+        // Wide screens (landscape) keep the rows to a readable width instead of stretching them
+        // edge to edge; the same cap as the bottom sheets.
+        Column(modifier = Modifier.widthIn(max = MaxListWidth)) {
+            SettingsSections(appearance, tuner, viewModel)
         }
+    }
+}
 
-        GroupedSection(title = "Tuner") {
-            ChoiceRow(
-                headline = "Open tuner in",
-                selected = tuner.startupMode,
-                choices = startupChoices,
-                onSelect = viewModel::setStartupMode,
-            )
-            NumberStepper(
-                headline = "Reference pitch",
-                valueText = "${tuner.referencePitch} Hz",
-                onDecrement = { viewModel.changeReferencePitch(-1) },
-                onIncrement = { viewModel.changeReferencePitch(1) },
-            )
-            NumberStepper(
-                headline = "In-tune tolerance",
-                valueText = "±${tuner.tolerance} ¢",
-                onDecrement = { viewModel.changeTolerance(-1) },
-                onIncrement = { viewModel.changeTolerance(1) },
-            )
-        }
+private val MaxListWidth = 640.dp
 
-        GroupedSection(title = "In-tune feedback") {
-            SwitchRow(
-                headline = "Show in-tune feedback",
-                checked = tuner.inTuneFeedback,
-                onCheckedChange = viewModel::setInTuneFeedback,
-            )
-            SwitchRow(
-                headline = "Play chime",
-                checked = tuner.chime,
-                onCheckedChange = viewModel::setChime,
-            )
-            SwitchRow(
-                headline = "Vibrate",
-                checked = tuner.haptics,
-                onCheckedChange = viewModel::setHaptics,
-            )
-        }
+@Composable
+private fun SettingsSections(appearance: AppearanceSettings, tuner: TunerSettings, viewModel: SettingsViewModel) {
+    GroupedSection(title = "Appearance") {
+        ChoiceRow(
+            headline = "Theme",
+            selected = appearance.themeMode,
+            choices = themeChoices,
+            onSelect = viewModel::setTheme,
+        )
+        AccentRow(selected = appearance.accent, onSelect = viewModel::setAccent)
+    }
+
+    GroupedSection(title = "Tuner") {
+        ChoiceRow(
+            headline = "Open tuner in",
+            selected = tuner.startupMode,
+            choices = startupChoices,
+            onSelect = viewModel::setStartupMode,
+        )
+        NumberStepper(
+            headline = "Reference pitch",
+            valueText = "${tuner.referencePitch} Hz",
+            onDecrement = { viewModel.changeReferencePitch(-1) },
+            onIncrement = { viewModel.changeReferencePitch(1) },
+        )
+        NumberStepper(
+            headline = "In-tune tolerance",
+            valueText = "±${tuner.tolerance} ¢",
+            onDecrement = { viewModel.changeTolerance(-1) },
+            onIncrement = { viewModel.changeTolerance(1) },
+        )
+    }
+
+    GroupedSection(title = "In-tune feedback") {
+        SwitchRow(
+            headline = "Show in-tune feedback",
+            checked = tuner.inTuneFeedback,
+            onCheckedChange = viewModel::setInTuneFeedback,
+        )
+        SwitchRow(
+            headline = "Play chime",
+            checked = tuner.chime,
+            onCheckedChange = viewModel::setChime,
+        )
+        SwitchRow(
+            headline = "Vibrate",
+            checked = tuner.haptics,
+            onCheckedChange = viewModel::setHaptics,
+        )
     }
 }
 
