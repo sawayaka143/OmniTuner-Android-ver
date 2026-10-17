@@ -18,8 +18,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -67,8 +70,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalIconButton
@@ -495,27 +496,19 @@ private fun ChordCards(
     onPlay: (VoicingShape) -> Unit,
     fitHeight: Dp? = null,
 ) {
-    val density = LocalDensity.current
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val full = maxWidth - 32.dp
-        val cardWidth: Dp = if (fitHeight != null) {
-            // About as wide as a fingering filling the card's height needs (wider fret windows come
-            // out a little shorter). Only a sizing hint: each fingering is fitted to the space the
-            // card really has left (see ChordCard), so a short pane or a wrapped name never clips it.
-            val chrome = CardFitChrome + with(density) { CardFitText.toDp() }
-            val diagram = (fitHeight - chrome).coerceAtLeast(0.dp)
-            // A lone chord takes the whole pane; its diagram widens its fret window to fill it.
-            if (results.chords.size == 1) {
-                full
-            } else {
-                (diagram * neckDiagramMinAspect(results.tuning.midi.size) + 32.dp).coerceIn(MinFitCardWidth, full - CardPeek)
-            }
-        } else if (results.chords.size == 1) {
+        // Fitted (landscape), every chord takes the whole pane, its diagram widening its fret window
+        // to fill it, and a swipe pages to the next one (snapped, so a card never stops half shown).
+        val cardWidth: Dp = if (fitHeight != null || results.chords.size == 1) {
             full
         } else {
             min(full - CardPeek, MaxCardWidth)
         }
+        val listState = rememberLazyListState()
         LazyRow(
+            state = listState,
+            flingBehavior = if (fitHeight != null) rememberSnapFlingBehavior(listState) else ScrollableDefaults.flingBehavior(),
             modifier = if (fitHeight != null) Modifier.height(fitHeight) else Modifier,
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -535,14 +528,6 @@ private fun ChordCards(
         }
     }
 }
-
-// What a fitted card spends besides its first diagram: the card padding (2 x 16), the gap under the
-// chord name (12), the gaps in the name block (4) and under the FINGERING label (6), plus the text of
-// the name, tones line and label (titleMedium, bodySmall, labelSmall line heights), in sp so the
-// fit holds at larger font sizes.
-private val CardFitChrome = 54.dp
-private val CardFitText = 56.sp
-private val MinFitCardWidth = 200.dp
 
 @Composable
 private fun ChordCard(

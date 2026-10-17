@@ -74,13 +74,6 @@ private class NeckColors(
 private enum class Anchor { Start, Center, End }
 
 /**
- * Width over height of a diagram for [strings] strings at its narrowest fret window: at a given
- * width, a fingering spanning more frets comes out shorter, never taller.
- */
-fun neckDiagramMinAspect(strings: Int): Float =
-    (LEFT + IND + MIN_COLUMNS * COL + RIGHT + PAD) / (TOP + strings * ROW + BOT)
-
-/**
  * How many frets a diagram for [strings] strings can show and still fit a box of width/height
  * [aspect] at full height: passed as `minColumns`, the window grows to the right until the diagram
  * is about as wide as the box, instead of leaving it empty beside a four-fret diagram.
