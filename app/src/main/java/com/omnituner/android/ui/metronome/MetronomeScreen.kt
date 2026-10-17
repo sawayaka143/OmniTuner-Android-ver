@@ -83,6 +83,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.util.lerp
@@ -235,7 +236,7 @@ private fun TempoPanel(
             modifier = readoutModifier,
         )
     }
-    val transport = @Composable { transportModifier: Modifier ->
+    val transport = @Composable { transportModifier: Modifier, tall: Boolean ->
         TransportRow(
             isPlaying = ui.isPlaying,
             onToggle = {
@@ -243,6 +244,7 @@ private fun TempoPanel(
                 viewModel.toggle()
             },
             onOptions = onOptions,
+            tall = tall,
             modifier = transportModifier,
         )
     }
@@ -255,29 +257,34 @@ private fun TempoPanel(
     ) {
         BoxWithConstraints {
             if (maxWidth > maxHeight) {
-                // Landscape: the tempo readout takes the left half at full height; the menus and the
-                // transport line the right half's top and bottom edges, with Tap between them.
+                // Landscape: the tempo readout with a large Tap under it on the left; on the right the
+                // menus, and Start filling everything under them.
                 Row(modifier = Modifier.fillMaxSize()) {
-                    readout(Modifier.weight(1f).fillMaxHeight(), true)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(bottom = PanelHeaderInset),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        readout(Modifier.weight(1f), true)
+                        TapButton(onTap = onTap, size = WideTapButtonSize)
+                    }
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .padding(top = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
-                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         header(Modifier)
-                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            TapButton(onTap = onTap)
-                        }
-                        transport(Modifier)
+                        transport(Modifier.weight(1f).padding(top = 8.dp), true)
                     }
                 }
             } else {
                 Column {
                     header(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
                     readout(Modifier.weight(1f), false)
-                    transport(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset))
+                    transport(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset), false)
                 }
             }
         }
@@ -423,7 +430,7 @@ private fun TempoReadout(
     onWheelInteraction: (Boolean) -> Unit,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
-    // Landscape: Tap moves out to the panel's other half, so the wheel may take more of the height.
+    // Landscape: Tap moves out from under the caption, so the wheel may take more of the height.
     wide: Boolean = false,
 ) {
     val metronome = ui.state
@@ -455,7 +462,8 @@ private fun TempoReadout(
     ) {
         // Three digits must fit between the steppers (also once grown by CompactScale when folded),
         // and the drum needs room for rows around them.
-        val heightShare = if (wide) 0.25f else 0.2f
+        val heightShare = if (wide) 0.3f else 0.2f
+        val wheelShare = if (wide) WideWheelHeightShare else WheelHeightShare
         val bpmSize = min(maxHeight * heightShare, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp) * NumberShare
         val rowPitch = (bpmSize * 0.36f).coerceIn(24.dp, 38.dp)
         val dotsHeight = min(32.dp, maxHeight * 0.08f)
@@ -543,7 +551,7 @@ private fun TempoReadout(
                 val caption = measurables[1].measure(constraints.copy(minWidth = 0, minHeight = 0))
                 val gap = CaptionGap.roundToPx()
                 // The drum is bent onto the wheel's height, so this also sets how many neighbours show.
-                val wheelHeight = ((area - caption.height - gap) * WheelHeightShare).roundToInt().coerceAtLeast(0)
+                val wheelHeight = ((area - caption.height - gap) * wheelShare).roundToInt().coerceAtLeast(0)
                 val wheel = measurables[0].measure(Constraints.fixed(width, wheelHeight))
                 layout(width, area) {
                     val f = fold()
@@ -579,6 +587,9 @@ private val StepperSlot = 56.dp
 // Share of the space between the beat dots and the caption the wheel spans; it bends its rows onto
 // a drum that tall, so this also sets how many neighbours show.
 private const val WheelHeightShare = 0.56f
+
+// Landscape is short: the wheel takes nearly all of it, or its centre band would not fit.
+private const val WideWheelHeightShare = 0.9f
 
 // The centre value's size relative to what fits (leaves room for its CompactScale growth).
 private const val NumberShare = 0.85f
@@ -681,8 +692,12 @@ private fun TransportRow(
     onToggle: () -> Unit,
     onOptions: () -> Unit,
     modifier: Modifier = Modifier,
+    // Landscape: the buttons fill the height they are given, as blocks with the panel's inner corner.
+    tall: Boolean = false,
 ) {
     val accent = LocalAccentColors.current
+    val shape = if (tall) HeaderMenuShape else SmoothShape.Full
+    val height = if (tall) Modifier.fillMaxHeight() else Modifier.height(TransportHeight)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -690,34 +705,34 @@ private fun TransportRow(
     ) {
         Button(
             onClick = onToggle,
-            shape = SmoothShape.Full,
+            shape = shape,
             colors = ButtonDefaults.buttonColors(containerColor = accent.accent, contentColor = accent.onAccent),
             modifier = Modifier
                 .weight(1f)
-                .height(TransportHeight)
+                .then(height)
                 .semantics { contentDescription = if (isPlaying) "Stop metronome" else "Start metronome" },
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(if (tall) 40.dp else 28.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = if (isPlaying) "Stop" else "Start",
-                style = MaterialTheme.typography.titleMedium,
+                style = if (tall) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
         }
         // Icon only: the row is too narrow inside the panel for a "More" label.
         FilledTonalButton(
             onClick = onOptions,
-            shape = SmoothShape.Full,
+            shape = shape,
             colors = panelTonalColors(),
             contentPadding = PaddingValues(0.dp),
             modifier = Modifier
                 .width(MoreButtonWidth)
-                .height(TransportHeight),
+                .then(height),
         ) {
             Icon(Icons.Filled.Tune, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurface)
         }
@@ -734,7 +749,7 @@ private fun panelTonalColors() =
 
 /** Tap tempo; it flashes the accent while pressed so each tap registers visibly. */
 @Composable
-private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier) {
+private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp = TapButtonSize) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val accent = LocalAccentColors.current
@@ -755,13 +770,18 @@ private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier) {
         colors = ButtonDefaults.filledTonalButtonColors(containerColor = container, contentColor = content),
         interactionSource = interaction,
         contentPadding = PaddingValues(0.dp),
-        modifier = modifier.size(TapButtonSize),
+        modifier = modifier.size(size),
     ) {
-        Text("Tap", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Tap",
+            style = if (size > TapButtonSize) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
 private val TapButtonSize = 64.dp
+private val WideTapButtonSize = 88.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
