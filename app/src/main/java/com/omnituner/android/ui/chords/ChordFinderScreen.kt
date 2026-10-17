@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -96,6 +97,8 @@ private const val COPIED_FEEDBACK_MS = 1100L
 private val MaxCardWidth = 380.dp
 // How much of the next chord card shows at the edge, so the row reads as swipeable.
 private val CardPeek = 32.dp
+// Drops the 4 dp progress bar from the card's bottom edge to the middle of the 16 dp gap below it.
+private val ProgressGapOffset = 10.dp
 
 @Composable
 fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
@@ -131,52 +134,62 @@ private fun VoicingsTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel)
     val scope = rememberCoroutineScope()
     val library = ui.library
 
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        if (library != null) {
+    // The progress bar floats in the gap under the input card instead of taking a row of its own,
+    // so starting or finishing a generate never shifts the results below.
+    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            if (library != null) {
+                PickerRow(
+                    headline = "Tuning",
+                    value = "${library.instrument.label} · ${library.tuning.label}",
+                    onClick = { tuningSheet = true },
+                )
+            }
             PickerRow(
-                headline = "Tuning",
-                value = "${library.instrument.label} · ${library.tuning.label}",
-                onClick = { tuningSheet = true },
+                headline = "Tonic",
+                value = pcName(ui.tonicPc, flatsForPc(ui.tonicPc)),
+                onClick = { tonicSheet = true },
             )
-        }
-        PickerRow(
-            headline = "Tonic",
-            value = pcName(ui.tonicPc, flatsForPc(ui.tonicPc)),
-            onClick = { tonicSheet = true },
-        )
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            ChordField(
-                value = ui.progressionInput,
-                onValueChange = viewModel::setProgressionInput,
-                count = ui.progressionCount,
-                onDone = viewModel::generate,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(shape = SmoothShape.Full, onClick = viewModel::generate, modifier = Modifier.weight(1f)) {
-                    Text("Generate")
-                }
-                FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle) {
-                    Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Shuffle")
-                }
-                FilledTonalButton(
-                    shape = SmoothShape.Full,
-                    onClick = viewModel::playProgression,
-                    enabled = ui.results != null,
-                ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play progression", modifier = Modifier.size(18.dp))
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ChordField(
+                    value = ui.progressionInput,
+                    onValueChange = viewModel::setProgressionInput,
+                    count = ui.progressionCount,
+                    onDone = viewModel::generate,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(shape = SmoothShape.Full, onClick = viewModel::generate, modifier = Modifier.weight(1f)) {
+                        Text("Generate")
+                    }
+                    FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle) {
+                        Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Shuffle")
+                    }
+                    FilledTonalButton(
+                        shape = SmoothShape.Full,
+                        onClick = viewModel::playProgression,
+                        enabled = ui.results != null,
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play progression", modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
+        if (ui.generating) {
+            // offset() moves it without affecting layout.
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .offset(y = ProgressGapOffset),
+            )
+        }
     }
 
-    if (ui.generating) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-    }
     val results = ui.results
     if (results == null) {
         if (!ui.generating) EmptyResults()

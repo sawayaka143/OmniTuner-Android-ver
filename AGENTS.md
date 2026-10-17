@@ -22,6 +22,7 @@
 - Single-choice segmented controls use `SegmentedRow` (`ui/common/SegmentedRow.kt`): stock segments without the check icon, the selected one filled with the accent, 16 dp squircle ends. Do not build a `SingleChoiceSegmentedButtonRow` by hand.
 - Numeric adjustments use `NumberStepper` (`ui/common/NumberStepper.kt`), which repeats while held.
 - Reuse `SwitchRow` (`ui/common/SwitchRow.kt`) for boolean settings.
+- Transient indicators (progress bars, spinners, "copied" ticks, busy states) must never shift the layout: overlay them (`Box` + `align`/`offset`) or swap them into space that is always reserved; never add or remove a row that pushes the content below it. Example: the Chords generate progress bar floats in the gap under the input card.
 
 ## Colors & theme
 
