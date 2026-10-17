@@ -499,8 +499,9 @@ private fun ChordCards(
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val full = maxWidth - 32.dp
         val cardWidth: Dp = if (fitHeight != null) {
-            // As wide as a first fingering filling the card's height needs (wider fret windows come
-            // out a little shorter), so one diagram fits the card exactly; more scroll inside it.
+            // About as wide as a fingering filling the card's height needs (wider fret windows come
+            // out a little shorter). Only a sizing hint: each fingering is fitted to the space the
+            // card really has left (see ChordCard), so a short pane or a wrapped name never clips it.
             val chrome = CardFitChrome + with(density) { CardFitText.toDp() }
             val diagram = (fitHeight - chrome).coerceAtLeast(0.dp)
             (diagram * neckDiagramMinAspect(results.tuning.midi.size) + 32.dp).coerceIn(MinFitCardWidth, full - CardPeek)
@@ -576,17 +577,22 @@ private fun ChordCard(
                     color = status.warn,
                 )
             }
-            val fingerings = @Composable {
-                entry.shapes.forEachIndexed { k, shape ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
+            val fingering = @Composable { k: Int, shape: VoicingShape, blockModifier: Modifier ->
+                Column(modifier = blockModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
                             text = "FINGERING ${k + 1}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        val playable = Modifier
-                            .clip(MaterialTheme.shapes.small)
-                            .clickable(onClickLabel = "Play") { onPlay(shape) }
+                    val playable = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable(onClickLabel = "Play") { onPlay(shape) }
+                    // Fitted, the diagram gets what is left of its block under the label and keeps
+                    // its proportions inside it (narrower than the card if need be, centred).
+                    Box(
+                        modifier = if (fillHeight) Modifier.fillMaxWidth().weight(1f, fill = false) else Modifier,
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
                         when (settings.view) {
                             VoicingView.Fretboard -> NeckDiagram(
                                 frets = shape.frets,
@@ -604,12 +610,19 @@ private fun ChordCard(
                 }
             }
             if (fillHeight) {
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) { fingerings() }
+                // Measured, not estimated: every fingering block is exactly the height left under
+                // the chord name, so each one fits the card whole and the rest scroll in one by one.
+                BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                    val block = maxHeight
+                    Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        entry.shapes.forEachIndexed { k, shape -> fingering(k, shape, Modifier.height(block)) }
+                    }
+                }
             } else {
-                fingerings()
+                entry.shapes.forEachIndexed { k, shape -> fingering(k, shape, Modifier) }
             }
         }
     }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -132,7 +131,7 @@ fun NeckDiagram(
 
     Canvas(
         modifier = modifier
-            .fillMaxWidth()
+            // Fills the width, unless a bounded height runs out first; then it fits the height.
             .aspectRatio(width / height)
             .background(scheme.surfaceContainerLow, shape)
             .border(1.dp, colors.subtle, shape)
