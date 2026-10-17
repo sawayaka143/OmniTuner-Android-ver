@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -103,14 +105,7 @@ private val ProgressGapOffset = 10.dp
 @Composable
 fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
     val ui by viewModel.ui.collectAsState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    val tabs = @Composable {
         SegmentedRow(
             options = ChordsTab.entries,
             selected = ui.tab,
@@ -118,20 +113,63 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
             onSelect = viewModel::selectTab,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
-        when (ui.tab) {
-            ChordsTab.Voicings -> VoicingsTab(ui, viewModel)
-            ChordsTab.KeyFinder -> KeyFinderTab(ui, viewModel)
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        if (maxWidth > maxHeight) {
+            // Landscape: the input on the left, what it produces on the right, each scrolling on its
+            // own so the input stays in reach while browsing the results.
+            val inputWidth = (maxWidth * InputPaneShare).coerceAtMost(MaxInputPaneWidth)
+            Row(modifier = Modifier.fillMaxSize()) {
+                Pane(Modifier.width(inputWidth)) {
+                    tabs()
+                    when (ui.tab) {
+                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel)
+                        ChordsTab.KeyFinder -> KeyFinderInput(ui, viewModel)
+                    }
+                }
+                Pane(Modifier.weight(1f)) {
+                    when (ui.tab) {
+                        ChordsTab.Voicings -> VoicingsResults(ui, viewModel)
+                        ChordsTab.KeyFinder -> KeyFinderResultCard(ui.keyAnalysis)
+                    }
+                }
+            }
+        } else {
+            Pane(Modifier) {
+                tabs()
+                when (ui.tab) {
+                    ChordsTab.Voicings -> {
+                        VoicingsInput(ui, viewModel)
+                        VoicingsResults(ui, viewModel)
+                    }
+                    ChordsTab.KeyFinder -> KeyFinderTab(ui, viewModel)
+                }
+            }
         }
     }
 }
 
+private const val InputPaneShare = 0.45f
+private val MaxInputPaneWidth = 420.dp
+
+/** A scrolling column of the page's blocks; each block pads its own sides. */
 @Composable
-private fun VoicingsTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
+private fun Pane(modifier: Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
     var tuningSheet by rememberSaveable { mutableStateOf(false) }
     var tonicSheet by rememberSaveable { mutableStateOf(false) }
-    var copied by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
     val library = ui.library
 
     // The progress bar floats in the gap under the input card instead of taking a row of its own,
@@ -190,6 +228,27 @@ private fun VoicingsTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel)
         }
     }
 
+    if (tuningSheet && library != null) TuningSheet(library, viewModel, onDismiss = { tuningSheet = false })
+    if (tonicSheet) {
+        OptionSheet(
+            title = "Tonic",
+            options = (0 until 12).map { PickerOption(it, pcName(it, flatsForPc(it))) },
+            selected = ui.tonicPc,
+            onSelect = { pc ->
+                viewModel.setTonic(pc)
+                tonicSheet = false
+            },
+            onDismiss = { tonicSheet = false },
+        )
+    }
+}
+
+@Composable
+private fun VoicingsResults(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
+    var copied by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+
     val results = ui.results
     if (results == null) {
         if (!ui.generating) EmptyResults()
@@ -212,20 +271,6 @@ private fun VoicingsTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel)
             },
         )
         ChordCards(results, ui.settings, onPlay = viewModel::playShape)
-    }
-
-    if (tuningSheet && library != null) TuningSheet(library, viewModel, onDismiss = { tuningSheet = false })
-    if (tonicSheet) {
-        OptionSheet(
-            title = "Tonic",
-            options = (0 until 12).map { PickerOption(it, pcName(it, flatsForPc(it))) },
-            selected = ui.tonicPc,
-            onSelect = { pc ->
-                viewModel.setTonic(pc)
-                tonicSheet = false
-            },
-            onDismiss = { tonicSheet = false },
-        )
     }
 }
 
@@ -539,59 +584,85 @@ private fun TabBlock(shape: VoicingShape, tuning: ParsedTuning, modifier: Modifi
 
 @Composable
 private fun KeyFinderTab(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
-    val analysis = ui.keyAnalysis
+    KeyFinderCard {
+        KeyFinderFields(ui, viewModel)
+        KeyFinderResult(ui.keyAnalysis)
+    }
+}
+
+// Landscape splits the card: the input on the left, the detected key in its own card on the right.
+@Composable
+private fun KeyFinderInput(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
+    KeyFinderCard { KeyFinderFields(ui, viewModel) }
+}
+
+@Composable
+private fun KeyFinderResultCard(analysis: KeyAnalysis) {
+    KeyFinderCard { KeyFinderResult(analysis) }
+}
+
+@Composable
+private fun KeyFinderCard(content: @Composable ColumnScope.() -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = "Enter a chord progression and the matching key is detected live.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            ChordField(value = ui.keyInput, onValueChange = viewModel::setKeyInput, count = analysis.count)
-            val key = analysis.key
-            when {
-                key != null -> {
-                    val color = when (key.confidence) {
-                        "strong" -> MaterialTheme.colorScheme.tertiary
-                        "moderate" -> LocalAccentColors.current.accent
-                        else -> LocalStatusColors.current.warn
-                    }
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "${key.tonicName} ${key.mode}",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = color,
-                        )
-                        Text(
-                            text = key.confidence,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    val names = key.alternatives.joinToString(", ") { "${it.tonicName} ${it.mode}" }
-                    if (names.isNotEmpty()) {
-                        Text(
-                            text = if (key.confidence == "strong") "Also fits: $names" else "Not sure. Also possible: $names",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                analysis.count.total > 0 -> Text(
-                    text = "No readable chords. Check the spelling above.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = LocalStatusColors.current.warn,
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun KeyFinderFields(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
+    Text(
+        text = "Enter a chord progression and the matching key is detected live.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    ChordField(value = ui.keyInput, onValueChange = viewModel::setKeyInput, count = ui.keyAnalysis.count)
+}
+
+@Composable
+private fun KeyFinderResult(analysis: KeyAnalysis) {
+    val key = analysis.key
+    when {
+        key != null -> {
+            val color = when (key.confidence) {
+                "strong" -> MaterialTheme.colorScheme.tertiary
+                "moderate" -> LocalAccentColors.current.accent
+                else -> LocalStatusColors.current.warn
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "${key.tonicName} ${key.mode}",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = color,
                 )
-                else -> Text(
-                    text = "Type chords above to detect the key.",
-                    style = MaterialTheme.typography.bodyMedium,
+                Text(
+                    text = key.confidence,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val names = key.alternatives.joinToString(", ") { "${it.tonicName} ${it.mode}" }
+            if (names.isNotEmpty()) {
+                Text(
+                    text = if (key.confidence == "strong") "Also fits: $names" else "Not sure. Also possible: $names",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+        analysis.count.total > 0 -> Text(
+            text = "No readable chords. Check the spelling.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = LocalStatusColors.current.warn,
+        )
+        else -> Text(
+            text = "Type chords to detect the key.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
