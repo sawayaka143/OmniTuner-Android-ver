@@ -201,53 +201,85 @@ private fun TempoPanel(
         label = "wheelFold",
     )
 
+    val header = @Composable { headerModifier: Modifier ->
+        Row(
+            modifier = headerModifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MeterMenu(
+                metronome = ui.state,
+                onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            PresetMenu(
+                ui = ui,
+                onApply = viewModel::applyPreset,
+                onDelete = viewModel::deletePreset,
+                onSave = onSavePreset,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+    }
+    val readout = @Composable { readoutModifier: Modifier, wide: Boolean ->
+        TempoReadout(
+            ui = ui,
+            viewModel = viewModel,
+            fold = { fold.value },
+            onWheelInteraction = { active ->
+                if (active) wheelOpen = true
+                wheelBusy = active
+            },
+            onTap = onTap,
+            wide = wide,
+            modifier = readoutModifier,
+        )
+    }
+    val transport = @Composable { transportModifier: Modifier ->
+        TransportRow(
+            isPlaying = ui.isPlaying,
+            onToggle = {
+                if (!ui.isPlaying) wheelOpen = false
+                viewModel.toggle()
+            },
+            onOptions = onOptions,
+            modifier = transportModifier,
+        )
+    }
+
     Surface(
         modifier = modifier,
         shape = SmoothShape(PanelCorner),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MeterMenu(
-                    metronome = ui.state,
-                    onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                PresetMenu(
-                    ui = ui,
-                    onApply = viewModel::applyPreset,
-                    onDelete = viewModel::deletePreset,
-                    onSave = onSavePreset,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
+        BoxWithConstraints {
+            if (maxWidth > maxHeight) {
+                // Landscape: the tempo readout takes the left half at full height; the menus and the
+                // transport line the right half's top and bottom edges, with Tap between them.
+                Row(modifier = Modifier.fillMaxSize()) {
+                    readout(Modifier.weight(1f).fillMaxHeight(), true)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(top = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        header(Modifier)
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            TapButton(onTap = onTap)
+                        }
+                        transport(Modifier)
+                    }
+                }
+            } else {
+                Column {
+                    header(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
+                    readout(Modifier.weight(1f), false)
+                    transport(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset))
+                }
             }
-            TempoReadout(
-                ui = ui,
-                viewModel = viewModel,
-                fold = { fold.value },
-                onWheelInteraction = { active ->
-                    if (active) wheelOpen = true
-                    wheelBusy = active
-                },
-                onTap = onTap,
-                modifier = Modifier.weight(1f),
-            )
-            TransportRow(
-                isPlaying = ui.isPlaying,
-                onToggle = {
-                    if (!ui.isPlaying) wheelOpen = false
-                    viewModel.toggle()
-                },
-                onOptions = onOptions,
-                modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
-            )
         }
     }
 }
@@ -391,6 +423,8 @@ private fun TempoReadout(
     onWheelInteraction: (Boolean) -> Unit,
     onTap: () -> Unit,
     modifier: Modifier = Modifier,
+    // Landscape: Tap moves out to the panel's other half, so the wheel may take more of the height.
+    wide: Boolean = false,
 ) {
     val metronome = ui.state
     val beats = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator).beatsPerBar
@@ -421,7 +455,8 @@ private fun TempoReadout(
     ) {
         // Three digits must fit between the steppers (also once grown by CompactScale when folded),
         // and the drum needs room for rows around them.
-        val bpmSize = min(maxHeight * 0.2f, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp) * NumberShare
+        val heightShare = if (wide) 0.25f else 0.2f
+        val bpmSize = min(maxHeight * heightShare, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp) * NumberShare
         val rowPitch = (bpmSize * 0.36f).coerceIn(24.dp, 38.dp)
         val dotsHeight = min(32.dp, maxHeight * 0.08f)
 
@@ -499,7 +534,7 @@ private fun TempoReadout(
                         )
                         // Rides with the readout as it folds; tapping only sets the tempo, it never
                         // unfolds the wheel.
-                        TapButton(onTap = onTap, modifier = Modifier.padding(top = 8.dp))
+                        if (!wide) TapButton(onTap = onTap, modifier = Modifier.padding(top = 8.dp))
                     }
                 },
             ) { measurables, constraints ->
