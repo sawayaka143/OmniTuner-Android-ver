@@ -67,6 +67,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.min
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.ChordSettings
@@ -117,22 +123,28 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth > maxHeight) {
-            // Landscape: the input on the left, what it produces on the right, each scrolling on its
-            // own so the input stays in reach while browsing the results.
+            // Landscape: the input on the left, what it produces on the right. The chord cards are
+            // sized to the pane's height, and the key and display options move into the input card,
+            // so the right side is nothing but chords.
             val inputWidth = (maxWidth * InputPaneShare).coerceAtMost(MaxInputPaneWidth)
             Row(modifier = Modifier.fillMaxSize()) {
                 Pane(Modifier.width(inputWidth)) {
                     tabs()
                     when (ui.tab) {
-                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel)
+                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, withResultsBar = true)
                         ChordsTab.KeyFinder -> KeyFinderInput(ui, viewModel)
                     }
                 }
-                Pane(Modifier.weight(1f)) {
-                    when (ui.tab) {
-                        ChordsTab.Voicings -> VoicingsResults(ui, viewModel)
-                        ChordsTab.KeyFinder -> KeyFinderResultCard(ui.keyAnalysis)
+                when (ui.tab) {
+                    ChordsTab.Voicings -> BoxWithConstraints(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(vertical = 16.dp),
+                    ) {
+                        VoicingsResults(ui, viewModel, fitHeight = maxHeight)
                     }
+                    ChordsTab.KeyFinder -> Pane(Modifier.weight(1f)) { KeyFinderResultCard(ui.keyAnalysis) }
                 }
             }
         } else {
@@ -167,7 +179,7 @@ private fun Pane(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
+private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewModel, withResultsBar: Boolean = false) {
     var tuningSheet by rememberSaveable { mutableStateOf(false) }
     var tonicSheet by rememberSaveable { mutableStateOf(false) }
     val library = ui.library
@@ -216,6 +228,17 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
                     }
                 }
             }
+            val results = ui.results
+            if (withResultsBar && results != null) {
+                HorizontalDivider()
+                ResultsHeader(
+                    results = results,
+                    settings = ui.settings,
+                    viewModel = viewModel,
+                    tonal = true,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            }
         }
         if (ui.generating) {
             // offset() moves it without affecting layout.
@@ -243,34 +266,18 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
     }
 }
 
+/**
+ * The chord cards (with the key and display options over them unless [fitHeight] is set, when
+ * landscape has moved those into the input card and the cards fill that height).
+ */
 @Composable
-private fun VoicingsResults(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
-    var copied by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-
+private fun VoicingsResults(ui: ChordFinderUiState, viewModel: ChordFinderViewModel, fitHeight: Dp? = null) {
     val results = ui.results
     if (results == null) {
         if (!ui.generating) EmptyResults()
     } else {
-        ResultsHeader(
-            results = results,
-            settings = ui.settings,
-            viewModel = viewModel,
-            copied = copied,
-            onCopy = {
-                val text = viewModel.tabText()
-                if (text != null) {
-                    scope.launch {
-                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Chord tab", text)))
-                        copied = true
-                        delay(COPIED_FEEDBACK_MS)
-                        copied = false
-                    }
-                }
-            },
-        )
-        ChordCards(results, ui.settings, onPlay = viewModel::playShape)
+        if (fitHeight == null) ResultsHeader(results = results, settings = ui.settings, viewModel = viewModel)
+        ChordCards(results, ui.settings, onPlay = viewModel::playShape, fitHeight = fitHeight)
     }
 }
 
@@ -348,13 +355,42 @@ private fun ResultsHeader(
     results: GeneratedVoicings,
     settings: ChordSettings,
     viewModel: ChordFinderViewModel,
-    copied: Boolean,
-    onCopy: () -> Unit,
+    modifier: Modifier = Modifier,
+    // Standalone tonal buttons, for the bar inside the landscape input card.
+    tonal: Boolean = false,
 ) {
     var optionsOpen by remember { mutableStateOf(false) }
     var moreOpen by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val onCopy = {
+        val text = viewModel.tabText()
+        if (text != null) {
+            scope.launch {
+                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Chord tab", text)))
+                copied = true
+                delay(COPIED_FEEDBACK_MS)
+                copied = false
+            }
+        }
+    }
+    val button = @Composable { onClick: () -> Unit, icon: @Composable () -> Unit ->
+        if (tonal) {
+            // The card is the tonal grey itself, so the buttons take the page color to stand out, as
+            // on the tuner and metronome panels.
+            FilledTonalIconButton(
+                onClick = onClick,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+                content = icon,
+            )
+        } else {
+            IconButton(onClick = onClick, content = icon)
+        }
+    }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (tonal) 8.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.weight(1f)) {
@@ -363,7 +399,7 @@ private fun ResultsHeader(
             }
         }
         Box {
-            IconButton(onClick = { optionsOpen = true }) {
+            button({ optionsOpen = true }) {
                 Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
             }
             PullDownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
@@ -403,7 +439,7 @@ private fun ResultsHeader(
             }
         }
         Box {
-            IconButton(onClick = { moreOpen = true }) {
+            button({ moreOpen = true }) {
                 // Brief check after copying, since the menu has already closed by then.
                 Icon(
                     imageVector = if (copied) Icons.Filled.Check else Icons.Filled.MoreVert,
@@ -453,21 +489,54 @@ private fun KeyRow(key: String, alternatives: List<String>) {
 }
 
 @Composable
-private fun ChordCards(results: GeneratedVoicings, settings: ChordSettings, onPlay: (VoicingShape) -> Unit) {
+private fun ChordCards(
+    results: GeneratedVoicings,
+    settings: ChordSettings,
+    onPlay: (VoicingShape) -> Unit,
+    fitHeight: Dp? = null,
+) {
+    val density = LocalDensity.current
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val full = maxWidth - 32.dp
-        val cardWidth: Dp = if (results.chords.size == 1) full else min(full - CardPeek, MaxCardWidth)
+        val cardWidth: Dp = if (fitHeight != null) {
+            // As wide as a first fingering filling the card's height needs (wider fret windows come
+            // out a little shorter), so one diagram fits the card exactly; more scroll inside it.
+            val chrome = CardFitChrome + with(density) { CardFitText.toDp() }
+            val diagram = (fitHeight - chrome).coerceAtLeast(0.dp)
+            (diagram * neckDiagramMinAspect(results.tuning.midi.size) + 32.dp).coerceIn(MinFitCardWidth, full - CardPeek)
+        } else if (results.chords.size == 1) {
+            full
+        } else {
+            min(full - CardPeek, MaxCardWidth)
+        }
         LazyRow(
+            modifier = if (fitHeight != null) Modifier.height(fitHeight) else Modifier,
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
             itemsIndexed(results.chords) { index, entry ->
-                ChordCard(index, entry, results.tuning, settings, onPlay, Modifier.width(cardWidth))
+                ChordCard(
+                    index,
+                    entry,
+                    results.tuning,
+                    settings,
+                    onPlay,
+                    fillHeight = fitHeight != null,
+                    modifier = Modifier.width(cardWidth).then(if (fitHeight != null) Modifier.fillMaxHeight() else Modifier),
+                )
             }
         }
     }
 }
+
+// What a fitted card spends besides its first diagram: the card padding (2 x 16), the gap under the
+// chord name (12), the gaps in the name block (4) and under the FINGERING label (6), plus the text of
+// the name, tones line and label (titleMedium, bodySmall, labelSmall line heights), in sp so the
+// fit holds at larger font sizes.
+private val CardFitChrome = 54.dp
+private val CardFitText = 56.sp
+private val MinFitCardWidth = 200.dp
 
 @Composable
 private fun ChordCard(
@@ -477,6 +546,8 @@ private fun ChordCard(
     settings: ChordSettings,
     onPlay: (VoicingShape) -> Unit,
     modifier: Modifier = Modifier,
+    // Fitted to a height (landscape): the name stays put and the fingerings scroll under it.
+    fillHeight: Boolean = false,
 ) {
     val status = LocalStatusColors.current
     Card(modifier = modifier) {
@@ -505,30 +576,40 @@ private fun ChordCard(
                     color = status.warn,
                 )
             }
-            entry.shapes.forEachIndexed { k, shape ->
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "FINGERING ${k + 1}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    val playable = Modifier
-                        .clip(MaterialTheme.shapes.small)
-                        .clickable(onClickLabel = "Play") { onPlay(shape) }
-                    when (settings.view) {
-                        VoicingView.Fretboard -> NeckDiagram(
-                            frets = shape.frets,
-                            tuning = tuning,
-                            symbol = chord.symbol,
-                            rootPc = chord.rootPc,
-                            index = k,
-                            labels = settings.labels,
-                            flats = flats,
-                            modifier = playable,
+            val fingerings = @Composable {
+                entry.shapes.forEachIndexed { k, shape ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "FINGERING ${k + 1}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        VoicingView.Tab -> TabBlock(shape, tuning, playable)
+                        val playable = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable(onClickLabel = "Play") { onPlay(shape) }
+                        when (settings.view) {
+                            VoicingView.Fretboard -> NeckDiagram(
+                                frets = shape.frets,
+                                tuning = tuning,
+                                symbol = chord.symbol,
+                                rootPc = chord.rootPc,
+                                index = k,
+                                labels = settings.labels,
+                                flats = flats,
+                                modifier = playable,
+                            )
+                            VoicingView.Tab -> TabBlock(shape, tuning, playable)
+                        }
                     }
                 }
+            }
+            if (fillHeight) {
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) { fingerings() }
+            } else {
+                fingerings()
             }
         }
     }

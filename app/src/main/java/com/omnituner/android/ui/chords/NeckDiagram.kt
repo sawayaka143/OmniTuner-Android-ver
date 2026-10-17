@@ -74,6 +74,13 @@ private class NeckColors(
 private enum class Anchor { Start, Center, End }
 
 /**
+ * Width over height of a diagram for [strings] strings at its narrowest fret window: at a given
+ * width, a fingering spanning more frets comes out shorter, never taller.
+ */
+fun neckDiagramMinAspect(strings: Int): Float =
+    (LEFT + IND + MIN_COLUMNS * COL + RIGHT + PAD) / (TOP + strings * ROW + BOT)
+
+/**
  * One fingering on a horizontal neck, lowest string at the bottom: tuning labels on the left, an
  * open/mute column, the fretted window (at least four frets, a nut when it starts at fret 1),
  * fret numbers underneath and each note's name or degree at the right edge.
