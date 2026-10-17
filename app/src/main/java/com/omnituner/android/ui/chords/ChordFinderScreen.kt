@@ -504,7 +504,12 @@ private fun ChordCards(
             // card really has left (see ChordCard), so a short pane or a wrapped name never clips it.
             val chrome = CardFitChrome + with(density) { CardFitText.toDp() }
             val diagram = (fitHeight - chrome).coerceAtLeast(0.dp)
-            (diagram * neckDiagramMinAspect(results.tuning.midi.size) + 32.dp).coerceIn(MinFitCardWidth, full - CardPeek)
+            // A lone chord takes the whole pane; its diagram widens its fret window to fill it.
+            if (results.chords.size == 1) {
+                full
+            } else {
+                (diagram * neckDiagramMinAspect(results.tuning.midi.size) + 32.dp).coerceIn(MinFitCardWidth, full - CardPeek)
+            }
         } else if (results.chords.size == 1) {
             full
         } else {
@@ -588,11 +593,17 @@ private fun ChordCard(
                         .clip(MaterialTheme.shapes.small)
                         .clickable(onClickLabel = "Play") { onPlay(shape) }
                     // Fitted, the diagram gets what is left of its block under the label and keeps
-                    // its proportions inside it (narrower than the card if need be, centred).
-                    Box(
-                        modifier = if (fillHeight) Modifier.fillMaxWidth().weight(1f, fill = false) else Modifier,
+                    // its proportions inside it, showing as many frets as make it fill that space
+                    // (centred, in case a fret's width is left over).
+                    BoxWithConstraints(
+                        modifier = if (fillHeight) Modifier.fillMaxWidth().weight(1f) else Modifier,
                         contentAlignment = Alignment.TopCenter,
                     ) {
+                        val columns = if (fillHeight && maxHeight > 0.dp) {
+                            neckDiagramColumnsFor(maxWidth / maxHeight, tuning.midi.size)
+                        } else {
+                            0
+                        }
                         when (settings.view) {
                             VoicingView.Fretboard -> NeckDiagram(
                                 frets = shape.frets,
@@ -603,6 +614,7 @@ private fun ChordCard(
                                 labels = settings.labels,
                                 flats = flats,
                                 modifier = playable,
+                                minColumns = columns,
                             )
                             VoicingView.Tab -> TabBlock(shape, tuning, playable)
                         }

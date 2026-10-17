@@ -42,6 +42,7 @@ private const val TOP = 24f
 private const val BOT = 18f
 private const val RING = 9f
 private const val MIN_COLUMNS = 4
+private const val LAST_FRET = 24
 
 private val INLAY_SINGLE = setOf(3, 5, 7, 9, 15, 17, 19, 21)
 private val INLAY_DOUBLE = setOf(12, 24)
@@ -80,9 +81,20 @@ fun neckDiagramMinAspect(strings: Int): Float =
     (LEFT + IND + MIN_COLUMNS * COL + RIGHT + PAD) / (TOP + strings * ROW + BOT)
 
 /**
+ * How many frets a diagram for [strings] strings can show and still fit a box of width/height
+ * [aspect] at full height: passed as `minColumns`, the window grows to the right until the diagram
+ * is about as wide as the box, instead of leaving it empty beside a four-fret diagram.
+ */
+fun neckDiagramColumnsFor(aspect: Float, strings: Int): Int {
+    val widthUnits = aspect * (TOP + strings * ROW + BOT)
+    return ((widthUnits - LEFT - IND - RIGHT - PAD) / COL).toInt().coerceAtLeast(MIN_COLUMNS)
+}
+
+/**
  * One fingering on a horizontal neck, lowest string at the bottom: tuning labels on the left, an
  * open/mute column, the fretted window (at least four frets, a nut when it starts at fret 1),
- * fret numbers underneath and each note's name or degree at the right edge.
+ * fret numbers underneath and each note's name or degree at the right edge. [minColumns] widens
+ * the window (to the right, never past the last fret) to fill a wide box.
  */
 @Composable
 fun NeckDiagram(
@@ -94,11 +106,13 @@ fun NeckDiagram(
     labels: DiagramLabels,
     flats: Boolean,
     modifier: Modifier = Modifier,
+    minColumns: Int = MIN_COLUMNS,
 ) {
     val n = tuning.midi.size
     val fretted = frets.filterNotNull().filter { it > 0 }
     val lo = maxOf(1, fretted.minOrNull() ?: 1)
-    val hi = maxOf(fretted.maxOrNull() ?: lo, lo + MIN_COLUMNS - 1)
+    val reach = minOf(lo + maxOf(minColumns, MIN_COLUMNS) - 1, maxOf(LAST_FRET, lo + MIN_COLUMNS - 1))
+    val hi = maxOf(fretted.maxOrNull() ?: lo, reach)
     val cols = hi - lo + 1
     val gridL = LEFT + IND
     val gridR = gridL + cols * COL
