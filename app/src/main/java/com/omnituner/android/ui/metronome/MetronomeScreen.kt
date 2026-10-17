@@ -52,9 +52,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -98,6 +95,7 @@ import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuDivider
 import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.common.RepeatingIconButton
+import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
@@ -758,21 +756,13 @@ private fun MeterOptions(metronome: MetronomeState, viewModel: MetronomeViewMode
         onDecrement = { viewModel.changeNumerator(-1) },
         onIncrement = { viewModel.changeNumerator(1) },
     )
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        DENOMINATORS.forEachIndexed { index, denominator ->
-            SegmentedButton(
-                selected = meter.denominator == denominator,
-                onClick = { viewModel.setTimeSignature(meter.numerator, denominator) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = DENOMINATORS.size, baseShape = SmoothShape.Full),
-            ) {
-                Text("/$denominator")
-            }
-        }
-    }
+    SegmentedRow(
+        options = DENOMINATORS,
+        selected = meter.denominator,
+        label = { "/$it" },
+        onSelect = { viewModel.setTimeSignature(meter.numerator, it) },
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
     MenuPickerRow(
         headline = "Subdivision",
         options = (DIVISIONS_MIN..DIVISIONS_MAX).map { PickerOption(it, subdivisionLabel(it)) },
