@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -430,48 +432,70 @@ private fun TunerPanel(
     modifier: Modifier = Modifier,
 ) {
     val colors = animatedTuneColors(state)
+    val header = @Composable { headerModifier: Modifier ->
+        Row(
+            modifier = headerModifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TuningMenu(
+                state = state,
+                onTuningPicked = onTuningPicked,
+                onEditTuning = onEditTuning,
+                onDeleteTuning = onDeleteTuning,
+                onNewTuning = onNewTuning,
+                onNewInstrument = onNewInstrument,
+                onManageInstruments = onManageInstruments,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
+        }
+    }
+    val content = @Composable {
+        PanelContent(
+            state = state,
+            colors = colors,
+            hasPermission = hasPermission,
+            permanentlyDenied = permanentlyDenied,
+            onAllow = onAllow,
+            onOpenSettings = onOpenSettings,
+            onRetry = onRetry,
+        )
+    }
     Surface(
         modifier = modifier,
         shape = SmoothShape(PanelCorner),
         color = colors.container,
         contentColor = colors.content,
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TuningMenu(
-                    state = state,
-                    onTuningPicked = onTuningPicked,
-                    onEditTuning = onEditTuning,
-                    onDeleteTuning = onDeleteTuning,
-                    onNewTuning = onNewTuning,
-                    onNewInstrument = onNewInstrument,
-                    onManageInstruments = onManageInstruments,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
+        BoxWithConstraints {
+            if (maxWidth > maxHeight) {
+                // Landscape: the readout takes the left half at full height; the tuning menu and the
+                // strings line the right half's top and bottom edges, as they line the panel upright.
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(top = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
+                    ) {
+                        header(Modifier)
+                        Spacer(Modifier.weight(1f))
+                        StringRow(state = state, onSelect = onSelectString, wrap = true)
+                    }
+                }
+            } else {
+                Column {
+                    header(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
+                    Box(modifier = Modifier.weight(1f)) { content() }
+                    StringRow(
+                        state = state,
+                        onSelect = onSelectString,
+                        modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
+                    )
+                }
             }
-            Box(modifier = Modifier.weight(1f)) {
-                PanelContent(
-                    state = state,
-                    colors = colors,
-                    hasPermission = hasPermission,
-                    permanentlyDenied = permanentlyDenied,
-                    onAllow = onAllow,
-                    onOpenSettings = onOpenSettings,
-                    onRetry = onRetry,
-                )
-            }
-            StringRow(
-                state = state,
-                onSelect = onSelectString,
-                modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
-            )
         }
     }
 }
@@ -663,37 +687,64 @@ private val StringButtonMinWidth = 48.dp
 private val StringButtonScrollWidth = 56.dp
 private val StringButtonSpacing = 8.dp
 
+/**
+ * The tuning's strings, low to high. With [wrap] (the narrower landscape column) strings that
+ * don't fit one row at the minimum size break into as few even rows as do, instead of scrolling.
+ */
 @Composable
 private fun StringRow(
     state: TunerUiState,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    wrap: Boolean = false,
 ) {
     val strings = state.tuning.strings
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val count = strings.size
+        fun share(perRow: Int) = (maxWidth - StringButtonSpacing * (perRow - 1)) / perRow
+        val rows = if (wrap) {
+            (1..count).firstOrNull { lines -> share(ceilDiv(count, lines)) >= StringButtonMinWidth } ?: 1
+        } else {
+            1
+        }
+        val perRow = ceilDiv(count, rows)
         // Circles as large as an even share of the row allows, up to the scroll width; below the
         // minimum the row scrolls instead.
-        val share = (maxWidth - StringButtonSpacing * (count - 1)) / count
-        val fits = share >= StringButtonMinWidth
-        val size = if (fits) share.coerceAtMost(StringButtonScrollWidth) else StringButtonScrollWidth
-        Row(
-            modifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = if (fits) Arrangement.SpaceBetween else Arrangement.spacedBy(StringButtonSpacing),
-        ) {
-            strings.forEachIndexed { index, string ->
-                val active = state.activeIndex == index
-                StringButton(
-                    label = string.name,
-                    selected = active,
-                    tuned = (state.tuned && active) || string.name in state.tunedStrings,
-                    onClick = { onSelect(index) },
-                    size = size,
-                )
+        val fits = share(perRow) >= StringButtonMinWidth
+        val size = if (fits) share(perRow).coerceAtMost(StringButtonScrollWidth) else StringButtonScrollWidth
+        val button = @Composable { index: Int ->
+            val string = strings[index]
+            val active = state.activeIndex == index
+            StringButton(
+                label = string.name,
+                selected = active,
+                tuned = (state.tuned && active) || string.name in state.tunedStrings,
+                onClick = { onSelect(index) },
+                size = size,
+            )
+        }
+        if (rows > 1) {
+            Column(verticalArrangement = Arrangement.spacedBy(StringButtonSpacing)) {
+                strings.indices.chunked(perRow).forEach { line ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        line.forEach { button(it) }
+                        // A short last row keeps the columns of the rows above it.
+                        repeat(perRow - line.size) { Spacer(Modifier.size(size)) }
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = if (fits) Arrangement.SpaceBetween else Arrangement.spacedBy(StringButtonSpacing),
+            ) {
+                strings.indices.forEach { button(it) }
             }
         }
     }
 }
+
+private fun ceilDiv(a: Int, b: Int) = (a + b - 1) / b
 
 @Composable
 private fun StringButton(
