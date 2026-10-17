@@ -479,7 +479,7 @@ private fun TunerPanel(
             AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
         }
     }
-    val content = @Composable {
+    val content = @Composable { wide: Boolean ->
         PanelContent(
             state = state,
             colors = colors,
@@ -488,6 +488,7 @@ private fun TunerPanel(
             onAllow = onAllow,
             onOpenSettings = onOpenSettings,
             onRetry = onRetry,
+            wide = wide,
         )
     }
     Surface(
@@ -503,7 +504,7 @@ private fun TunerPanel(
                 // the right, under the Auto switch.
                 Row(modifier = Modifier.fillMaxSize().padding(PanelHeaderInset)) {
                     StringColumn(state = state, onSelect = onSelectString)
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content(true) }
                     Column(modifier = Modifier.width(TuningListWidth).fillMaxHeight()) {
                         AutoSwitch(
                             auto = state.mode == TunerMode.Auto,
@@ -532,7 +533,7 @@ private fun TunerPanel(
             } else {
                 Column {
                     header(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
-                    Box(modifier = Modifier.weight(1f)) { content() }
+                    Box(modifier = Modifier.weight(1f)) { content(false) }
                     StringRow(
                         state = state,
                         onSelect = onSelectString,
@@ -553,6 +554,7 @@ private fun PanelContent(
     onAllow: () -> Unit,
     onOpenSettings: () -> Unit,
     onRetry: () -> Unit,
+    wide: Boolean,
 ) {
     val error = state.error
     when {
@@ -570,12 +572,12 @@ private fun PanelContent(
             action = "Try again",
             onAction = onRetry,
         )
-        else -> Readout(state = state, colors = colors)
+        else -> Readout(state = state, colors = colors, wide = wide)
     }
 }
 
 @Composable
-private fun Readout(state: TunerUiState, colors: TuneColors) {
+private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
     val noteScale = remember { Animatable(1f) }
     LaunchedEffect(state.pulse) {
         if (state.pulse) {
@@ -603,7 +605,7 @@ private fun Readout(state: TunerUiState, colors: TuneColors) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = if (wide) Arrangement.SpaceBetween else Arrangement.SpaceEvenly,
         ) {
             NoteName(
                 state = state,
@@ -626,21 +628,34 @@ private fun Readout(state: TunerUiState, colors: TuneColors) {
                     color = LocalContentColor.current.copy(alpha = 0.7f),
                 )
             }
-            NeedleMeter(
-                needlePercent = needle,
-                needleColor = colors.needle,
-                scaleColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                glow = state.pulse,
-                cents = state.cents,
-                modifier = Modifier.height(meterHeight),
-            )
-            Text(
-                text = statusLabel(state),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (state.tuned) colors.note else colors.content,
-                textAlign = TextAlign.Center,
-            )
+            val meter = @Composable {
+                NeedleMeter(
+                    needlePercent = needle,
+                    needleColor = colors.needle,
+                    scaleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    glow = state.pulse,
+                    cents = state.cents,
+                    modifier = Modifier.height(meterHeight),
+                )
+            }
+            val status = @Composable {
+                Text(
+                    text = statusLabel(state),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (state.tuned) colors.note else colors.content,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            // Landscape: the meter drops to the bottom edge, level with the lowest string, and the
+            // status moves up over it.
+            if (wide) {
+                status()
+                meter()
+            } else {
+                meter()
+                status()
+            }
         }
     }
 }
