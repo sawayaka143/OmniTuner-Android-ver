@@ -1,5 +1,8 @@
 package com.omnituner.android.ui
 
+import android.content.res.Configuration
+import android.hardware.display.DisplayManager
+import android.view.Surface
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
@@ -19,10 +22,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -44,14 +56,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -59,8 +75,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
@@ -110,72 +130,149 @@ fun AppRoot() {
     } else {
         MaterialTheme.colorScheme.background
     }
-
-    Scaffold(
-        containerColor = pageColor,
-        topBar = {
-            TopAppBar(
-                title = { Text(current.title) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
-                navigationIcon = {
-                    if (!current.topLevel) {
-                        // The tonal container matches the grouped-list page in light mode, so the
-                        // button takes the group card color to stay visible on it.
-                        FilledTonalIconButton(
-                            onClick = { navController.popBackStack() },
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = LocalGroupedListColors.current.group,
-                            ),
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
-                },
-                actions = {
-                    if (current.topLevel) {
-                        FilledTonalIconButton(onClick = { navController.navigate(Destination.Settings.route) }) {
-                            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            if (current.topLevel) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                ) {
-                    NavTabs(
-                        current = current,
-                        onSelect = { destination ->
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        },
-    ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = Destination.Tuner.route,
-            modifier = Modifier.padding(padding),
-            enterTransition = { fadeThroughIn() },
-            exitTransition = { fadeThroughOut() },
-            popEnterTransition = { fadeThroughIn() },
-            popExitTransition = { fadeThroughOut() },
-        ) {
-            composable(Destination.Tuner.route) { TunerScreen() }
-            composable(Destination.Chords.route) { ChordFinderScreen() }
-            composable(Destination.Scales.route) { ScalesScreen() }
-            composable(Destination.Metronome.route) { MetronomeScreen() }
-            composable(Destination.Settings.route) { SettingsScreen() }
+    val selectTab: (Destination) -> Unit = { destination ->
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.startDestinationId) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
         }
+    }
+
+    // In landscape the tabs leave the bottom edge for a side rail; like the bar, it hides on Settings.
+    val railSide = railSide().takeIf { current.topLevel }
+    val railInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
+        if (railSide == RailSide.Left) WindowInsetsSides.Left else WindowInsetsSides.Right,
+    )
+
+    Row(Modifier.fillMaxSize().background(pageColor)) {
+        if (railSide == RailSide.Left) SideRail(current, selectTab, railInsets)
+        Scaffold(
+            // The rail already pads its edge for the system bars and cutout, so the top bar and the
+            // content must not pad that side a second time.
+            modifier = Modifier
+                .weight(1f)
+                .then(if (railSide != null) Modifier.consumeWindowInsets(railInsets) else Modifier),
+            containerColor = pageColor,
+            topBar = {
+                TopAppBar(
+                    title = { Text(current.title) },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
+                    navigationIcon = {
+                        if (!current.topLevel) {
+                            // The tonal container matches the grouped-list page in light mode, so the
+                            // button takes the group card color to stay visible on it.
+                            FilledTonalIconButton(
+                                onClick = { navController.popBackStack() },
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = LocalGroupedListColors.current.group,
+                                ),
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    },
+                    actions = {
+                        if (current.topLevel) {
+                            FilledTonalIconButton(onClick = { navController.navigate(Destination.Settings.route) }) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    },
+                )
+            },
+            bottomBar = {
+                if (current.topLevel && railSide == null) {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                    ) {
+                        NavTabs(
+                            current = current,
+                            onSelect = selectTab,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            },
+        ) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = Destination.Tuner.route,
+                modifier = Modifier.padding(padding),
+                enterTransition = { fadeThroughIn() },
+                exitTransition = { fadeThroughOut() },
+                popEnterTransition = { fadeThroughIn() },
+                popExitTransition = { fadeThroughOut() },
+            ) {
+                composable(Destination.Tuner.route) { TunerScreen() }
+                composable(Destination.Chords.route) { ChordFinderScreen() }
+                composable(Destination.Scales.route) { ScalesScreen() }
+                composable(Destination.Metronome.route) { MetronomeScreen() }
+                composable(Destination.Settings.route) { SettingsScreen() }
+            }
+        }
+        if (railSide == RailSide.Right) SideRail(current, selectTab, railInsets)
+    }
+}
+
+private enum class RailSide { Left, Right }
+
+/**
+ * Which edge the landscape rail sits on, or null in portrait. The rail follows the phone's
+ * physical bottom edge (where the bottom bar was, and where 3-button navigation goes), so it
+ * swaps sides when the phone is turned the other way.
+ */
+@Composable
+private fun railSide(): RailSide? {
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val rotation by displayRotation()
+    return when {
+        !landscape -> null
+        rotation == Surface.ROTATION_270 -> RailSide.Left
+        else -> RailSide.Right
+    }
+}
+
+// Turning straight from one landscape to the other is no configuration change (the activity is
+// neither recreated nor told), so the rotation is watched on the display itself.
+@Composable
+private fun displayRotation(): State<Int> {
+    val view = LocalView.current
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val rotation = remember(configuration) { mutableIntStateOf(view.display?.rotation ?: Surface.ROTATION_0) }
+    DisposableEffect(context, view, rotation) {
+        val displays = context.getSystemService(DisplayManager::class.java)
+        val listener = object : DisplayManager.DisplayListener {
+            override fun onDisplayChanged(displayId: Int) {
+                val display = view.display ?: return
+                if (display.displayId == displayId) rotation.intValue = display.rotation
+            }
+
+            override fun onDisplayAdded(displayId: Int) = Unit
+
+            override fun onDisplayRemoved(displayId: Int) = Unit
+        }
+        displays.registerDisplayListener(listener, null)
+        onDispose { displays.unregisterDisplayListener(listener) }
+    }
+    return rotation
+}
+
+@Composable
+private fun SideRail(
+    current: Destination,
+    onSelect: (Destination) -> Unit,
+    windowInsets: WindowInsets,
+) {
+    NavigationRail(
+        containerColor = MaterialTheme.colorScheme.surface,
+        windowInsets = windowInsets.union(WindowInsets.systemBars.only(WindowInsetsSides.Vertical)),
+    ) {
+        // Centred on its edge, like a dock, rather than stacked from the top.
+        Spacer(Modifier.weight(1f))
+        NavRailTabs(current = current, onSelect = onSelect)
+        Spacer(Modifier.weight(1f))
     }
 }
 
@@ -205,6 +302,17 @@ private val TabHeight = 64.dp
 private val TabInset = 4.dp
 private val TabShape = SmoothShape.Full
 
+// The rail is the stock 80 dp wide; its tabs keep the bar's inset on either side.
+private val RailTabWidth = 72.dp
+private val RailSlot = TabHeight + TabInset * 2
+
+@Composable
+private fun animatePillOffset(slot: Dp, index: Int): State<Dp> = animateDpAsState(
+    targetValue = slot * index.coerceAtLeast(0),
+    animationSpec = spring(dampingRatio = PillDamping, stiffness = PillStiffness),
+    label = "navPill",
+)
+
 // Stock NavigationBarItem only puts its indicator behind the icon; here one pill covers icon and
 // label and slides between the equal-width tabs instead of each tab fading its own.
 @Composable
@@ -216,11 +324,7 @@ private fun NavTabs(
     val tabs = Destination.tabs
     BoxWithConstraints(modifier) {
         val slot = maxWidth / tabs.size
-        val pillOffset = animateDpAsState(
-            targetValue = slot * tabs.indexOf(current).coerceAtLeast(0),
-            animationSpec = spring(dampingRatio = PillDamping, stiffness = PillStiffness),
-            label = "navPill",
-        )
+        val pillOffset = animatePillOffset(slot, tabs.indexOf(current))
         Box(
             Modifier
                 .offset { IntOffset(pillOffset.value.roundToPx(), 0) }
@@ -235,7 +339,39 @@ private fun NavTabs(
                     destination = destination,
                     selected = destination == current,
                     onClick = { onSelect(destination) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(horizontal = TabInset),
+                )
+            }
+        }
+    }
+}
+
+// The same tabs and pill stood on end for the landscape rail: fixed-height slots, the pill
+// sliding vertically between them.
+@Composable
+private fun NavRailTabs(
+    current: Destination,
+    onSelect: (Destination) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tabs = Destination.tabs
+    val pillOffset = animatePillOffset(RailSlot, tabs.indexOf(current))
+    Box(modifier) {
+        Box(
+            Modifier
+                .offset { IntOffset(0, pillOffset.value.roundToPx()) }
+                .width(RailTabWidth)
+                .height(RailSlot)
+                .padding(vertical = TabInset)
+                .background(LocalNavBarColors.current.indicator, TabShape),
+        )
+        Column(Modifier.selectableGroup()) {
+            tabs.forEach { destination ->
+                NavTab(
+                    destination = destination,
+                    selected = destination == current,
+                    onClick = { onSelect(destination) },
+                    modifier = Modifier.width(RailTabWidth).padding(vertical = TabInset),
                 )
             }
         }
@@ -267,7 +403,6 @@ private fun NavTab(
     Column(
         modifier = modifier
             .height(TabHeight)
-            .padding(horizontal = TabInset)
             .clip(TabShape)
             .selectable(
                 selected = selected,
