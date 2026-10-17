@@ -231,15 +231,20 @@ fun <T> OptionSheet(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-            options.groupBy { it.section }.forEach { (section, group) ->
+            options.groupBy { it.section }.entries.forEachIndexed { index, (section, group) ->
                 if (section != null) {
+                    // A divider and a bolder title, so a section header can't be mistaken for the
+                    // grey supporting line of the option above it.
                     item(key = "section-$section") {
-                        Text(
-                            text = section,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
+                        Column {
+                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                            Text(
+                                text = section,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                            )
+                        }
                     }
                 }
                 items(group) { option ->

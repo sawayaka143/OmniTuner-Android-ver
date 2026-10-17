@@ -8,7 +8,6 @@ data class ScaleInterval(
 data class Scale(
     val id: String,
     val label: String,
-    val aka: String? = null,
     val group: String,
     val intervals: List<ScaleInterval>,
 )
@@ -25,8 +24,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "major",
         label = "Major",
-        aka = "Ionian",
-        group = "Church modes",
+        group = "Major & minor",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -40,8 +38,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "natural-minor",
         label = "Minor",
-        aka = "Aeolian",
-        group = "Church modes",
+        group = "Major & minor",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -55,7 +52,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "harmonic-minor",
         label = "Harmonic minor",
-        group = "Minor family",
+        group = "Major & minor",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -69,7 +66,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "melodic-minor",
         label = "Melodic minor",
-        group = "Minor family",
+        group = "Major & minor",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -83,7 +80,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "dorian",
         label = "Dorian",
-        group = "Church modes",
+        group = "Modes",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -97,7 +94,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "phrygian",
         label = "Phrygian",
-        group = "Church modes",
+        group = "Modes",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(1, "♭2"),
@@ -111,7 +108,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "lydian",
         label = "Lydian",
-        group = "Church modes",
+        group = "Modes",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -125,7 +122,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "mixolydian",
         label = "Mixolydian",
-        group = "Church modes",
+        group = "Modes",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(2, "2"),
@@ -139,7 +136,7 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "locrian",
         label = "Locrian",
-        group = "Church modes",
+        group = "Modes",
         intervals = listOf(
             ScaleInterval(0, "1"),
             ScaleInterval(1, "♭2"),
@@ -153,7 +150,6 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "major-pentatonic",
         label = "Major pentatonic",
-        aka = "5 notes",
         group = "Pentatonic & blues",
         intervals = listOf(
             ScaleInterval(0, "1"),
@@ -166,7 +162,6 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "minor-pentatonic",
         label = "Minor pentatonic",
-        aka = "5 notes",
         group = "Pentatonic & blues",
         intervals = listOf(
             ScaleInterval(0, "1"),
@@ -179,7 +174,6 @@ val SCALES: List<Scale> = listOf(
     Scale(
         id = "blues",
         label = "Blues",
-        aka = "6 notes",
         group = "Pentatonic & blues",
         intervals = listOf(
             ScaleInterval(0, "1"),
