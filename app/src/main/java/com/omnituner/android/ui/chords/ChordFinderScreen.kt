@@ -569,11 +569,14 @@ private fun ChordCard(
             }
             val fingering = @Composable { k: Int, shape: VoicingShape, blockModifier: Modifier ->
                 Column(modifier = blockModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
+                    // Only worth naming when there are several to tell apart.
+                    if (entry.shapes.size > 1) {
+                        Text(
                             text = "FINGERING ${k + 1}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
                     val playable = Modifier
                         .clip(MaterialTheme.shapes.small)
                         .clickable(onClickLabel = "Play") { onPlay(shape) }

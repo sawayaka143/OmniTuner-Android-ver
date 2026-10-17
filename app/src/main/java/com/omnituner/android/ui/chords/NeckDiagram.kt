@@ -1,8 +1,6 @@
 package com.omnituner.android.ui.chords
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -14,31 +12,26 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
 import com.omnituner.android.data.DiagramLabels
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalStatusColors
 import com.omnituner.core.theory.DEGREE_LABELS
 import com.omnituner.core.theory.ParsedTuning
-import com.omnituner.core.theory.midiName
 import com.omnituner.core.theory.mod12
+import com.omnituner.core.theory.pcName
 
 // The web NeckDiagram's geometry, in its SVG units; the canvas scales them to the width it gets.
 private const val ROW = 24f
 private const val COL = 30f
-private const val LEFT = 40f
+private const val LEFT = 22f
 private const val IND = 26f
-private const val RIGHT = 34f
 private const val PAD = 8f
-private const val TOP = 24f
+private const val TOP = 6f
 private const val BOT = 18f
 private const val RING = 9f
 private const val MIN_COLUMNS = 4
@@ -80,14 +73,15 @@ private enum class Anchor { Start, Center, End }
  */
 fun neckDiagramColumnsFor(aspect: Float, strings: Int): Int {
     val widthUnits = aspect * (TOP + strings * ROW + BOT)
-    return ((widthUnits - LEFT - IND - RIGHT - PAD) / COL).toInt().coerceAtLeast(MIN_COLUMNS)
+    return ((widthUnits - LEFT - IND - PAD) / COL).toInt().coerceAtLeast(MIN_COLUMNS)
 }
 
 /**
  * One fingering on a horizontal neck, lowest string at the bottom: tuning labels on the left, an
- * open/mute column, the fretted window (at least four frets, a nut when it starts at fret 1),
- * fret numbers underneath and each note's name or degree at the right edge. [minColumns] widens
- * the window (to the right, never past the last fret) to fill a wide box.
+ * open/mute column and the fretted window (at least four frets, a nut when it starts at fret 1).
+ * Each ring holds its note's name or degree; fret numbers mark only the inlay frets and, away from
+ * the nut, the window's first fret. [minColumns] widens the window (to the right, never past the
+ * last fret) to fill a wide box.
  */
 @Composable
 fun NeckDiagram(
@@ -109,7 +103,7 @@ fun NeckDiagram(
     val cols = hi - lo + 1
     val gridL = LEFT + IND
     val gridR = gridL + cols * COL
-    val width = gridR + RIGHT + PAD
+    val width = gridR + PAD
     val height = TOP + n * ROW + BOT
     val yTop = TOP
     val yBot = TOP + n * ROW
@@ -134,14 +128,11 @@ fun NeckDiagram(
         ringText = scheme.onSurface,
     )
     val measurer = rememberTextMeasurer()
-    val shape = MaterialTheme.shapes.small
 
     Canvas(
         modifier = modifier
             // Fills the width, unless a bounded height runs out first; then it fits the height.
             .aspectRatio(width / height)
-            .background(scheme.surfaceContainerLow, shape)
-            .border(1.dp, colors.subtle, shape)
             .semantics { contentDescription = "$symbol fingering ${index + 1}" },
     ) {
         val unit = size.width / width
@@ -150,14 +141,6 @@ fun NeckDiagram(
             drawLabel(measurer, text, Offset(u(x), u(y)), u(sizeUnits), color, weight, anchor)
         fun label(text: String, x: Float, y: Float, sizeUnits: Float, color: Color, weight: FontWeight = FontWeight.Normal, anchor: Anchor = Anchor.Center) =
             label(AnnotatedString(text), x, y, sizeUnits, color, weight, anchor)
-
-        val header = buildAnnotatedString {
-            append(symbol)
-            withStyle(SpanStyle(color = colors.dim, fontWeight = FontWeight.Normal, fontSize = (u(8f)).toSp())) {
-                append("  #${index + 1}")
-            }
-        }
-        label(header, 10f, 11f, 11f, colors.root, FontWeight.Bold, Anchor.Start)
 
         for (f in lo until lo + cols) {
             val cx = u(fretX(f))
@@ -184,12 +167,13 @@ fun NeckDiagram(
             val y = u(stringY(s))
             drawLine(colors.medium, Offset(u(gridL - 26), y), Offset(u(gridR), y), strokeWidth = u(1f))
             val muted = frets.getOrNull(s) == null
-            label(tuning.labels[s], gridL - 30, stringY(s), 8f, if (muted) colors.dim else colors.label, anchor = Anchor.End)
+            label(pcName(mod12(tuning.midi[s]), tuning.flats), gridL - 30, stringY(s), 8f, if (muted) colors.dim else colors.label, anchor = Anchor.End)
         }
 
         val axisY = yBot + BOT / 2 + 1
-        if (frets.any { it == 0 }) label("0", indCx, axisY, 8f, colors.dim)
-        for (k in 0..cols) label("${lo + k}", gridL + k * COL + COL / 2, axisY, 8f, colors.dim)
+        for (f in lo until lo + cols) {
+            if (f in INLAY_SINGLE || f in INLAY_DOUBLE || (f == lo && lo > 1)) label("$f", fretX(f), axisY, 8f, colors.dim)
+        }
 
         for (s in 0 until n) {
             val fret = frets.getOrNull(s)
@@ -205,12 +189,11 @@ fun NeckDiagram(
             val center = Offset(u(x), u(y))
             drawCircle(colors.ring, u(RING), center)
             drawCircle(color, u(RING), center, style = Stroke(width = u(2f)))
-            label("$fret", x, y, 9f, colors.ringText, FontWeight.Bold)
-            val edge = when (labels) {
-                DiagramLabels.Notes -> midiName(midi, flats)
+            val name = when (labels) {
+                DiagramLabels.Notes -> pcName(mod12(midi), flats)
                 DiagramLabels.Degrees -> DEGREE_LABELS[degree]
             }
-            label(edge, gridR + 30, y, 9f, color, anchor = Anchor.End)
+            label(name, x, y, 9f, colors.ringText, FontWeight.Bold)
         }
     }
 }

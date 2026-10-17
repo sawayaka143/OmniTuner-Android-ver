@@ -307,14 +307,15 @@ internal fun resolveToken(token: String, tonicPc: Int): ChordParseResult {
     return parseChord(symbol) as? ChordParseResult.Ok ?: direct
 }
 
-/** "B min · tones B D F#", optional tones in parentheses. */
+/** "min · B D F#", optional tones in parentheses. */
 internal fun chordTonesLabel(chord: ParsedChord, flats: Boolean): String {
     val optional = chord.optionalPcs.toSet()
     val tones = chord.pcs.joinToString(" ") { pc ->
         val name = pcName(pc, flats)
         if (pc in optional) "($name)" else name
     }
-    return "${pcName(chord.rootPc, flats)} ${chord.quality} · tones $tones"
+    // The root is already in the card title, so only the quality leads the tones.
+    return "${chord.quality} · $tones"
 }
 
 internal data class TabRow(val label: String, val padLeft: Int, val symbol: String, val padRight: Int, val muted: Boolean)

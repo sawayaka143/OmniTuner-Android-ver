@@ -34,8 +34,8 @@ class ChordFinderHelpersTest {
 
     @Test
     fun chordTonesMarkOptionalTones() {
-        assertEquals("B min · tones B D F#", chordTonesLabel(resolved("Bm", 0), flats = false))
-        assertEquals("C 13 · tones C E G Bb D (A)", chordTonesLabel(resolved("C13", 0), flats = true))
+        assertEquals("min · B D F#", chordTonesLabel(resolved("Bm", 0), flats = false))
+        assertEquals("13 · C E G Bb D (A)", chordTonesLabel(resolved("C13", 0), flats = true))
     }
 
     @Test
