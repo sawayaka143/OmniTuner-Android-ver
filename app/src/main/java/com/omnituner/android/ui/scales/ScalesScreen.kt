@@ -3,6 +3,7 @@ package com.omnituner.android.ui.scales
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -60,18 +61,34 @@ import com.omnituner.core.theory.noteName
 fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
     val ui by viewModel.ui.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        // The map comes first so a scale or root change below shows on the board without scrolling.
-        ScaleMapCard(ui = ui, viewModel = viewModel)
-        ScaleCard(ui = ui, viewModel = viewModel)
-        DisplayCard(ui = ui, viewModel = viewModel)
-        InstrumentCard(ui = ui, viewModel = viewModel)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val wide = maxWidth > maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // The map comes first so a scale or root change below shows on the board without scrolling.
+            ScaleMapCard(ui = ui, viewModel = viewModel)
+            if (wide) {
+                // Landscape: the board keeps the full width; the cards under it pair up side by side.
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        ScaleCard(ui = ui, viewModel = viewModel)
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        DisplayCard(ui = ui, viewModel = viewModel)
+                        InstrumentCard(ui = ui, viewModel = viewModel)
+                    }
+                }
+            } else {
+                ScaleCard(ui = ui, viewModel = viewModel)
+                DisplayCard(ui = ui, viewModel = viewModel)
+                InstrumentCard(ui = ui, viewModel = viewModel)
+            }
+        }
     }
 }
 
