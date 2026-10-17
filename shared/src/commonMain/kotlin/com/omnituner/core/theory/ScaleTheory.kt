@@ -55,7 +55,9 @@ fun computeFretboard(
     intervals: List<ScaleInterval>,
     preferFlats: Boolean,
     openMidiNotes: List<Int>? = null,
+    rootPitchClass: Int = 0,
 ): List<List<FretCell>> {
+    // Intervals are relative to the root, so look cells up by their distance from it.
     val intervalMap = intervalByPitchClass(intervals)
 
     val board = mutableListOf<List<FretCell>>()
@@ -64,7 +66,7 @@ fun computeFretboard(
         val row = mutableListOf<FretCell>()
         for (fret in 0..fretCount) {
             val pitchClass = (((openPc + fret) % 12) + 12) % 12
-            val interval = intervalMap[pitchClass]
+            val interval = intervalMap[(((pitchClass - rootPitchClass) % 12) + 12) % 12]
             row.add(
                 FretCell(
                     stringIndex = stringIndex,

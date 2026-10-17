@@ -164,4 +164,16 @@ class ScaleTheoryTest {
         assertEquals(66, board[0][2].midi)
         assertEquals(40, board[5][0].midi)
     }
+
+    @Test
+    fun computeFretboardFollowsRoot() {
+        // G major: G is the root, F# is in, F is out.
+        val board = computeFretboard(listOf(4, 11, 7, 2, 9, 4), 12, majorIntervals, false, rootPitchClass = 7)
+        val lowE = board[5]
+        assertTrue(lowE[3].isRoot)
+        assertEquals("R", lowE[3].interval?.label)
+        assertEquals("maj7", lowE[2].interval?.label)
+        assertNull(lowE[1].interval)
+        assertFalse(lowE[8].isRoot)
+    }
 }

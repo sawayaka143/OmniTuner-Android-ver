@@ -200,6 +200,7 @@ class ScalesViewModel(application: Application) : AndroidViewModel(application) 
             intervals = scale.intervals,
             preferFlats = settings.accidental == Accidental.Flat,
             openMidiNotes = midiNotes.reversed(),
+            rootPitchClass = settings.rootPitchClass,
         )
     }
 }
