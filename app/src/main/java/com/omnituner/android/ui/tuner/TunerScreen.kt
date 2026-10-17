@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -295,72 +295,100 @@ private fun TuningMenu(
             }
         }
         PullDownMenu(expanded = expanded, onDismissRequest = close) {
-            state.catalog.forEachIndexed { index, entry ->
-                if (index > 0) PullDownMenuDivider()
-                PullDownMenuSection(entry.instrument.menuTitle())
-                entry.tunings.forEach { tuning ->
-                    val selected = entry.instrument.id == state.instrument.id && tuning.id == state.tuning.id
-                    val editable = tuning.isCustom && tuning.id != "${entry.instrument.id}-default"
-                    PullDownMenuItem(
-                        text = tuning.label,
-                        selected = selected,
-                        onClick = {
-                            close()
-                            onTuningPicked(entry.instrument.id, tuning.id)
-                        },
-                        trailing = if (editable) {
-                            {
-                                Row {
-                                    IconButton(onClick = {
-                                        close()
-                                        onTuningPicked(entry.instrument.id, tuning.id)
-                                        onEditTuning(tuning)
-                                    }) {
-                                        Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}", tint = MaterialTheme.colorScheme.onSurface)
-                                    }
-                                    IconButton(onClick = { onDeleteTuning(tuning.id) }) {
-                                        Icon(
-                                            Icons.Filled.Delete,
-                                            contentDescription = "Delete ${tuning.label}",
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            null
-                        },
-                    )
-                }
-            }
-            PullDownMenuDivider()
-            PullDownMenuItem(
-                text = "New tuning for ${state.instrument.label}…",
-                icon = Icons.Filled.Add,
-                onClick = {
-                    close()
-                    onNewTuning()
-                },
+            TuningMenuItems(
+                state = state,
+                onTuningPicked = onTuningPicked,
+                onEditTuning = onEditTuning,
+                onDeleteTuning = onDeleteTuning,
+                onNewTuning = onNewTuning,
+                onNewInstrument = onNewInstrument,
+                onManageInstruments = onManageInstruments,
+                close = close,
             )
-            PullDownMenuItem(
-                text = "New instrument…",
-                icon = Icons.Filled.Add,
-                onClick = {
-                    close()
-                    onNewInstrument()
-                },
-            )
-            if (state.catalog.any { it.instrument.isCustom }) {
-                PullDownMenuItem(
-                    text = "Manage instruments…",
-                    icon = Icons.Filled.Tune,
-                    onClick = {
-                        close()
-                        onManageInstruments()
-                    },
-                )
-            }
         }
+    }
+}
+
+/**
+ * The tuning menu's rows: each instrument's tunings (custom ones with edit and delete), then the
+ * New tuning / New instrument / Manage actions. Shown in the pull-down upright, and unfolded into
+ * the panel in landscape, where there is room for the list itself.
+ */
+@Composable
+private fun TuningMenuItems(
+    state: TunerUiState,
+    onTuningPicked: (instrumentId: String, tuningId: String) -> Unit,
+    onEditTuning: (Tuning) -> Unit,
+    onDeleteTuning: (String) -> Unit,
+    onNewTuning: () -> Unit,
+    onNewInstrument: () -> Unit,
+    onManageInstruments: () -> Unit,
+    close: () -> Unit,
+) {
+    state.catalog.forEachIndexed { index, entry ->
+        if (index > 0) PullDownMenuDivider()
+        PullDownMenuSection(entry.instrument.menuTitle())
+        entry.tunings.forEach { tuning ->
+            val selected = entry.instrument.id == state.instrument.id && tuning.id == state.tuning.id
+            val editable = tuning.isCustom && tuning.id != "${entry.instrument.id}-default"
+            PullDownMenuItem(
+                text = tuning.label,
+                selected = selected,
+                onClick = {
+                    close()
+                    onTuningPicked(entry.instrument.id, tuning.id)
+                },
+                trailing = if (editable) {
+                    {
+                        Row {
+                            IconButton(onClick = {
+                                close()
+                                onTuningPicked(entry.instrument.id, tuning.id)
+                                onEditTuning(tuning)
+                            }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}", tint = MaterialTheme.colorScheme.onSurface)
+                            }
+                            IconButton(onClick = { onDeleteTuning(tuning.id) }) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete ${tuning.label}",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    null
+                },
+            )
+        }
+    }
+    PullDownMenuDivider()
+    PullDownMenuItem(
+        text = "New tuning for ${state.instrument.label}…",
+        icon = Icons.Filled.Add,
+        onClick = {
+            close()
+            onNewTuning()
+        },
+    )
+    PullDownMenuItem(
+        text = "New instrument…",
+        icon = Icons.Filled.Add,
+        onClick = {
+            close()
+            onNewInstrument()
+        },
+    )
+    if (state.catalog.any { it.instrument.isCustom }) {
+        PullDownMenuItem(
+            text = "Manage instruments…",
+            icon = Icons.Filled.Tune,
+            onClick = {
+                close()
+                onManageInstruments()
+            },
+        )
     }
 }
 
@@ -470,19 +498,35 @@ private fun TunerPanel(
     ) {
         BoxWithConstraints {
             if (maxWidth > maxHeight) {
-                // Landscape: the readout takes the left half at full height; the tuning menu and the
-                // strings line the right half's top and bottom edges, as they line the panel upright.
-                Row(modifier = Modifier.fillMaxSize()) {
+                // Landscape: the strings run down the left edge (highest on top, as on the Scales
+                // board), the readout takes the middle, and the tuning menu unfolds into a list on
+                // the right, under the Auto switch.
+                Row(modifier = Modifier.fillMaxSize().padding(PanelHeaderInset)) {
+                    StringColumn(state = state, onSelect = onSelectString)
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content() }
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(top = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
-                    ) {
-                        header(Modifier)
-                        Spacer(Modifier.weight(1f))
-                        StringRow(state = state, onSelect = onSelectString, wrap = true)
+                    Column(modifier = Modifier.width(TuningListWidth).fillMaxHeight()) {
+                        AutoSwitch(
+                            auto = state.mode == TunerMode.Auto,
+                            onModeChange = onModeChange,
+                            modifier = Modifier.align(Alignment.End),
+                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(TuningMenuShape)
+                                .verticalScroll(rememberScrollState()),
+                        ) {
+                            TuningMenuItems(
+                                state = state,
+                                onTuningPicked = onTuningPicked,
+                                onEditTuning = onEditTuning,
+                                onDeleteTuning = onDeleteTuning,
+                                onNewTuning = onNewTuning,
+                                onNewInstrument = onNewInstrument,
+                                onManageInstruments = onManageInstruments,
+                                close = {},
+                            )
+                        }
                     }
                 }
             } else {
@@ -687,61 +731,77 @@ private val StringButtonMinWidth = 48.dp
 private val StringButtonScrollWidth = 56.dp
 private val StringButtonSpacing = 8.dp
 
-/**
- * The tuning's strings, low to high. With [wrap] (the narrower landscape column) strings that
- * don't fit one row at the minimum size break into as few even rows as do, instead of scrolling.
- */
+// Upright the row has the width to spare; down the landscape edge six strings must share the
+// panel's height, so the circles may come out a little smaller there.
+private val StringColumnMin = 40.dp
+
+// The pull-down's own max width, so the unfolded list reads the same as the menu.
+private val TuningListWidth = 280.dp
+
 @Composable
 private fun StringRow(
     state: TunerUiState,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    wrap: Boolean = false,
 ) {
     val strings = state.tuning.strings
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val count = strings.size
-        fun share(perRow: Int) = (maxWidth - StringButtonSpacing * (perRow - 1)) / perRow
-        val rows = if (wrap) {
-            (1..count).firstOrNull { lines -> share(ceilDiv(count, lines)) >= StringButtonMinWidth } ?: 1
-        } else {
-            1
-        }
-        val perRow = ceilDiv(count, rows)
         // Circles as large as an even share of the row allows, up to the scroll width; below the
         // minimum the row scrolls instead.
-        val fits = share(perRow) >= StringButtonMinWidth
-        val size = if (fits) share(perRow).coerceAtMost(StringButtonScrollWidth) else StringButtonScrollWidth
-        val button = @Composable { index: Int ->
-            val string = strings[index]
-            val active = state.activeIndex == index
-            StringButton(
-                label = string.name,
-                selected = active,
-                tuned = (state.tuned && active) || string.name in state.tunedStrings,
-                onClick = { onSelect(index) },
-                size = size,
-            )
+        val share = (maxWidth - StringButtonSpacing * (count - 1)) / count
+        val fits = share >= StringButtonMinWidth
+        val size = if (fits) share.coerceAtMost(StringButtonScrollWidth) else StringButtonScrollWidth
+        Row(
+            modifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = if (fits) Arrangement.SpaceBetween else Arrangement.spacedBy(StringButtonSpacing),
+        ) {
+            strings.forEachIndexed { index, _ -> StringButtonFor(state, index, onSelect, size) }
         }
-        if (rows > 1) {
-            Column(verticalArrangement = Arrangement.spacedBy(StringButtonSpacing)) {
-                strings.indices.chunked(perRow).forEach { line ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        line.forEach { button(it) }
-                        // A short last row keeps the columns of the rows above it.
-                        repeat(perRow - line.size) { Spacer(Modifier.size(size)) }
-                    }
+    }
+}
+
+/**
+ * Landscape: the strings stood on end down the panel's edge, highest on top. They share the height
+ * the way the row shares its width; when they would come out smaller than [StringColumnMin] they
+ * split into as few even columns as fit, the highest strings in the first.
+ */
+@Composable
+private fun StringColumn(
+    state: TunerUiState,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val count = state.tuning.strings.size
+    BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
+        fun share(perColumn: Int) = (maxHeight - StringButtonSpacing * (perColumn - 1)) / perColumn
+        val columns = (1..count).firstOrNull { n -> share(ceilDiv(count, n)) >= StringColumnMin } ?: count
+        val perColumn = ceilDiv(count, columns)
+        val size = share(perColumn).coerceAtMost(StringButtonScrollWidth)
+        Row(horizontalArrangement = Arrangement.spacedBy(StringButtonSpacing)) {
+            (count - 1 downTo 0).chunked(perColumn).forEach { line ->
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    verticalArrangement = if (columns == 1) Arrangement.SpaceBetween else Arrangement.spacedBy(StringButtonSpacing),
+                ) {
+                    line.forEach { index -> StringButtonFor(state, index, onSelect, size) }
                 }
-            }
-        } else {
-            Row(
-                modifier = if (fits) Modifier.fillMaxWidth() else Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = if (fits) Arrangement.SpaceBetween else Arrangement.spacedBy(StringButtonSpacing),
-            ) {
-                strings.indices.forEach { button(it) }
             }
         }
     }
+}
+
+@Composable
+private fun StringButtonFor(state: TunerUiState, index: Int, onSelect: (Int) -> Unit, size: Dp) {
+    val string = state.tuning.strings[index]
+    val active = state.activeIndex == index
+    StringButton(
+        label = string.name,
+        selected = active,
+        tuned = (state.tuned && active) || string.name in state.tunedStrings,
+        onClick = { onSelect(index) },
+        size = size,
+    )
 }
 
 private fun ceilDiv(a: Int, b: Int) = (a + b - 1) / b
