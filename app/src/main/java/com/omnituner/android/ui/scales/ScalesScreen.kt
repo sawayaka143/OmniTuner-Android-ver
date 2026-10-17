@@ -39,6 +39,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.height
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.Accidental
 import com.omnituner.android.data.FRET_COUNT_OPTIONS
@@ -63,6 +66,8 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val wide = maxWidth > maxHeight
+        // The page padding on both ends leaves this much for a card that fills the screen.
+        val screenCardHeight = maxHeight - 32.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -71,7 +76,8 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // The map comes first so a scale or root change below shows on the board without scrolling.
-            ScaleMapCard(ui = ui, viewModel = viewModel)
+            // In landscape it fills the screen exactly: the cards wait below it.
+            ScaleMapCard(ui = ui, viewModel = viewModel, fitHeight = if (wide) screenCardHeight else null)
             if (wide) {
                 // Landscape: the board keeps the full width; the cards under it pair up side by side.
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -93,29 +99,53 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
 }
 
 @Composable
-private fun ScaleMapCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
+private fun ScaleMapCard(ui: ScalesUiState, viewModel: ScalesViewModel, fitHeight: Dp? = null) {
     val settings = ui.settings
     val flats = settings.accidental == Accidental.Flat
     val scale = SCALES.firstOrNull { it.id == settings.scaleId } ?: SCALES.first()
     val title = "${noteName(settings.rootPitchClass, flats)} ${scale.label}"
+    val tuningLine = "${ui.tuning.label} · ${ui.tuning.strings.joinToString(" ") { it.name }}"
+    // Fitted (landscape): the tuning shares the title's line and the tone row is left out, so the
+    // board gets every bit of height the card can spare.
+    val fitted = fitHeight != null
 
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = Modifier.fillMaxWidth().then(if (fitHeight != null) Modifier.height(fitHeight) else Modifier)) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (fitted) 12.dp else 16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "${ui.tuning.label} · ${ui.tuning.strings.joinToString(" ") { it.name }}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                if (fitted) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.alignByBaseline(),
+                        )
+                        Text(
+                            text = tuningLine,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 12.dp).alignByBaseline(),
+                        )
+                    }
+                } else {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = tuningLine,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 FilledTonalButton(onClick = viewModel::togglePlayScale, shape = SmoothShape.Full) {
                     Icon(
@@ -133,11 +163,12 @@ private fun ScaleMapCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
                 showOutside = settings.showOutsideScale,
                 sounding = ui.sounding,
                 onCellTap = viewModel::playCell,
-                modifier = Modifier.semantics {
-                    contentDescription = "Fretboard showing $title, highest string on top"
-                },
+                fitHeight = fitted,
+                modifier = Modifier
+                    .then(if (fitted) Modifier.weight(1f) else Modifier)
+                    .semantics { contentDescription = "Fretboard showing $title, highest string on top" },
             )
-            ScaleTones(ui = ui, onPlay = viewModel::playTone)
+            if (!fitted) ScaleTones(ui = ui, onPlay = viewModel::playTone)
         }
     }
 }

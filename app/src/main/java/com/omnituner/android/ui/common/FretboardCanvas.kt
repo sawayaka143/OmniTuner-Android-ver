@@ -49,6 +49,9 @@ private val NUT_WIDTH = 4.dp
 private val MIN_FIT_COLUMN = 26.dp
 private val SCROLL_COLUMN = 34.dp
 private val MAX_DOT_RADIUS = 14.dp
+// Rows when the board is fitted to a given height (fitHeight), so it neither cramps nor balloons.
+private val MIN_FIT_ROW = 22.dp
+private val MAX_FIT_ROW = 48.dp
 
 private fun rowHeightFor(strings: Int): Dp = when {
     strings <= 6 -> 36.dp
@@ -81,6 +84,7 @@ class SoundingNote(val midi: Int, val stringIndex: Int?, val fret: Int?)
  * open strings in a pinned column left of the nut, frets to the right (scrolling sideways when
  * they don't fit), fret numbers underneath. Scale tones are rings with the note or degree inside,
  * the root is filled with the accent, and [sounding] lights the one position being played.
+ * With [fitHeight] the rows share the height the board is given instead of their fixed size.
  */
 @Composable
 fun FretboardCanvas(
@@ -90,12 +94,11 @@ fun FretboardCanvas(
     sounding: SoundingNote?,
     onCellTap: (FretCell) -> Unit,
     modifier: Modifier = Modifier,
+    fitHeight: Boolean = false,
 ) {
     if (board.isEmpty()) return
     val strings = board.size
     val fretCount = board.first().size - 1
-    val rowHeight = rowHeightFor(strings)
-    val height = TOP_PAD + rowHeight * strings + AXIS_HEIGHT
 
     val scheme = MaterialTheme.colorScheme
     val accentColors = LocalAccentColors.current
@@ -132,6 +135,12 @@ fun FretboardCanvas(
             .background(colors.panel)
             .border(1.dp, colors.fret, shape),
     ) {
+        val rowHeight = if (fitHeight) {
+            ((maxHeight - TOP_PAD - AXIS_HEIGHT) / strings).coerceIn(MIN_FIT_ROW, MAX_FIT_ROW)
+        } else {
+            rowHeightFor(strings)
+        }
+        val height = TOP_PAD + rowHeight * strings + AXIS_HEIGHT
         val fitColumn = (maxWidth - OPEN_WIDTH) / fretCount
         val column = if (fitColumn >= MIN_FIT_COLUMN) fitColumn else SCROLL_COLUMN
         val radius = minOf(column * 0.42f, rowHeight * 0.4f, MAX_DOT_RADIUS)
