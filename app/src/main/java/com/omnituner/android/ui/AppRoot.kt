@@ -138,14 +138,18 @@ fun AppRoot() {
         }
     }
 
+    val openSettings = { navController.navigate(Destination.Settings.route) }
+
     // In landscape the tabs leave the bottom edge for a side rail; like the bar, it hides on Settings.
+    // The rail also takes over the top bar there (it already names the page, and holds the Settings
+    // button), so the screens get the full height.
     val railSide = railSide().takeIf { current.topLevel }
     val railInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
         if (railSide == RailSide.Left) WindowInsetsSides.Left else WindowInsetsSides.Right,
     )
 
     Row(Modifier.fillMaxSize().background(pageColor)) {
-        if (railSide == RailSide.Left) SideRail(current, selectTab, railInsets)
+        if (railSide == RailSide.Left) SideRail(current, selectTab, openSettings, railInsets)
         Scaffold(
             // The rail already pads its edge for the system bars and cutout, so the top bar and the
             // content must not pad that side a second time.
@@ -153,8 +157,10 @@ fun AppRoot() {
                 .weight(1f)
                 .then(if (railSide != null) Modifier.consumeWindowInsets(railInsets) else Modifier),
             containerColor = pageColor,
+            // The cutout too: in landscape the camera sits on a side edge, beside the content.
+            contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
             topBar = {
-                TopAppBar(
+                if (railSide == null) TopAppBar(
                     title = { Text(current.title) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
                     navigationIcon = {
@@ -173,9 +179,7 @@ fun AppRoot() {
                     },
                     actions = {
                         if (current.topLevel) {
-                            FilledTonalIconButton(onClick = { navController.navigate(Destination.Settings.route) }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
-                            }
+                            SettingsButton(onClick = openSettings)
                         }
                     },
                 )
@@ -211,7 +215,14 @@ fun AppRoot() {
                 composable(Destination.Settings.route) { SettingsScreen() }
             }
         }
-        if (railSide == RailSide.Right) SideRail(current, selectTab, railInsets)
+        if (railSide == RailSide.Right) SideRail(current, selectTab, openSettings, railInsets)
+    }
+}
+
+@Composable
+private fun SettingsButton(onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick) {
+        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -263,10 +274,12 @@ private fun displayRotation(): State<Int> {
 private fun SideRail(
     current: Destination,
     onSelect: (Destination) -> Unit,
+    onSettings: () -> Unit,
     windowInsets: WindowInsets,
 ) {
     NavigationRail(
         containerColor = MaterialTheme.colorScheme.surface,
+        header = { SettingsButton(onClick = onSettings) },
         windowInsets = windowInsets.union(WindowInsets.systemBars.only(WindowInsetsSides.Vertical)),
     ) {
         // Centred on its edge, like a dock, rather than stacked from the top.
