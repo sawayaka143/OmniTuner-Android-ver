@@ -31,6 +31,8 @@ private const val COL = 30f
 private const val LEFT = 22f
 private const val IND = 26f
 private const val PAD = 8f
+// Gap between the open column and a window that starts above fret 1 while strings still ring open.
+private const val BREAK = 10f
 private const val TOP = 6f
 private const val BOT = 18f
 private const val RING = 9f
@@ -78,7 +80,9 @@ fun neckDiagramColumnsFor(aspect: Float, strings: Int): Int {
 
 /**
  * One fingering on a horizontal neck, lowest string at the bottom: tuning labels on the left, an
- * open/mute column and the fretted window (at least four frets, a nut when it starts at fret 1).
+ * open/mute column and the fretted window (at least four frets). The window starts at the nut
+ * whenever every fretted note fits in it from there; a higher shape that also rings open strings
+ * gets a break (a gap and a doubled edge) between them, so its first fret never reads as fret 1.
  * Each ring holds its note's name or degree; fret numbers mark only the inlay frets and, away from
  * the nut, the window's first fret. [minColumns] widens the window (to the right, never past the
  * last fret) to fill a wide box.
@@ -97,11 +101,14 @@ fun NeckDiagram(
 ) {
     val n = tuning.midi.size
     val fretted = frets.filterNotNull().filter { it > 0 }
-    val lo = maxOf(1, fretted.minOrNull() ?: 1)
-    val reach = minOf(lo + maxOf(minColumns, MIN_COLUMNS) - 1, maxOf(LAST_FRET, lo + MIN_COLUMNS - 1))
+    val window = maxOf(minColumns, MIN_COLUMNS)
+    // Open strings only read right against the nut, so start there whenever the shape fits.
+    val lo = if ((fretted.maxOrNull() ?: 0) <= window) 1 else fretted.min()
+    val reach = minOf(lo + window - 1, maxOf(LAST_FRET, lo + MIN_COLUMNS - 1))
     val hi = maxOf(fretted.maxOrNull() ?: lo, reach)
     val cols = hi - lo + 1
-    val gridL = LEFT + IND
+    val broken = lo > 1 && frets.any { it == 0 }
+    val gridL = LEFT + IND + if (broken) BREAK else 0f
     val gridR = gridL + cols * COL
     val width = gridR + PAD
     val height = TOP + n * ROW + BOT
@@ -162,12 +169,21 @@ fun NeckDiagram(
             }
             drawLine(color, Offset(x, u(yTop - 2)), Offset(x, u(yBot + 2)), strokeWidth = u(if (nut) 4f else 1f))
         }
+        if (broken) {
+            val x = u(gridL - 3)
+            drawLine(colors.medium, Offset(x, u(yTop - 2)), Offset(x, u(yBot + 2)), strokeWidth = u(1f))
+        }
 
         for (s in 0 until n) {
             val y = u(stringY(s))
-            drawLine(colors.medium, Offset(u(gridL - 26), y), Offset(u(gridR), y), strokeWidth = u(1f))
+            if (broken) {
+                drawLine(colors.medium, Offset(u(LEFT), y), Offset(u(LEFT + IND), y), strokeWidth = u(1f))
+                drawLine(colors.medium, Offset(u(gridL), y), Offset(u(gridR), y), strokeWidth = u(1f))
+            } else {
+                drawLine(colors.medium, Offset(u(LEFT), y), Offset(u(gridR), y), strokeWidth = u(1f))
+            }
             val muted = frets.getOrNull(s) == null
-            label(pcName(mod12(tuning.midi[s]), tuning.flats), gridL - 30, stringY(s), 8f, if (muted) colors.dim else colors.label, anchor = Anchor.End)
+            label(pcName(mod12(tuning.midi[s]), tuning.flats), LEFT - 4, stringY(s), 8f, if (muted) colors.dim else colors.label, anchor = Anchor.End)
         }
 
         val axisY = yBot + BOT / 2 + 1
