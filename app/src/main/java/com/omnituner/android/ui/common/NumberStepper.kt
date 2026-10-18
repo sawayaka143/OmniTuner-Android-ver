@@ -47,6 +47,8 @@ fun NumberStepper(
                 Text(
                     text = valueText,
                     style = MaterialTheme.typography.titleMedium,
+                    // ListItem's trailing slot tints onSurfaceVariant, which reads as disabled.
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(min = 80.dp),
                 )

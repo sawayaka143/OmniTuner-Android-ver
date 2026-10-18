@@ -104,11 +104,12 @@ private sealed interface TunerDialog {
     data object ManageInstruments : TunerDialog
 }
 
-private fun newInstrumentDraft() = InstrumentDraft(
+private fun newInstrumentDraft(instruments: List<Instrument>) = InstrumentDraft(
     editingId = null,
     name = "",
     stringCount = GUITAR_STANDARD_NOTES.size,
     notes = GUITAR_STANDARD_NOTES,
+    baseId = instruments.firstOrNull { it.defaultNotes() == GUITAR_STANDARD_NOTES }?.id,
 )
 
 private fun Context.hasRecordPermission(): Boolean =
@@ -199,13 +200,13 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             onModeChange = viewModel::selectMode,
             onTuningPicked = viewModel::selectTuning,
             onEditTuning = { tuning: Tuning ->
-                dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes()))
+                dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes(), tuning.id))
             },
             onDeleteTuning = viewModel::deleteCustomTuning,
             onNewTuning = {
-                dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes()))
+                dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes(), state.tuning.id))
             },
-            onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft()) },
+            onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft(state.instruments)) },
             onManageInstruments = { dialog = TunerDialog.ManageInstruments },
             onSelectString = viewModel::selectString,
             modifier = Modifier
@@ -217,8 +218,9 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
     when (val open = dialog) {
         null -> Unit
-        is TunerDialog.EditTuning -> TuningEditorDialog(
+        is TunerDialog.EditTuning -> TuningEditor(
             draft = open.draft,
+            instrument = state.instrument,
             presets = state.tunings,
             onDismiss = { dialog = null },
             onSave = { name, notes ->
@@ -227,8 +229,9 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                 error
             },
         )
-        is TunerDialog.EditInstrument -> InstrumentEditorDialog(
+        is TunerDialog.EditInstrument -> InstrumentEditor(
             draft = open.draft,
+            instruments = state.instruments,
             onDismiss = { dialog = null },
             onSave = { name, count, notes ->
                 val error = viewModel.saveCustomInstrument(open.draft.editingId, name, count, notes)
@@ -236,16 +239,22 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                 error
             },
         )
-        TunerDialog.ManageInstruments -> CustomInstrumentsDialog(
+        TunerDialog.ManageInstruments -> CustomInstrumentsPage(
             customInstruments = state.instruments.filter { it.isCustom },
             onDismiss = { dialog = null },
             onEdit = { instrument ->
                 dialog = TunerDialog.EditInstrument(
-                    InstrumentDraft(instrument.id, instrument.label, instrument.stringCount, instrument.defaultNotes()),
+                    InstrumentDraft(
+                        editingId = instrument.id,
+                        name = instrument.label,
+                        stringCount = instrument.stringCount,
+                        notes = instrument.defaultNotes(),
+                        baseId = instrument.id,
+                    ),
                 )
             },
             onDelete = viewModel::deleteCustomInstrument,
-            onNew = { dialog = TunerDialog.EditInstrument(newInstrumentDraft()) },
+            onNew = { dialog = TunerDialog.EditInstrument(newInstrumentDraft(state.instruments)) },
         )
     }
 }
@@ -365,7 +374,7 @@ private fun TuningMenuItems(
     }
     PullDownMenuDivider()
     PullDownMenuItem(
-        text = "New tuning for ${state.instrument.label}…",
+        text = "New tuning…",
         icon = Icons.Filled.Add,
         onClick = {
             close()
@@ -392,7 +401,7 @@ private fun TuningMenuItems(
     }
 }
 
-private fun Instrument.menuTitle(): String = "$label $stringCount-string"
+internal fun Instrument.menuTitle(): String = "$label $stringCount-string"
 
 @Composable
 private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifier: Modifier = Modifier) {
