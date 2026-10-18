@@ -1,6 +1,10 @@
 package com.omnituner.android.ui.tuner
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,6 +13,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,8 +26,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnituner.android.BuildConfig
 import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.StartupMode
 import com.omnituner.android.data.ThemeMode
@@ -30,6 +45,8 @@ import com.omnituner.android.ui.theme.LocalDarkTheme
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.accentColors
 import com.omnituner.android.ui.theme.wallpaperAccentAvailable
+
+private const val PRIVACY_POLICY_URL = "https://omni-tuner.vercel.app/privacy"
 
 private val themeChoices = listOf(
     ThemeMode.System to "System",
@@ -44,7 +61,7 @@ private val startupChoices = listOf(
 )
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
+fun SettingsScreen(onOpenLicenses: () -> Unit, viewModel: SettingsViewModel = viewModel()) {
     val appearance by viewModel.appearance.collectAsState()
     val tuner by viewModel.tuner.collectAsState()
 
@@ -102,6 +119,54 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 onCheckedChange = viewModel::setHaptics,
             )
         }
+
+        AboutSection(onOpenLicenses = onOpenLicenses)
+    }
+}
+
+@Composable
+private fun AboutSection(onOpenLicenses: () -> Unit) {
+    val context = LocalContext.current
+    GroupedSection(title = "About") {
+        ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = { Text("Version") },
+            trailingContent = {
+                Text(
+                    "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
+        LinkRow(
+            headline = "Privacy policy",
+            icon = Icons.AutoMirrored.Filled.OpenInNew,
+            onClick = { openInBrowser(context, PRIVACY_POLICY_URL) },
+        )
+        LinkRow(
+            headline = "Open-source licenses",
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            onClick = onOpenLicenses,
+        )
+    }
+}
+
+@Composable
+private fun LinkRow(headline: String, icon: ImageVector, onClick: () -> Unit) {
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(headline) },
+        trailingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
+/** Opens [url] in the user's browser; does nothing on a device with no app to handle it. */
+fun openInBrowser(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    } catch (_: ActivityNotFoundException) {
     }
 }
 
