@@ -201,44 +201,46 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
                 value = pcName(ui.tonicPc, flatsForPc(ui.tonicPc)),
                 onClick = { tonicSheet = true },
             )
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ChordField(
-                    value = ui.progressionInput,
-                    onValueChange = viewModel::setProgressionInput,
-                    count = ui.progressionCount,
-                    onDone = viewModel::generate,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(shape = SmoothShape.Full, onClick = viewModel::generate, modifier = Modifier.weight(1f)) {
-                        Text("Generate")
-                    }
-                    FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle) {
-                        Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Shuffle")
-                    }
-                    FilledTonalButton(
-                        shape = SmoothShape.Full,
-                        onClick = viewModel::playProgression,
-                        enabled = ui.results != null,
-                    ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play progression", modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-            val results = ui.results
-            if (withResultsBar && results != null) {
+            ChordField(
+                value = ui.progressionInput,
+                onValueChange = viewModel::setProgressionInput,
+                count = ui.progressionCount,
+                onDone = viewModel::generate,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            )
+            // Landscape: the key and display options sit right under the input, ahead of Generate,
+            // so they stay in view on a short screen while the buttons can scroll off. The bar is
+            // there before the first generate too, so Generate never jumps down under the finger.
+            if (withResultsBar) {
                 HorizontalDivider()
                 ResultsHeader(
-                    results = results,
+                    results = ui.results,
                     settings = ui.settings,
                     viewModel = viewModel,
                     tonal = true,
                     modifier = Modifier.padding(vertical = 8.dp),
                 )
+                HorizontalDivider()
+            }
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = if (withResultsBar) 8.dp else 12.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(shape = SmoothShape.Full, onClick = viewModel::generate, modifier = Modifier.weight(1f)) {
+                    Text("Generate")
+                }
+                FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle) {
+                    Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Shuffle")
+                }
+                FilledTonalButton(
+                    shape = SmoothShape.Full,
+                    onClick = viewModel::playProgression,
+                    enabled = ui.results != null,
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play progression", modifier = Modifier.size(18.dp))
+                }
             }
         }
         if (ui.generating) {
@@ -307,7 +309,13 @@ private fun TuningSheet(library: LibraryState, viewModel: ChordFinderViewModel, 
 }
 
 @Composable
-private fun ChordField(value: String, onValueChange: (String) -> Unit, count: ParseCount, onDone: (() -> Unit)? = null) {
+private fun ChordField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    count: ParseCount,
+    onDone: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val countColor = when {
         count.total == 0 -> MaterialTheme.colorScheme.onSurfaceVariant
         count.readable < count.total -> MaterialTheme.colorScheme.error
@@ -326,7 +334,7 @@ private fun ChordField(value: String, onValueChange: (String) -> Unit, count: Pa
         },
         keyboardOptions = KeyboardOptions(imeAction = if (onDone != null) ImeAction.Done else ImeAction.Default),
         keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     )
 }
 
@@ -349,11 +357,12 @@ private fun EmptyResults() {
 /**
  * Sits above the chord cards: the detected key on the left, then the display options (view,
  * labels, fingerings per chord) and an overflow with Copy tab / Clear. These only change or act
- * on the results, so they stay out of the input card and appear only once there is something to show.
+ * on the results, so in portrait they stay out of the input card and appear only once there is something to show.
  */
 @Composable
 private fun ResultsHeader(
-    results: GeneratedVoicings,
+    // Null in the landscape input card before the first generate: the options show, the key not yet.
+    results: GeneratedVoicings?,
     settings: ChordSettings,
     viewModel: ChordFinderViewModel,
     modifier: Modifier = Modifier,
@@ -395,7 +404,7 @@ private fun ResultsHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.weight(1f)) {
-            results.key?.let { key ->
+            results?.key?.let { key ->
                 KeyRow(keyName(key.tonicName, key.mode), key.alternatives.map { keyName(it.tonicName, it.mode) })
             }
         }
