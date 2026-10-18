@@ -187,6 +187,7 @@ fun NeckDiagram(
         }
 
         val axisY = yBot + BOT / 2 + 1
+        if (frets.any { it == 0 }) label("0", indCx, axisY, 8f, colors.dim)
         for (f in lo until lo + cols) {
             if (f in INLAY_SINGLE || f in INLAY_DOUBLE || (f == lo && lo > 1)) label("$f", fretX(f), axisY, 8f, colors.dim)
         }
