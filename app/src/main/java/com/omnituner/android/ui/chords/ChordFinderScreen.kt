@@ -313,8 +313,8 @@ private fun ChordField(
     value: String,
     onValueChange: (String) -> Unit,
     count: ParseCount,
-    onDone: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onDone: (() -> Unit)? = null,
 ) {
     val countColor = when {
         count.total == 0 -> MaterialTheme.colorScheme.onSurfaceVariant
