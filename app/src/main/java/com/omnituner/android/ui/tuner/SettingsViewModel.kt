@@ -8,7 +8,6 @@ import com.omnituner.android.data.AccentColor
 import com.omnituner.android.data.AppearanceSettings
 import com.omnituner.android.data.REFERENCE_PITCH_RANGE
 import com.omnituner.android.data.StartupMode
-import com.omnituner.android.data.TOLERANCE_RANGE
 import com.omnituner.android.data.ThemeMode
 import com.omnituner.android.data.TunerSettings
 import kotlinx.coroutines.flow.StateFlow
@@ -35,10 +34,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun changeReferencePitch(delta: Int) {
         edit { it.copy(referencePitch = (it.referencePitch + delta).coerceIn(REFERENCE_PITCH_RANGE)) }
-    }
-
-    fun changeTolerance(delta: Int) {
-        edit { it.copy(tolerance = (it.tolerance + delta).coerceIn(TOLERANCE_RANGE)) }
     }
 
     fun setInTuneFeedback(enabled: Boolean) {

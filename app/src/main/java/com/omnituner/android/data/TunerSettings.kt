@@ -18,7 +18,6 @@ data class TunerSettings(
     val inTuneFeedback: Boolean = true,
     val chime: Boolean = true,
     val haptics: Boolean = true,
-    val tolerance: Int = 5,
 ) {
     fun initialMode(): TunerMode = when (startupMode) {
         StartupMode.Remember -> mode
@@ -28,19 +27,19 @@ data class TunerSettings(
 }
 
 val REFERENCE_PITCH_RANGE = 415..466
-val TOLERANCE_RANGE = 1..15
 
-// How long a pitch must stay in tolerance before it counts as in tune. Fixed on purpose (no longer
-// a setting); a previously saved "tuner.inTune.holdMs" value is simply ignored.
+// Fixed on purpose (no longer settings); previously saved "tuner.inTune.tolerance" and
+// "tuner.inTune.holdMs" values are simply ignored.
+const val IN_TUNE_TOLERANCE_CENTS = 5
+// How long a pitch must stay in tolerance before it counts as in tune.
 const val IN_TUNE_HOLD_MS = 500L
 
 private val modeKey = stringPreferencesKey("tuner.mode")
 private val startupKey = stringPreferencesKey("tuner.startup")
 private val referencePitchKey = intPreferencesKey("tuner.referencePitch")
-private val inTuneFeedbackKey = booleanPreferencesKey("tuner.inTune.feedback")
+private val inTuneFeedbackKey =booleanPreferencesKey("tuner.inTune.feedback")
 private val chimeKey = booleanPreferencesKey("tuner.inTune.chime")
 private val hapticsKey = booleanPreferencesKey("tuner.inTune.haptics")
-private val toleranceKey = intPreferencesKey("tuner.inTune.tolerance")
 
 internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: CoroutineScope): SettingsStore<TunerSettings> =
     SettingsStore(
@@ -55,7 +54,6 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
                 inTuneFeedback = prefs[inTuneFeedbackKey] ?: true,
                 chime = prefs[chimeKey] ?: true,
                 haptics = prefs[hapticsKey] ?: true,
-                tolerance = (prefs[toleranceKey] ?: 5).coerceIn(TOLERANCE_RANGE),
             )
         },
         write = { prefs, settings ->
@@ -65,6 +63,5 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
             prefs[inTuneFeedbackKey] = settings.inTuneFeedback
             prefs[chimeKey] = settings.chime
             prefs[hapticsKey] = settings.haptics
-            prefs[toleranceKey] = settings.tolerance.coerceIn(TOLERANCE_RANGE)
         },
     )

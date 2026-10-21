@@ -8,6 +8,7 @@ import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.audio.PitchCapture
 import com.omnituner.android.audio.PitchFrame
 import com.omnituner.android.data.IN_TUNE_HOLD_MS
+import com.omnituner.android.data.IN_TUNE_TOLERANCE_CENTS
 import com.omnituner.android.data.InstrumentTunings
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.TunerMode
@@ -308,7 +309,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             now = now,
             cents = reading.cents,
             tracking = frame.tracking,
-            tolerance = settings.tolerance.toDouble(),
+            tolerance = IN_TUNE_TOLERANCE_CENTS.toDouble(),
             holdMs = IN_TUNE_HOLD_MS,
         )
         if (justConfirmed) onConfirmed(reading, settings, currentMode, now)
@@ -344,7 +345,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         )
         val tracking = current.frame.tracking
         val cents = reading.cents
-        val withinTolerance = cents != null && abs(cents) <= settings.tolerance
+        val withinTolerance = cents != null && abs(cents) <= IN_TUNE_TOLERANCE_CENTS
         val showTuned = settings.inTuneFeedback && current.lock.confirmed
         val tunedNow = if (settings.inTuneFeedback) showTuned else tracking == PitchTrackingState.LOCKED && withinTolerance
         val targetName = reading.targetName
@@ -367,7 +368,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             catalog = state.library.catalog,
             activeIndex = reading.activeIndex,
             cents = cents,
-            tolerance = settings.tolerance,
+            tolerance = IN_TUNE_TOLERANCE_CENTS,
             needlePercent = needlePercentFromCents(cents).toFloat(),
             noteMidi = reading.noteMidi,
             frequency = current.frame.frequency,

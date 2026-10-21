@@ -26,8 +26,8 @@ import com.omnituner.android.data.StartupMode
 import com.omnituner.android.data.ThemeMode
 import com.omnituner.android.data.TunerSettings
 import com.omnituner.android.ui.common.GroupedSection
-import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.MenuPickerRow
+import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalDarkTheme
@@ -93,12 +93,6 @@ private fun SettingsSections(appearance: AppearanceSettings, tuner: TunerSetting
             valueText = "${tuner.referencePitch} Hz",
             onDecrement = { viewModel.changeReferencePitch(-1) },
             onIncrement = { viewModel.changeReferencePitch(1) },
-        )
-        NumberStepper(
-            headline = "In-tune tolerance",
-            valueText = "±${tuner.tolerance} ¢",
-            onDecrement = { viewModel.changeTolerance(-1) },
-            onIncrement = { viewModel.changeTolerance(1) },
         )
     }
 
