@@ -41,6 +41,17 @@ import com.omnituner.android.ui.theme.LocalDarkTheme
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.accentColors
 import com.omnituner.android.ui.theme.wallpaperAccentAvailable
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
+import com.omnituner.android.BuildConfig
+import com.omnituner.android.ui.common.NumberStepper
+
+private const val PRIVACY_POLICY_URL = "https://omni-tuner.vercel.app/privacy"
 
 private val themeChoices = listOf(
     ThemeMode.System to "System",
@@ -55,7 +66,11 @@ private val startupChoices = listOf(
 )
 
 @Composable
-fun SettingsScreen(onOpenReferencePitch: () -> Unit, viewModel: SettingsViewModel = viewModel()) {
+fun SettingsScreen(
+    onOpenReferencePitch: () -> Unit,
+    onOpenLicenses: () -> Unit,
+    viewModel: SettingsViewModel = viewModel(),
+) {
     val appearance by viewModel.appearance.collectAsState()
     val tuner by viewModel.tuner.collectAsState()
 
@@ -69,7 +84,7 @@ fun SettingsScreen(onOpenReferencePitch: () -> Unit, viewModel: SettingsViewMode
         // Wide screens (landscape) keep the rows to a readable width instead of stretching them
         // edge to edge; the same cap as the bottom sheets.
         Column(modifier = Modifier.widthIn(max = MaxListWidth)) {
-            SettingsSections(appearance, tuner, viewModel, onOpenReferencePitch)
+            SettingsSections(appearance, tuner, viewModel, onOpenReferencePitch, onOpenLicenses)
         }
     }
 }
@@ -82,6 +97,7 @@ private fun SettingsSections(
     tuner: TunerSettings,
     viewModel: SettingsViewModel,
     onOpenReferencePitch: () -> Unit,
+    onOpenLicenses: () -> Unit,
 ) {
     GroupedSection(title = "Appearance") {
         ChoiceRow(
@@ -129,6 +145,54 @@ private fun SettingsSections(
             checked = tuner.haptics,
             onCheckedChange = viewModel::setHaptics,
         )
+    }
+
+    AboutSection(onOpenLicenses = onOpenLicenses)
+}
+
+@Composable
+private fun AboutSection(onOpenLicenses: () -> Unit) {
+    val context = LocalContext.current
+    GroupedSection(title = "About") {
+        ListItem(
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            headlineContent = { Text("Version") },
+            trailingContent = {
+                Text(
+                    "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
+        LinkRow(
+            headline = "Privacy policy",
+            icon = Icons.AutoMirrored.Filled.OpenInNew,
+            onClick = { openInBrowser(context, PRIVACY_POLICY_URL) },
+        )
+        LinkRow(
+            headline = "Open-source licenses",
+            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            onClick = onOpenLicenses,
+        )
+    }
+}
+
+@Composable
+private fun LinkRow(headline: String, icon: ImageVector, onClick: () -> Unit) {
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(headline) },
+        trailingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
+/** Opens [url] in the user's browser; does nothing on a device with no app to handle it. */
+fun openInBrowser(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+    } catch (_: ActivityNotFoundException) {
     }
 }
 

@@ -99,6 +99,7 @@ import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.LocalNavBarColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.tuner.ReferencePitchScreen
+import com.omnituner.android.ui.tuner.LicensesScreen
 import com.omnituner.android.ui.tuner.SettingsScreen
 import com.omnituner.android.ui.tuner.TunerScreen
 
@@ -114,7 +115,8 @@ enum class Destination(
     Scales("scales", "Scales", Icons.AutoMirrored.Outlined.QueueMusic, Icons.AutoMirrored.Filled.QueueMusic, topLevel = true),
     Metronome("metronome", "Metronome", Icons.Outlined.Timer, Icons.Filled.Timer, topLevel = true),
     Settings("settings", "Settings", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false),
-    ReferencePitch("settings/reference-pitch", "Reference pitch", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false);
+    ReferencePitch("settings/reference-pitch", "Reference pitch", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false),
+    Licenses("licenses", "Open-source licenses", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false);
 
     companion object {
         val tabs: List<Destination> = entries.filter { it.topLevel }
@@ -226,11 +228,15 @@ fun AppRoot() {
                     composable(Destination.Scales.route) { ScalesScreen() }
                     composable(Destination.Metronome.route) { MetronomeScreen() }
                     composable(Destination.Settings.route) {
-                        SettingsScreen(onOpenReferencePitch = { navController.navigate(Destination.ReferencePitch.route) })
+                        SettingsScreen(
+                            onOpenReferencePitch = { navController.navigate(Destination.ReferencePitch.route) },
+                            onOpenLicenses = { navController.navigate(Destination.Licenses.route) },
+                        )
                     }
                     composable(Destination.ReferencePitch.route) {
                         ReferencePitchScreen(onDone = { navController.popBackStack() })
                     }
+                    composable(Destination.Licenses.route) { LicensesScreen() }
                 }
             }
         }
