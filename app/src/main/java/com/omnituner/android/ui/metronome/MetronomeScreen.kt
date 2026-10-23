@@ -467,12 +467,8 @@ private fun TempoReadout(
 
     var typingTempo by rememberSaveable { mutableStateOf(false) }
 
-    // The value lights in the accent while the metronome runs, like the tuner's in-tune note.
-    val numberColor by animateColorAsState(
-        targetValue = if (ui.isPlaying) LocalAccentColors.current.accent else MaterialTheme.colorScheme.onSurface,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "bpmColor",
-    )
+    // The chosen tempo is always in the accent, like the reference pitch wheel in Settings.
+    val numberColor = LocalAccentColors.current.accent
 
     BoxWithConstraints(
         modifier = modifier

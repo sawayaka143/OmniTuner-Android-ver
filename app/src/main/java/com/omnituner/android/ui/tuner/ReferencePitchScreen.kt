@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -17,6 +19,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -26,17 +31,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.DEFAULT_REFERENCE_PITCH
 import com.omnituner.android.data.REFERENCE_PITCH_RANGE
 import com.omnituner.android.ui.metronome.BpmWheel
+import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
 
 /**
  * Settings → Reference pitch: the A4 frequency on the metronome's wheel, large in the middle of the
- * grouped-list page, with Hz under it and a Reset back to 440 Hz.
+ * grouped-list page, with Hz under it. The wheel edits a draft: Set saves it and returns to
+ * Settings, Back leaves the saved value alone, Reset puts the wheel back on 440 Hz.
  */
 @Composable
-fun ReferencePitchScreen(viewModel: SettingsViewModel = viewModel()) {
+fun ReferencePitchScreen(onDone: () -> Unit, viewModel: SettingsViewModel = viewModel()) {
     val tuner by viewModel.tuner.collectAsState()
-    val pitch = tuner.referencePitch
+    var pitch by rememberSaveable { mutableIntStateOf(tuner.referencePitch) }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -71,13 +78,14 @@ fun ReferencePitchScreen(viewModel: SettingsViewModel = viewModel()) {
                 BpmWheel(
                     value = pitch,
                     range = REFERENCE_PITCH_RANGE,
-                    onValueChange = viewModel::setReferencePitch,
+                    onValueChange = { pitch = it },
                     onCenterClick = {},
                     centerSize = numberSize,
                     pitch = (numberSize * 0.4f).coerceIn(24.dp, 36.dp),
                     label = "Reference pitch",
                     valueText = { "$it hertz" },
                     centerClickLabel = null,
+                    centerColor = LocalAccentColors.current.accent,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -86,22 +94,38 @@ fun ReferencePitchScreen(viewModel: SettingsViewModel = viewModel()) {
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            FilledTonalButton(
-                onClick = { viewModel.setReferencePitch(DEFAULT_REFERENCE_PITCH) },
-                enabled = pitch != DEFAULT_REFERENCE_PITCH,
-                shape = SmoothShape.Full,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = LocalGroupedListColors.current.group,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                modifier = Modifier.padding(top = 8.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Reset to $DEFAULT_REFERENCE_PITCH Hz")
+                FilledTonalButton(
+                    onClick = { pitch = DEFAULT_REFERENCE_PITCH },
+                    enabled = pitch != DEFAULT_REFERENCE_PITCH,
+                    shape = SmoothShape.Full,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = LocalGroupedListColors.current.group,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    modifier = Modifier.weight(1f).height(ButtonHeight),
+                ) {
+                    Text("Reset")
+                }
+                Button(
+                    onClick = {
+                        viewModel.setReferencePitch(pitch)
+                        onDone()
+                    },
+                    shape = SmoothShape.Full,
+                    modifier = Modifier.weight(1f).height(ButtonHeight),
+                ) {
+                    Text("Set")
+                }
             }
         }
     }
 }
 
 private val WheelMaxHeight = 320.dp
+private val ButtonHeight = 52.dp
 private val MaxWidth = 640.dp
 private val BandShape = SmoothShape(20.dp)
