@@ -294,10 +294,7 @@ private fun ScaleSheet(ui: ScalesUiState, flats: Boolean, viewModel: ScalesViewM
             PickerOption(option.id, option.label, supporting = notes, section = option.group)
         },
         selected = settings.scaleId,
-        onSelect = { id ->
-            viewModel.setScaleId(id)
-            onDismiss()
-        },
+        onSelect = viewModel::setScaleId,
         onDismiss = onDismiss,
     )
 }
@@ -432,10 +429,7 @@ private fun InstrumentCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
             title = "Instrument",
             options = ui.instruments.map { PickerOption(it.id, it.label) },
             selected = ui.instrument.id,
-            onSelect = { id ->
-                viewModel.selectInstrument(id)
-                instrumentSheet = false
-            },
+            onSelect = viewModel::selectInstrument,
             onDismiss = { instrumentSheet = false },
         )
     }
@@ -445,10 +439,7 @@ private fun InstrumentCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
             title = "Tuning",
             options = ui.tunings.map { PickerOption(it.id, it.label) },
             selected = ui.tuning.id,
-            onSelect = { id ->
-                viewModel.selectTuning(id)
-                tuningSheet = false
-            },
+            onSelect = viewModel::selectTuning,
             onDismiss = { tuningSheet = false },
         )
     }

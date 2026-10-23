@@ -24,9 +24,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 data class PickerOption<T>(
     val key: T,
@@ -70,8 +73,9 @@ private val MenuMaxWidth = 280.dp
 private val MenuCheckSize = 20.dp
 
 /**
- * The app's one pull-down menu: every anchored menu (picker rows, the tuner's tuning menu, the
- * metronome's meter and preset menus) goes through this so they share width, shape and color.
+ * The app's one pull-down menu: every anchored menu (picker rows in grouped lists, action overflow
+ * menus such as the Chords "More") goes through this so they share width, shape and color.
+ * Pickers opened from a top bar or panel header use [OptionSheet] instead.
  */
 @Composable
 fun PullDownMenu(
@@ -221,6 +225,11 @@ fun <T> MenuPickerRow(
     )
 }
 
+/**
+ * A bottom sheet of options with optional sections. Picking an option calls [onSelect], then the
+ * sheet slides down and [onDismiss] runs. [trailing] adds per-row actions (they don't close the
+ * sheet); [footer] sits under the list and gets a `close` that slides the sheet down too.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> OptionSheet(
@@ -230,14 +239,15 @@ fun <T> OptionSheet(
     onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
     trailing: (@Composable (T) -> Unit)? = null,
-    footer: (@Composable ColumnScope.() -> Unit)? = null,
+    footer: (@Composable ColumnScope.(close: () -> Unit) -> Unit)? = null,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-        )
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val close: () -> Unit = {
+        scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        SheetTitle(title)
         LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
             options.groupBy { it.section }.entries.forEachIndexed { index, (section, group) ->
                 if (section != null) {
@@ -259,14 +269,27 @@ fun <T> OptionSheet(
                     OptionItem(
                         option = option,
                         selected = option.key == selected,
-                        onSelect = onSelect,
+                        onSelect = { key ->
+                            onSelect(key)
+                            close()
+                        },
                         trailing = trailing,
                     )
                 }
             }
         }
-        footer?.invoke(this)
+        footer?.invoke(this, close)
     }
+}
+
+/** The title line at the top of a bottom sheet. */
+@Composable
+fun SheetTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+    )
 }
 
 @Composable

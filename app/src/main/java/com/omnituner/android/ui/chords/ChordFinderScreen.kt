@@ -289,10 +289,7 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
             title = "Tonic",
             options = (0 until 12).map { PickerOption(it, pcName(it, flatsForPc(it))) },
             selected = ui.tonicPc,
-            onSelect = { pc ->
-                viewModel.setTonic(pc)
-                tonicSheet = false
-            },
+            onSelect = viewModel::setTonic,
             onDismiss = { tonicSheet = false },
         )
     }
@@ -329,10 +326,7 @@ private fun TuningSheet(library: LibraryState, viewModel: ChordFinderViewModel, 
         title = "Tuning",
         options = options,
         selected = library.instrument.id to library.tuning.id,
-        onSelect = { (instrumentId, tuningId) ->
-            viewModel.selectTuning(instrumentId, tuningId)
-            onDismiss()
-        },
+        onSelect = { (instrumentId, tuningId) -> viewModel.selectTuning(instrumentId, tuningId) },
         onDismiss = onDismiss,
     )
 }
