@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -166,11 +167,21 @@ fun AppRoot() {
             // The cutout too: in landscape the camera sits on a side edge, beside the content.
             contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
             topBar = {
-                if (railSide == null) TopAppBar(
-                    title = { (if (current.topLevel) slots.title else null)?.invoke() ?: Text(current.title) },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
-                    navigationIcon = {
-                        if (!current.topLevel) {
+                if (railSide == null && current.topLevel) {
+                    TopAppBar(
+                        title = { slots.title?.invoke() ?: Text(current.title) },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
+                        actions = {
+                            slots.actions?.invoke(this)
+                            SettingsButton(onClick = openSettings)
+                        },
+                    )
+                } else if (railSide == null) {
+                    // Settings and its sub-pages: a centred title between Back and the page's edge.
+                    CenterAlignedTopAppBar(
+                        title = { Text(current.title) },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
+                        navigationIcon = {
                             // The tonal container matches the grouped-list page in light mode, so the
                             // button takes the group card color to stay visible on it.
                             FilledTonalIconButton(
@@ -181,15 +192,9 @@ fun AppRoot() {
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                        }
-                    },
-                    actions = {
-                        if (current.topLevel) {
-                            slots.actions?.invoke(this)
-                            SettingsButton(onClick = openSettings)
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             },
             bottomBar = {
                 if (current.topLevel && railSide == null) {
@@ -223,7 +228,9 @@ fun AppRoot() {
                     composable(Destination.Settings.route) {
                         SettingsScreen(onOpenReferencePitch = { navController.navigate(Destination.ReferencePitch.route) })
                     }
-                    composable(Destination.ReferencePitch.route) { ReferencePitchScreen() }
+                    composable(Destination.ReferencePitch.route) {
+                        ReferencePitchScreen(onDone = { navController.popBackStack() })
+                    }
                 }
             }
         }
