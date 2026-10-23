@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.omnituner.android.OmniTunerApp
 import com.omnituner.android.data.Accidental
 import com.omnituner.android.data.InstrumentLibrary
+import com.omnituner.android.data.InstrumentTunings
 import com.omnituner.android.data.LabelMode
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.ScaleSettings
@@ -43,10 +44,10 @@ data class ScaleTone(
 
 data class ScalesUiState(
     val settings: ScaleSettings = ScaleSettings(),
-    val instruments: List<Instrument> = emptyList(),
     val instrument: Instrument = INSTRUMENTS.first(),
-    val tunings: List<Tuning> = emptyList(),
     val tuning: Tuning = INSTRUMENTS.first().tunings.first(),
+    /** Every instrument with its tunings, for the tuning sheet. */
+    val catalog: List<InstrumentTunings> = emptyList(),
     val board: List<List<FretCell>> = emptyList(),
     val tones: List<ScaleTone> = emptyList(),
     val isPlaying: Boolean = false,
@@ -82,12 +83,8 @@ class ScalesViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setShowOutsideScale(show: Boolean) = edit { it.copy(showOutsideScale = show) }
 
-    fun selectInstrument(instrumentId: String) {
-        viewModelScope.launch { library.selectInstrument(instrumentId) }
-    }
-
-    fun selectTuning(tuningId: String) {
-        viewModelScope.launch { library.selectTuning(tuningId) }
+    fun selectTuning(instrumentId: String, tuningId: String) {
+        viewModelScope.launch { library.select(instrumentId, tuningId) }
     }
 
     // A tap sounds the note and briefly lights that one position (and its chip in the tone row);
@@ -162,10 +159,9 @@ class ScalesViewModel(application: Application) : AndroidViewModel(application) 
     private fun buildState(settings: ScaleSettings, libraryState: LibraryState): ScalesUiState {
         return ScalesUiState(
             settings = settings,
-            instruments = libraryState.instruments,
             instrument = libraryState.instrument,
-            tunings = libraryState.tunings,
             tuning = libraryState.tuning,
+            catalog = libraryState.catalog,
             board = computeBoard(settings, libraryState.tuning),
             tones = computeTones(settings, libraryState.tuning),
         )

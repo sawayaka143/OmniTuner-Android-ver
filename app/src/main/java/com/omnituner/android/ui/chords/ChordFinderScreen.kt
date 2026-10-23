@@ -88,6 +88,7 @@ import com.omnituner.android.data.ChordSettings
 import com.omnituner.android.data.DiagramLabels
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.VoicingView
+import com.omnituner.android.ui.common.LibraryTuningSheet
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
@@ -311,21 +312,11 @@ private fun VoicingsResults(ui: ChordFinderUiState, viewModel: ChordFinderViewMo
 
 @Composable
 private fun TuningSheet(library: LibraryState, viewModel: ChordFinderViewModel, onDismiss: () -> Unit) {
-    val options = library.catalog.flatMap { entry ->
-        entry.tunings.map { tuning ->
-            PickerOption(
-                key = entry.instrument.id to tuning.id,
-                label = tuning.label,
-                supporting = tuning.strings.joinToString(" ") { it.name },
-                section = "${entry.instrument.label} ${entry.instrument.stringCount}-string",
-            )
-        }
-    }
-    OptionSheet(
-        title = "Tuning",
-        options = options,
-        selected = library.instrument.id to library.tuning.id,
-        onSelect = { (instrumentId, tuningId) -> viewModel.selectTuning(instrumentId, tuningId) },
+    LibraryTuningSheet(
+        catalog = library.catalog,
+        instrumentId = library.instrument.id,
+        tuningId = library.tuning.id,
+        onSelect = viewModel::selectTuning,
         onDismiss = onDismiss,
     )
 }

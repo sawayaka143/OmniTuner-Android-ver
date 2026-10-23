@@ -50,11 +50,8 @@ import com.omnituner.android.ui.common.FretboardCanvas
 import com.omnituner.android.ui.common.NoteWheel
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
+import com.omnituner.android.ui.common.LibraryTuningSheet
 import com.omnituner.android.ui.common.PickerRow
-import com.omnituner.android.ui.common.PullDownMenu
-import com.omnituner.android.ui.common.PullDownMenuDivider
-import com.omnituner.android.ui.common.PullDownMenuItem
-import com.omnituner.android.ui.common.PullDownMenuSection
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.common.TopBarContent
@@ -299,44 +296,29 @@ private fun ScaleSheet(ui: ScalesUiState, flats: Boolean, viewModel: ScalesViewM
     )
 }
 
-/** The top bar's instrument and tuning menu: both lists in one pull-down, instrument first. */
+/** The top bar's instrument and tuning picker: one sheet listing every instrument's tunings. */
 @Composable
 private fun TuningMenu(ui: ScalesUiState, viewModel: ScalesViewModel) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    Box {
-        TopBarPicker(
-            caption = ui.instrument.label,
-            value = ui.tuning.label,
-            expanded = expanded,
-            onClick = { expanded = true },
-            contentDescription = "Choose instrument and tuning",
-        )
-        PullDownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            PullDownMenuSection("Instrument")
-            ui.instruments.forEach { instrument ->
-                PullDownMenuItem(
-                    text = instrument.label,
-                    selected = instrument.id == ui.instrument.id,
-                    onClick = {
-                        expanded = false
-                        viewModel.selectInstrument(instrument.id)
-                    },
-                )
-            }
-            PullDownMenuDivider()
-            PullDownMenuSection("Tuning")
-            ui.tunings.forEach { tuning ->
-                PullDownMenuItem(
-                    text = tuning.label,
-                    selected = tuning.id == ui.tuning.id,
-                    onClick = {
-                        expanded = false
-                        viewModel.selectTuning(tuning.id)
-                    },
-                )
-            }
-        }
-    }
+    var sheet by rememberSaveable { mutableStateOf(false) }
+    TopBarPicker(
+        caption = ui.instrument.label,
+        value = ui.tuning.label,
+        expanded = sheet,
+        onClick = { sheet = true },
+        contentDescription = "Choose instrument and tuning",
+    )
+    if (sheet) TuningSheet(ui = ui, viewModel = viewModel, onDismiss = { sheet = false })
+}
+
+@Composable
+private fun TuningSheet(ui: ScalesUiState, viewModel: ScalesViewModel, onDismiss: () -> Unit) {
+    LibraryTuningSheet(
+        catalog = ui.catalog,
+        instrumentId = ui.instrument.id,
+        tuningId = ui.tuning.id,
+        onSelect = viewModel::selectTuning,
+        onDismiss = onDismiss,
+    )
 }
 
 // "Root" sits at the start like a list row's headline, but the wheel is centred on the card (and
@@ -406,41 +388,23 @@ private fun DisplayCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
 
 @Composable
 private fun InstrumentCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
-    var instrumentSheet by rememberSaveable { mutableStateOf(false) }
-    var tuningSheet by rememberSaveable { mutableStateOf(false) }
+    var sheet by rememberSaveable { mutableStateOf(false) }
 
+    // Both rows open the same sheet, which sets instrument and tuning in one tap.
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
             PickerRow(
                 headline = "Instrument",
                 value = ui.instrument.label,
-                onClick = { instrumentSheet = true },
+                onClick = { sheet = true },
             )
             PickerRow(
                 headline = "Tuning",
                 value = ui.tuning.label,
-                onClick = { tuningSheet = true },
+                onClick = { sheet = true },
             )
         }
     }
 
-    if (instrumentSheet) {
-        OptionSheet(
-            title = "Instrument",
-            options = ui.instruments.map { PickerOption(it.id, it.label) },
-            selected = ui.instrument.id,
-            onSelect = viewModel::selectInstrument,
-            onDismiss = { instrumentSheet = false },
-        )
-    }
-
-    if (tuningSheet) {
-        OptionSheet(
-            title = "Tuning",
-            options = ui.tunings.map { PickerOption(it.id, it.label) },
-            selected = ui.tuning.id,
-            onSelect = viewModel::selectTuning,
-            onDismiss = { tuningSheet = false },
-        )
-    }
+    if (sheet) TuningSheet(ui = ui, viewModel = viewModel, onDismiss = { sheet = false })
 }
