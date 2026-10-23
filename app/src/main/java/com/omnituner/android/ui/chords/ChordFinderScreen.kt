@@ -1,6 +1,13 @@
 package com.omnituner.android.ui.chords
 
 import android.content.ClipData
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +64,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -126,15 +134,20 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
     // Upright, the display options and the overflow (Copy tab / Clear) live in the top bar while
     // there are voicings to act on; in landscape the rail replaces the bar and the input card
     // carries them.
+    // They grow in beside the Settings button when there are results, rather than popping in.
     TopBarContent(
-        actions = if (ui.tab == ChordsTab.Voicings && ui.results != null) {
-            {
-                val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
-                DisplayOptionsMenu(ui.settings, viewModel, barButton)
-                MoreMenu(viewModel, barButton)
+        actions = {
+            AnimatedVisibility(
+                visible = ui.tab == ChordsTab.Voicings && ui.results != null,
+                enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
+                exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut(),
+            ) {
+                Row {
+                    val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
+                    DisplayOptionsMenu(ui.settings, viewModel, barButton)
+                    MoreMenu(viewModel, barButton)
+                }
             }
-        } else {
-            null
         },
     )
 
@@ -506,21 +519,27 @@ private fun MoreMenu(viewModel: ChordFinderViewModel, button: MenuButton) {
     }
 }
 
+/**
+ * The detected key; with close alternatives, a chip that reveals them on the same line beside it
+ * (one line, ellipsized), so opening it never pushes the chord cards down.
+ */
 @Composable
 private fun KeyRow(key: String, alternatives: List<String>) {
     var open by rememberSaveable(key) { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (alternatives.isEmpty()) {
-            Text("Key: $key", style = MaterialTheme.typography.titleSmall)
-        } else {
-            FilterChip(selected = open, onClick = { open = !open }, label = { Text("Key: $key") })
-            if (open) {
-                Text(
-                    text = "or ${alternatives.joinToString(", ")}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+    if (alternatives.isEmpty()) {
+        Text("Key: $key", style = MaterialTheme.typography.titleSmall)
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(selected = open, onClick = { open = !open }, label = { Text("Key: $key", maxLines = 1) })
+        AnimatedVisibility(visible = open, enter = fadeIn(), exit = fadeOut()) {
+            Text(
+                text = "or ${alternatives.joinToString(", ")}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
