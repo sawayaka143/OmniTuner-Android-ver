@@ -92,9 +92,7 @@ import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
-import com.omnituner.android.ui.common.PullDownMenu
-import com.omnituner.android.ui.common.PullDownMenuDivider
-import com.omnituner.android.ui.common.PullDownMenuItem
+import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
@@ -370,19 +368,17 @@ private fun MeterMenu(
             onClick = { expanded = true },
             contentDescription = "Choose meter",
         )
-        PullDownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            METER_PRESETS.forEach { preset ->
-                PullDownMenuItem(
-                    text = "${preset.numerator}/${preset.denominator}",
-                    selected = preset == meter,
-                    supporting = meterFeel(preset.denominator),
-                    onClick = {
-                        expanded = false
-                        onPick(preset)
-                    },
-                )
-            }
-        }
+    }
+    if (expanded) {
+        OptionSheet(
+            title = "Meter",
+            options = METER_PRESETS.map {
+                PickerOption(it, "${it.numerator}/${it.denominator}", supporting = meterFeel(it.denominator))
+            },
+            selected = meter,
+            onSelect = onPick,
+            onDismiss = { expanded = false },
+        )
     }
 }
 
@@ -395,7 +391,6 @@ private fun PresetMenu(
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    val close = { expanded = false }
     val current = ui.presets.firstOrNull { it.state == ui.state }
     Box(modifier = modifier) {
         HeaderMenuTrigger(
@@ -406,38 +401,61 @@ private fun PresetMenu(
             contentDescription = "Choose preset",
             alignEnd = true,
         )
-        PullDownMenu(expanded = expanded, onDismissRequest = close) {
-            ui.presets.forEach { preset ->
-                PullDownMenuItem(
-                    text = preset.name,
-                    selected = preset.id == current?.id,
-                    supporting = presetSummary(preset.state),
-                    trailing = {
-                        IconButton(onClick = { onDelete(preset.id) }) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = "Delete preset ${preset.name}",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    },
-                    onClick = {
-                        close()
-                        onApply(preset.id)
-                    },
-                )
-            }
-            if (ui.presets.isNotEmpty()) PullDownMenuDivider()
-            PullDownMenuItem(
-                text = "Save current…",
-                icon = Icons.Filled.Add,
-                supporting = if (ui.presets.size >= PRESETS_MAX) "Replaces the oldest" else null,
-                onClick = {
-                    close()
-                    onSave()
-                },
-            )
-        }
+    }
+    if (expanded) {
+        OptionSheet(
+            title = "Presets",
+            options = ui.presets.map { PickerOption(it.id, it.name, supporting = presetSummary(it.state)) },
+            selected = current?.id,
+            onSelect = onApply,
+            onDismiss = { expanded = false },
+            // Deleting keeps the sheet open, so several can go in a row.
+            trailing = { id ->
+                val name = ui.presets.firstOrNull { it.id == id }?.name.orEmpty()
+                IconButton(onClick = { onDelete(id) }) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete preset $name",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            },
+            // Under the list, so Save stays in reach however many presets there are.
+            footer = { close ->
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (ui.presets.isEmpty()) {
+                        Text(
+                            text = "No presets yet",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            close()
+                            onSave()
+                        },
+                        shape = SmoothShape.Full,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Save current…")
+                    }
+                    if (ui.presets.size >= PRESETS_MAX) {
+                        Text(
+                            text = "Replaces the oldest",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+        )
     }
 }
 
