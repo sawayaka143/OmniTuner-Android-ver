@@ -1,6 +1,7 @@
 package com.omnituner.android.ui.tuner
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.AccentColor
@@ -27,7 +35,6 @@ import com.omnituner.android.data.ThemeMode
 import com.omnituner.android.data.TunerSettings
 import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.MenuPickerRow
-import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.theme.LocalDarkTheme
@@ -48,7 +55,7 @@ private val startupChoices = listOf(
 )
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
+fun SettingsScreen(onOpenReferencePitch: () -> Unit, viewModel: SettingsViewModel = viewModel()) {
     val appearance by viewModel.appearance.collectAsState()
     val tuner by viewModel.tuner.collectAsState()
 
@@ -62,7 +69,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         // Wide screens (landscape) keep the rows to a readable width instead of stretching them
         // edge to edge; the same cap as the bottom sheets.
         Column(modifier = Modifier.widthIn(max = MaxListWidth)) {
-            SettingsSections(appearance, tuner, viewModel)
+            SettingsSections(appearance, tuner, viewModel, onOpenReferencePitch)
         }
     }
 }
@@ -70,7 +77,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 private val MaxListWidth = 640.dp
 
 @Composable
-private fun SettingsSections(appearance: AppearanceSettings, tuner: TunerSettings, viewModel: SettingsViewModel) {
+private fun SettingsSections(
+    appearance: AppearanceSettings,
+    tuner: TunerSettings,
+    viewModel: SettingsViewModel,
+    onOpenReferencePitch: () -> Unit,
+) {
     GroupedSection(title = "Appearance") {
         ChoiceRow(
             headline = "Theme",
@@ -88,11 +100,16 @@ private fun SettingsSections(appearance: AppearanceSettings, tuner: TunerSetting
             choices = startupChoices,
             onSelect = viewModel::setStartupMode,
         )
-        NumberStepper(
+        NavigationRow(
             headline = "Reference pitch",
-            valueText = "${tuner.referencePitch} Hz",
-            onDecrement = { viewModel.changeReferencePitch(-1) },
-            onIncrement = { viewModel.changeReferencePitch(1) },
+            value = "${tuner.referencePitch} Hz",
+            onClick = onOpenReferencePitch,
+        )
+        SwitchRow(
+            headline = "Pro accuracy",
+            supporting = "Show the exact offset in cents",
+            checked = tuner.proAccuracy,
+            onCheckedChange = viewModel::setProAccuracy,
         )
     }
 
@@ -158,5 +175,25 @@ private fun AccentRow(selected: AccentColor, onSelect: (AccentColor) -> Unit) {
         onSelect = onSelect,
         menuColor = LocalGroupedListColors.current.group,
         leading = { accent -> AccentDot(accent) },
+    )
+}
+
+/** A row that opens a page of its own: the current value, then a chevron. */
+@Composable
+private fun NavigationRow(headline: String, value: String, onClick: () -> Unit) {
+    ListItem(
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        headlineContent = { Text(headline) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        modifier = Modifier.clickable(onClick = onClick),
     )
 }

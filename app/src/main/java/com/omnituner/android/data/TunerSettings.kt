@@ -14,10 +14,13 @@ enum class StartupMode { Remember, Auto, Manual }
 data class TunerSettings(
     val mode: TunerMode = TunerMode.Auto,
     val startupMode: StartupMode = StartupMode.Remember,
-    val referencePitch: Int = 440,
+    val referencePitch: Int = DEFAULT_REFERENCE_PITCH,
     val inTuneFeedback: Boolean = true,
     val chime: Boolean = true,
     val haptics: Boolean = true,
+    // On: the readout shows the offset to a tenth of a cent. Off (GuitarTuna's default): only the
+    // note, the needle and Tune up / Tune down.
+    val proAccuracy: Boolean = false,
 ) {
     fun initialMode(): TunerMode = when (startupMode) {
         StartupMode.Remember -> mode
@@ -27,6 +30,7 @@ data class TunerSettings(
 }
 
 val REFERENCE_PITCH_RANGE = 415..466
+const val DEFAULT_REFERENCE_PITCH = 440
 
 // Fixed on purpose (no longer settings); previously saved "tuner.inTune.tolerance" and
 // "tuner.inTune.holdMs" values are simply ignored.
@@ -37,9 +41,10 @@ const val IN_TUNE_HOLD_MS = 500L
 private val modeKey = stringPreferencesKey("tuner.mode")
 private val startupKey = stringPreferencesKey("tuner.startup")
 private val referencePitchKey = intPreferencesKey("tuner.referencePitch")
-private val inTuneFeedbackKey =booleanPreferencesKey("tuner.inTune.feedback")
+private val inTuneFeedbackKey = booleanPreferencesKey("tuner.inTune.feedback")
 private val chimeKey = booleanPreferencesKey("tuner.inTune.chime")
 private val hapticsKey = booleanPreferencesKey("tuner.inTune.haptics")
+private val proAccuracyKey = booleanPreferencesKey("tuner.proAccuracy")
 
 internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: CoroutineScope): SettingsStore<TunerSettings> =
     SettingsStore(
@@ -50,10 +55,11 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
             TunerSettings(
                 mode = prefs.enumOr(modeKey, TunerMode.Auto),
                 startupMode = prefs.enumOr(startupKey, StartupMode.Remember),
-                referencePitch = (prefs[referencePitchKey] ?: 440).coerceIn(REFERENCE_PITCH_RANGE),
+                referencePitch = (prefs[referencePitchKey] ?: DEFAULT_REFERENCE_PITCH).coerceIn(REFERENCE_PITCH_RANGE),
                 inTuneFeedback = prefs[inTuneFeedbackKey] ?: true,
                 chime = prefs[chimeKey] ?: true,
                 haptics = prefs[hapticsKey] ?: true,
+                proAccuracy = prefs[proAccuracyKey] ?: false,
             )
         },
         write = { prefs, settings ->
@@ -63,5 +69,6 @@ internal fun tunerSettingsStore(dataStore: DataStore<Preferences>, scope: Corout
             prefs[inTuneFeedbackKey] = settings.inTuneFeedback
             prefs[chimeKey] = settings.chime
             prefs[hapticsKey] = settings.haptics
+            prefs[proAccuracyKey] = settings.proAccuracy
         },
     )

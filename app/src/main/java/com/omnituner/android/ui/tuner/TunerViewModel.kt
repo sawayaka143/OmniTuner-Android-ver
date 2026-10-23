@@ -11,6 +11,7 @@ import com.omnituner.android.data.IN_TUNE_HOLD_MS
 import com.omnituner.android.data.IN_TUNE_TOLERANCE_CENTS
 import com.omnituner.android.data.InstrumentTunings
 import com.omnituner.android.data.LibraryState
+import com.omnituner.android.data.RecentTuning
 import com.omnituner.android.data.TunerMode
 import com.omnituner.android.data.TunerSettings
 import com.omnituner.core.audio.PitchTrackingState
@@ -73,6 +74,8 @@ data class TunerUiState(
     val tunedStrings: Set<String> = emptySet(),
     val pulse: Boolean = false,
     val haptics: Boolean = true,
+    val proAccuracy: Boolean = false,
+    val recent: List<RecentTuning> = emptyList(),
 )
 
 private data class LockSnapshot(
@@ -377,6 +380,8 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             tunedStrings = current.lock.tunedStrings,
             pulse = current.lock.pulseUntil > SystemClock.elapsedRealtime(),
             haptics = settings.inTuneFeedback && settings.haptics,
+            proAccuracy = settings.proAccuracy,
+            recent = state.library.recent,
         )
     }
 

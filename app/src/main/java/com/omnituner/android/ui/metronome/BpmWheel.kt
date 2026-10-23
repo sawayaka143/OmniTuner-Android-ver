@@ -69,6 +69,9 @@ import kotlin.math.tanh
  * and [onValueChange] fires once, when it settles; outside an interaction, external changes
  * (steppers, tap tempo, presets) animate the wheel to [value].
  *
+ * Also the Settings reference pitch picker, which passes its own [label], [valueText] and
+ * [centerClickLabel] (null when tapping the centre does nothing).
+ *
  * [collapse] folds the wheel into a plain readout: at 1 the neighbours have slid into the centre and
  * faded out, the centre value is drawn [CompactScale] larger and only a tap on it (or a drag, which
  * the caller should answer by unfolding) does anything. [onInteractionChange] reports when a drag,
@@ -87,6 +90,9 @@ fun BpmWheel(
     collapse: () -> Float = { 0f },
     onInteractionChange: (Boolean) -> Unit = {},
     centerColor: Color = Color.Unspecified,
+    label: String = "Tempo",
+    valueText: (Int) -> String = { "$it BPM" },
+    centerClickLabel: String? = "Type a tempo",
 ) {
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
@@ -214,8 +220,8 @@ fun BpmWheel(
                 }
             }
             .semantics {
-                contentDescription = "Tempo"
-                stateDescription = "$value BPM"
+                contentDescription = label
+                stateDescription = valueText(value)
                 progressBarRangeInfo = ProgressBarRangeInfo(
                     current = value.toFloat(),
                     range = range.first.toFloat()..range.last.toFloat(),
@@ -225,9 +231,11 @@ fun BpmWheel(
                     latestOnChange(target.roundToInt().coerceIn(range))
                     true
                 }
-                onClick(label = "Type a tempo") {
-                    latestOnCenterClick()
-                    true
+                if (centerClickLabel != null) {
+                    onClick(label = centerClickLabel) {
+                        latestOnCenterClick()
+                        true
+                    }
                 }
             },
         contentAlignment = Alignment.Center,

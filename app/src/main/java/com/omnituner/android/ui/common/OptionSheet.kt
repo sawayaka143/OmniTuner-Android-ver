@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -145,13 +146,20 @@ fun PullDownMenuItem(
     )
 }
 
-/** A section title inside a [PullDownMenu], aligned with the item labels. */
+/**
+ * A section title inside a [PullDownMenu], aligned with the item labels. [emphasized] sets it larger
+ * than the items, for titles that name what the items belong to (the tuner's instruments).
+ */
 @Composable
-fun PullDownMenuSection(title: String) {
+fun PullDownMenuSection(title: String, emphasized: Boolean = false) {
     Text(
         text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = if (emphasized) {
+            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+        } else {
+            MaterialTheme.typography.labelLarge
+        },
+        color = if (emphasized) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )

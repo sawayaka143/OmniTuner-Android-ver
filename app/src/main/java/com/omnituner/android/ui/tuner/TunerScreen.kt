@@ -34,7 +34,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -85,7 +84,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
-import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuDivider
 import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.common.PullDownMenuSection
@@ -97,6 +95,7 @@ import com.omnituner.core.audio.hzDisplay
 import com.omnituner.core.audio.midiNoteLabel
 import com.omnituner.core.data.Instrument
 import com.omnituner.core.data.Tuning
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private sealed interface TunerDialog {
@@ -125,6 +124,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     val haptics = LocalHapticFeedback.current
     val view = LocalView.current
     var dialog by remember { mutableStateOf<TunerDialog?>(null) }
+    var pickerOpen by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(state.capturing) {
         view.keepScreenOn = state.capturing
@@ -182,21 +182,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     // Upright, the tuning picker and the Auto switch live in the top bar (in landscape the rail
     // replaces the bar, and the panel carries them itself).
     TopBarContent(
-        title = {
-            TuningMenu(
-                state = state,
-                onTuningPicked = viewModel::selectTuning,
-                onEditTuning = { tuning: Tuning ->
-                    dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes(), tuning.id))
-                },
-                onDeleteTuning = viewModel::deleteCustomTuning,
-                onNewTuning = {
-                    dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes(), state.tuning.id))
-                },
-                onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft(state.instruments)) },
-                onManageInstruments = { dialog = TunerDialog.ManageInstruments },
-            )
-        },
+        title = { TuningButton(state = state, onClick = { pickerOpen = true }) },
         actions = {
             AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = viewModel::selectMode)
         },
@@ -237,6 +223,23 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
                 .padding(top = 8.dp, bottom = 12.dp)
                 .weight(1f)
                 .fillMaxWidth(),
+        )
+    }
+
+    if (pickerOpen) {
+        TuningPickerSheet(
+            state = state,
+            onDismiss = { pickerOpen = false },
+            onTuningPicked = viewModel::selectTuning,
+            onEditTuning = { tuning: Tuning ->
+                dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes(), tuning.id))
+            },
+            onDeleteTuning = viewModel::deleteCustomTuning,
+            onNewTuning = {
+                dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes(), state.tuning.id))
+            },
+            onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft(state.instruments)) },
+            onManageInstruments = { dialog = TunerDialog.ManageInstruments },
         )
     }
 
@@ -283,69 +286,46 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     }
 }
 
+/** The top-bar trigger for [TuningPickerSheet]: the instrument, and its tuning under it in smaller type. */
 @Composable
-private fun TuningMenu(
-    state: TunerUiState,
-    onTuningPicked: (instrumentId: String, tuningId: String) -> Unit,
-    onEditTuning: (Tuning) -> Unit,
-    onDeleteTuning: (String) -> Unit,
-    onNewTuning: () -> Unit,
-    onNewInstrument: () -> Unit,
-    onManageInstruments: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
-    val close = { expanded = false }
-    Box(modifier = modifier) {
-        Surface(
-            onClick = { expanded = true },
-            shape = TuningMenuShape,
-            color = Color.Transparent,
+private fun TuningButton(state: TunerUiState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        shape = TuningMenuShape,
+        color = Color.Transparent,
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f, fill = false)) {
-                    Text(
-                        text = state.instrument.menuTitle(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = LocalContentColor.current.copy(alpha = 0.75f),
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = state.tuning.label,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                    )
-                }
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                    contentDescription = "Choose tuning",
-                    tint = MaterialTheme.colorScheme.onSurface,
+            Column(modifier = Modifier.weight(1f, fill = false)) {
+                Text(
+                    text = state.instrument.menuTitle(),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(
+                    text = state.tuning.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LocalContentColor.current.copy(alpha = 0.75f),
+                    maxLines = 1,
                 )
             }
-        }
-        PullDownMenu(expanded = expanded, onDismissRequest = close) {
-            TuningMenuItems(
-                state = state,
-                onTuningPicked = onTuningPicked,
-                onEditTuning = onEditTuning,
-                onDeleteTuning = onDeleteTuning,
-                onNewTuning = onNewTuning,
-                onNewInstrument = onNewInstrument,
-                onManageInstruments = onManageInstruments,
-                close = close,
+            Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = "Choose tuning",
+                tint = MaterialTheme.colorScheme.onSurface,
             )
         }
     }
 }
 
 /**
- * The tuning menu's rows: each instrument's tunings (custom ones with edit and delete), then the
- * New tuning / New instrument / Manage actions. Shown in the pull-down upright, and unfolded into
- * the panel in landscape, where there is room for the list itself.
+ * The tuning list unfolded into the panel in landscape (upright it is the [TuningPickerSheet]):
+ * each instrument's tunings (custom ones with edit and delete), then the New tuning /
+ * New instrument / Manage actions.
  */
 @Composable
 private fun TuningMenuItems(
@@ -360,7 +340,7 @@ private fun TuningMenuItems(
 ) {
     state.catalog.forEachIndexed { index, entry ->
         if (index > 0) PullDownMenuDivider()
-        PullDownMenuSection(entry.instrument.menuTitle())
+        PullDownMenuSection(entry.instrument.menuTitle(), emphasized = true)
         entry.tunings.forEach { tuning ->
             val selected = entry.instrument.id == state.instrument.id && tuning.id == state.tuning.id
             val editable = tuning.isCustom && tuning.id != "${entry.instrument.id}-default"
@@ -630,11 +610,14 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
                 },
             )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = centsLabel(state.cents),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Medium,
-                )
+                // Pro accuracy adds the exact offset; without it the note and needle say enough.
+                if (state.proAccuracy) {
+                    Text(
+                        text = centsLabel(state.cents),
+                        style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
                 Text(
                     text = state.frequency?.let { hzDisplay(it) } ?: "",
                     style = MaterialTheme.typography.bodyMedium,
@@ -704,11 +687,12 @@ private fun NoteName(state: TunerUiState, size: TextUnit, color: Color, modifier
 
 private fun centsLabel(cents: Double?): String {
     if (cents == null || !cents.isFinite()) return ""
-    val rounded = cents.roundToInt()
+    val tenths = (cents * 10).roundToInt()
+    val magnitude = "${abs(tenths) / 10}.${abs(tenths) % 10}"
     return when {
-        rounded > 0 -> "+$rounded cents"
-        rounded < 0 -> "−${-rounded} cents"
-        else -> "0 cents"
+        tenths > 0 -> "+$magnitude cents"
+        tenths < 0 -> "−$magnitude cents"
+        else -> "0.0 cents"
     }
 }
 

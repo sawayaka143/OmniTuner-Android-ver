@@ -10,6 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
@@ -23,12 +25,18 @@ private val SectionShape = SmoothShape(20.dp)
  * group color as `menuColor`.
  */
 @Composable
-fun GroupedSection(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun GroupedSection(
+    title: String,
+    modifier: Modifier = Modifier,
+    titleStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    titleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Column(modifier = modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = titleStyle,
+            color = titleColor,
             modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
         )
         Card(

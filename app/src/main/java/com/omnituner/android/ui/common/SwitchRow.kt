@@ -17,10 +17,12 @@ fun SwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    supporting: String? = null,
 ) {
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         headlineContent = { Text(headline) },
+        supportingContent = supporting?.let { text -> { Text(text) } },
         trailingContent = { Switch(checked = checked, onCheckedChange = null, colors = accentSwitchColors()) },
         modifier = modifier.toggleable(
             value = checked,

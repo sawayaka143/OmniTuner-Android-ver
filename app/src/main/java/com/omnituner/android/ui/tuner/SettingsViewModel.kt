@@ -32,8 +32,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         edit { it.copy(startupMode = mode) }
     }
 
-    fun changeReferencePitch(delta: Int) {
-        edit { it.copy(referencePitch = (it.referencePitch + delta).coerceIn(REFERENCE_PITCH_RANGE)) }
+    fun setReferencePitch(hz: Int) {
+        edit { it.copy(referencePitch = hz.coerceIn(REFERENCE_PITCH_RANGE)) }
+    }
+
+    fun setProAccuracy(enabled: Boolean) {
+        edit { it.copy(proAccuracy = enabled) }
     }
 
     fun setInTuneFeedback(enabled: Boolean) {

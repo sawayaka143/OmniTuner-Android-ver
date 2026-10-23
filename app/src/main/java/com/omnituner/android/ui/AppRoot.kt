@@ -97,6 +97,7 @@ import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.LocalNavBarColors
 import com.omnituner.android.ui.theme.SmoothShape
+import com.omnituner.android.ui.tuner.ReferencePitchScreen
 import com.omnituner.android.ui.tuner.SettingsScreen
 import com.omnituner.android.ui.tuner.TunerScreen
 
@@ -111,7 +112,8 @@ enum class Destination(
     Chords("chords", "Chords", Icons.Outlined.LibraryMusic, Icons.Filled.LibraryMusic, topLevel = true),
     Scales("scales", "Scales", Icons.AutoMirrored.Outlined.QueueMusic, Icons.AutoMirrored.Filled.QueueMusic, topLevel = true),
     Metronome("metronome", "Metronome", Icons.Outlined.Timer, Icons.Filled.Timer, topLevel = true),
-    Settings("settings", "Settings", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false);
+    Settings("settings", "Settings", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false),
+    ReferencePitch("settings/reference-pitch", "Reference pitch", Icons.Outlined.Settings, Icons.Filled.Settings, topLevel = false);
 
     companion object {
         val tabs: List<Destination> = entries.filter { it.topLevel }
@@ -127,9 +129,9 @@ fun AppRoot() {
     val entry by navController.currentBackStackEntryAsState()
     val current = Destination.fromRoute(entry?.destination?.route)
     val slots = remember { TopBarSlots() }
-    // Settings is a grouped list, so its page (and the top bar over it) drops to the grouped-list
-    // page color; every other screen sits on the plain surface.
-    val pageColor = if (current == Destination.Settings) {
+    // Settings and its sub-pages are grouped lists, so their page (and the top bar over it) drops to
+    // the grouped-list page color; the tabs sit on the plain surface.
+    val pageColor = if (!current.topLevel) {
         LocalGroupedListColors.current.page
     } else {
         MaterialTheme.colorScheme.background
@@ -218,7 +220,10 @@ fun AppRoot() {
                     composable(Destination.Chords.route) { ChordFinderScreen() }
                     composable(Destination.Scales.route) { ScalesScreen() }
                     composable(Destination.Metronome.route) { MetronomeScreen() }
-                    composable(Destination.Settings.route) { SettingsScreen() }
+                    composable(Destination.Settings.route) {
+                        SettingsScreen(onOpenReferencePitch = { navController.navigate(Destination.ReferencePitch.route) })
+                    }
+                    composable(Destination.ReferencePitch.route) { ReferencePitchScreen() }
                 }
             }
         }

@@ -28,18 +28,30 @@ data class InstrumentTunings(
     val tunings: List<Tuning>,
 )
 
+data class RecentTuning(
+    val instrument: Instrument,
+    val tuning: Tuning,
+)
+
 data class LibraryState(
     val instruments: List<Instrument>,
     val instrument: Instrument,
     val tunings: List<Tuning>,
     val tuning: Tuning,
     val catalog: List<InstrumentTunings>,
+    /** Most recently picked first, starting with the current one; deleted entries drop out. */
+    val recent: List<RecentTuning> = emptyList(),
 )
+
+const val MAX_RECENT_TUNINGS = 5
 
 private val customInstrumentsKey = stringPreferencesKey("instruments.custom")
 private val customTuningsKey = stringPreferencesKey("tunings.custom")
 private val selectedInstrumentKey = stringPreferencesKey("instruments.selected")
 private val selectedTuningKey = stringPreferencesKey("tunings.selected")
+// "instrumentId|tuningId" per line, newest first. Ids are preset slugs or UUID-based, so neither
+// separator can occur in them.
+private val recentTuningsKey = stringPreferencesKey("tunings.recent")
 
 class InstrumentLibrary(dataStore: DataStore<Preferences>, scope: CoroutineScope) {
 
@@ -71,26 +83,51 @@ class InstrumentLibrary(dataStore: DataStore<Preferences>, scope: CoroutineScope
         },
     )
 
+    private val recentSelections = SettingsStore(
+        dataStore = dataStore,
+        scope = scope,
+        defaultValue = emptyList<InstrumentSelection>(),
+        read = { prefs ->
+            prefs[recentTuningsKey].orEmpty().lines().mapNotNull { line ->
+                val parts = line.split('|')
+                if (parts.size == 2) InstrumentSelection(parts[0], parts[1]) else null
+            }
+        },
+        write = { prefs, value ->
+            prefs[recentTuningsKey] = value.joinToString("\n") { "${it.instrumentId}|${it.tuningId}" }
+        },
+    )
+
     val state: StateFlow<LibraryState> = combine(
         customInstruments.flow,
         customTunings.flow,
         selection.flow,
-    ) { instruments, tunings, current -> resolve(instruments, tunings, current) }
-        .stateIn(scope, SharingStarted.Eagerly, resolve(emptyList(), emptyList(), InstrumentSelection()))
+        recentSelections.flow,
+    ) { instruments, tunings, current, recent -> resolve(instruments, tunings, current, recent) }
+        .stateIn(scope, SharingStarted.Eagerly, resolve(emptyList(), emptyList(), InstrumentSelection(), emptyList()))
+
+    // The selection being left joins the recents, so going back to it is one tap.
+    private suspend fun choose(next: InstrumentSelection) {
+        val previous = selection.flow.value
+        selection.update { next }
+        recentSelections.update { list ->
+            (listOf(next, previous) + list).distinct().take(MAX_RECENT_TUNINGS + 1)
+        }
+    }
 
     suspend fun selectInstrument(instrumentId: String) {
         val instrument = state.value.instruments.firstOrNull { it.id == instrumentId } ?: return
         val tunings = instrument.tunings +
             customTunings.flow.value.filter { it.instrumentId == instrumentId }.map { it.toTuning() }
-        selection.update { InstrumentSelection(instrument.id, tunings.first().id) }
+        choose(InstrumentSelection(instrument.id, tunings.first().id))
     }
 
     suspend fun selectTuning(tuningId: String) {
-        selection.update { it.copy(tuningId = tuningId) }
+        choose(selection.flow.value.copy(tuningId = tuningId))
     }
 
     suspend fun select(instrumentId: String, tuningId: String) {
-        selection.update { InstrumentSelection(instrumentId, tuningId) }
+        choose(InstrumentSelection(instrumentId, tuningId))
     }
 
     suspend fun saveInstrument(editingId: String?, name: String, stringCount: Int, notes: List<Int>) {
@@ -99,7 +136,7 @@ class InstrumentLibrary(dataStore: DataStore<Preferences>, scope: CoroutineScope
         customInstruments.update { list ->
             if (list.any { it.id == id }) list.map { if (it.id == id) record else it } else list + record
         }
-        selection.update { InstrumentSelection(id, "$id-default") }
+        choose(InstrumentSelection(id, "$id-default"))
     }
 
     suspend fun deleteInstrument(id: String) {
@@ -113,7 +150,7 @@ class InstrumentLibrary(dataStore: DataStore<Preferences>, scope: CoroutineScope
         customTunings.update { list ->
             if (list.any { it.id == id }) list.map { if (it.id == id) record else it } else list + record
         }
-        selection.update { it.copy(tuningId = id) }
+        choose(selection.flow.value.copy(instrumentId = instrumentId, tuningId = id))
     }
 
     suspend fun deleteTuning(id: String) {
@@ -125,6 +162,7 @@ private fun resolve(
     instruments: List<CustomInstrument>,
     tunings: List<CustomTuning>,
     current: InstrumentSelection,
+    recentSelections: List<InstrumentSelection>,
 ): LibraryState {
     val all = INSTRUMENTS + instruments.map { it.toInstrument() }
     val catalog = all.map { entry ->
@@ -133,7 +171,14 @@ private fun resolve(
     val instrument = all.firstOrNull { it.id == current.instrumentId } ?: INSTRUMENTS.first()
     val available = catalog.first { it.instrument.id == instrument.id }.tunings
     val tuning = available.firstOrNull { it.id == current.tuningId } ?: available.first()
-    return LibraryState(all, instrument, available, tuning, catalog)
+    val recent = (listOf(InstrumentSelection(instrument.id, tuning.id)) + recentSelections)
+        .distinct()
+        .mapNotNull { pick ->
+            val entry = catalog.firstOrNull { it.instrument.id == pick.instrumentId } ?: return@mapNotNull null
+            entry.tunings.firstOrNull { it.id == pick.tuningId }?.let { RecentTuning(entry.instrument, it) }
+        }
+        .take(MAX_RECENT_TUNINGS)
+    return LibraryState(all, instrument, available, tuning, catalog, recent)
 }
 
 private fun CustomInstrument.toInstrument(): Instrument = Instrument(
