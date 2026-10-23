@@ -27,12 +27,27 @@ class KeyDetectorTest {
     }
 
     @Test
-    fun resolvesAmDmEToCIonianScoringAAeolianEqually() {
-        val progression = chords("Am", "Dm", "E")
-        assertEquals("C Ionian", assertNotNull(detectKey(progression)).name())
-        val ranked = rankKeys(progression)
-        val aeolian = ranked.first { it.tonicName == "A" && it.mode == ModeName.Aeolian }
-        assertEquals(ranked[0].score, aeolian.score)
+    fun resolvesAmDmEToAAeolianThroughTheHarmonicMinorDominant() {
+        val dk = detect("Am", "Dm", "E")
+        assertEquals("A Aeolian", dk.name())
+        assertEquals("strong", dk.confidence)
+    }
+
+    @Test
+    fun detectsGSharpMinorOverItsRelativeMajor() {
+        val dk = detect("Emaj7", "C#m7", "D#7", "G#m")
+        assertEquals("G# Aeolian", dk.name())
+        assertEquals("strong", dk.confidence)
+    }
+
+    @Test
+    fun countsTheLeadingToneDiminishedInMinor() {
+        assertEquals("A Aeolian", detect("Am", "G#dim", "Am").name())
+    }
+
+    @Test
+    fun aMajorDominantDoesNotPullMajorKeysToMinor() {
+        assertEquals("C Ionian", detect("C", "F", "G7", "C").name())
     }
 
     @Test
@@ -90,7 +105,8 @@ class KeyDetectorTest {
         val dk = detect("Fmaj7", "Fm(maj7)", "C/E", "C#dim/E")
         assertEquals("weak", dk.confidence)
         assertEquals(
-            listOf("C Ionian", "F Ionian", "D Aeolian"),
+            // F Ionian drops out of the runners-up: its own tonic also sounds as Fm.
+            listOf("C Ionian", "D Aeolian", "F Aeolian"),
             listOf(dk.name()) + dk.alternatives.map { it.name() },
         )
     }
