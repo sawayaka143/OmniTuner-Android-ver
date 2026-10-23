@@ -51,8 +51,14 @@ import com.omnituner.android.ui.common.NoteWheel
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.android.ui.common.PullDownMenu
+import com.omnituner.android.ui.common.PullDownMenuDivider
+import com.omnituner.android.ui.common.PullDownMenuItem
+import com.omnituner.android.ui.common.PullDownMenuSection
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
+import com.omnituner.android.ui.common.TopBarContent
+import com.omnituner.android.ui.common.TopBarPicker
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.data.FLAT_NAMES
@@ -63,6 +69,25 @@ import com.omnituner.core.theory.noteName
 @Composable
 fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
     val ui by viewModel.ui.collectAsState()
+    var scaleSheet by rememberSaveable { mutableStateOf(false) }
+    val flats = ui.settings.accidental == Accidental.Flat
+    val scale = SCALES.firstOrNull { it.id == ui.settings.scaleId } ?: SCALES.first()
+
+    // Upright, the scale and the instrument/tuning pickers live in the top bar (in landscape the
+    // rail replaces the bar, so the cards below keep them).
+    TopBarContent(
+        title = {
+            TopBarPicker(
+                caption = "Scale",
+                value = scale.label,
+                expanded = scaleSheet,
+                onClick = { scaleSheet = true },
+                contentDescription = "Choose scale",
+            )
+        },
+        actions = { TuningMenu(ui = ui, viewModel = viewModel) },
+    )
+    if (scaleSheet) ScaleSheet(ui = ui, flats = flats, viewModel = viewModel, onDismiss = { scaleSheet = false })
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val wide = maxWidth > maxHeight
@@ -82,7 +107,7 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
                 // Landscape: the board keeps the full width; the cards under it pair up side by side.
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
-                        ScaleCard(ui = ui, viewModel = viewModel)
+                        ScaleCard(ui = ui, viewModel = viewModel, showScale = true)
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         DisplayCard(ui = ui, viewModel = viewModel)
@@ -90,9 +115,8 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
                     }
                 }
             } else {
-                ScaleCard(ui = ui, viewModel = viewModel)
+                ScaleCard(ui = ui, viewModel = viewModel, showScale = false)
                 DisplayCard(ui = ui, viewModel = viewModel)
-                InstrumentCard(ui = ui, viewModel = viewModel)
             }
         }
     }
@@ -225,7 +249,7 @@ private fun ScaleTones(ui: ScalesUiState, onPlay: (Int) -> Unit) {
 }
 
 @Composable
-private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
+private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel, showScale: Boolean) {
     val settings = ui.settings
     val flats = settings.accidental == Accidental.Flat
     val rootNames = if (flats) FLAT_NAMES else SHARP_NAMES
@@ -234,11 +258,13 @@ private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
-            PickerRow(
-                headline = "Scale",
-                value = scale.label,
-                onClick = { scaleSheet = true },
-            )
+            if (showScale) {
+                PickerRow(
+                    headline = "Scale",
+                    value = scale.label,
+                    onClick = { scaleSheet = true },
+                )
+            }
             RootRow(
                 labels = rootNames,
                 selected = settings.rootPitchClass,
@@ -254,21 +280,65 @@ private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
         }
     }
 
-    if (scaleSheet) {
-        OptionSheet(
-            title = "Scale",
-            // Each scale spelled out from the current root, so the list says what each name means.
-            options = SCALES.map { option ->
-                val notes = option.intervals.joinToString(" ") { noteName(settings.rootPitchClass + it.semitones, flats) }
-                PickerOption(option.id, option.label, supporting = notes, section = option.group)
-            },
-            selected = scale.id,
-            onSelect = { id ->
-                viewModel.setScaleId(id)
-                scaleSheet = false
-            },
-            onDismiss = { scaleSheet = false },
+    if (scaleSheet) ScaleSheet(ui = ui, flats = flats, viewModel = viewModel, onDismiss = { scaleSheet = false })
+}
+
+@Composable
+private fun ScaleSheet(ui: ScalesUiState, flats: Boolean, viewModel: ScalesViewModel, onDismiss: () -> Unit) {
+    val settings = ui.settings
+    OptionSheet(
+        title = "Scale",
+        // Each scale spelled out from the current root, so the list says what each name means.
+        options = SCALES.map { option ->
+            val notes = option.intervals.joinToString(" ") { noteName(settings.rootPitchClass + it.semitones, flats) }
+            PickerOption(option.id, option.label, supporting = notes, section = option.group)
+        },
+        selected = settings.scaleId,
+        onSelect = { id ->
+            viewModel.setScaleId(id)
+            onDismiss()
+        },
+        onDismiss = onDismiss,
+    )
+}
+
+/** The top bar's instrument and tuning menu: both lists in one pull-down, instrument first. */
+@Composable
+private fun TuningMenu(ui: ScalesUiState, viewModel: ScalesViewModel) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Box {
+        TopBarPicker(
+            caption = ui.instrument.label,
+            value = ui.tuning.label,
+            expanded = expanded,
+            onClick = { expanded = true },
+            contentDescription = "Choose instrument and tuning",
         )
+        PullDownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            PullDownMenuSection("Instrument")
+            ui.instruments.forEach { instrument ->
+                PullDownMenuItem(
+                    text = instrument.label,
+                    selected = instrument.id == ui.instrument.id,
+                    onClick = {
+                        expanded = false
+                        viewModel.selectInstrument(instrument.id)
+                    },
+                )
+            }
+            PullDownMenuDivider()
+            PullDownMenuSection("Tuning")
+            ui.tunings.forEach { tuning ->
+                PullDownMenuItem(
+                    text = tuning.label,
+                    selected = tuning.id == ui.tuning.id,
+                    onClick = {
+                        expanded = false
+                        viewModel.selectTuning(tuning.id)
+                    },
+                )
+            }
+        }
     }
 }
 

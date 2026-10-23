@@ -84,6 +84,7 @@ import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.SegmentedRow
+import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuDivider
 import com.omnituner.android.ui.common.PullDownMenuItem
@@ -121,6 +122,21 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
             modifier = Modifier.padding(horizontal = 16.dp),
         )
     }
+
+    // Upright, the display options and the overflow (Copy tab / Clear) live in the top bar while
+    // there are voicings to act on; in landscape the rail replaces the bar and the input card
+    // carries them.
+    TopBarContent(
+        actions = if (ui.tab == ChordsTab.Voicings && ui.results != null) {
+            {
+                val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
+                DisplayOptionsMenu(ui.settings, viewModel, barButton)
+                MoreMenu(viewModel, barButton)
+            }
+        } else {
+            null
+        },
+    )
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth > maxHeight) {
@@ -355,9 +371,10 @@ private fun EmptyResults() {
 }
 
 /**
- * Sits above the chord cards: the detected key on the left, then the display options (view,
- * labels, fingerings per chord) and an overflow with Copy tab / Clear. These only change or act
- * on the results, so in portrait they stay out of the input card and appear only once there is something to show.
+ * Sits above the chord cards: the detected key on the left and, in the landscape input card
+ * ([tonal]), the display options and an overflow with Copy tab / Clear. Upright, those two live in
+ * the top bar instead (see [DisplayOptionsMenu] and [MoreMenu]), so only the key shows here; it
+ * appears once there is something to show.
  */
 @Composable
 private fun ResultsHeader(
@@ -369,7 +386,81 @@ private fun ResultsHeader(
     // Standalone tonal buttons, for the bar inside the landscape input card.
     tonal: Boolean = false,
 ) {
+    // The card is the tonal grey itself, so the buttons take the page color to stand out, as on the
+    // tuner and metronome panels.
+    val button: MenuButton = { onClick, icon ->
+        FilledTonalIconButton(
+            onClick = onClick,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+            content = icon,
+        )
+    }
+    Row(
+        modifier = modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (tonal) 8.dp else 0.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            results?.key?.let { key ->
+                KeyRow(keyName(key.tonicName, key.mode), key.alternatives.map { keyName(it.tonicName, it.mode) })
+            }
+        }
+        if (tonal) {
+            DisplayOptionsMenu(settings, viewModel, button)
+            MoreMenu(viewModel, button)
+        }
+    }
+}
+
+private typealias MenuButton = @Composable (onClick: () -> Unit, icon: @Composable () -> Unit) -> Unit
+
+@Composable
+private fun DisplayOptionsMenu(settings: ChordSettings, viewModel: ChordFinderViewModel, button: MenuButton) {
     var optionsOpen by remember { mutableStateOf(false) }
+    Box {
+        button({ optionsOpen = true }) {
+            Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
+        }
+        PullDownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
+            PullDownMenuSection("View")
+            VoicingView.entries.forEach { view ->
+                PullDownMenuItem(
+                    text = if (view == VoicingView.Fretboard) "Fretboard" else "Tab",
+                    selected = settings.view == view,
+                    onClick = { viewModel.setView(view) },
+                )
+            }
+            PullDownMenuDivider()
+            PullDownMenuSection("Labels")
+            DiagramLabels.entries.forEach { labels ->
+                PullDownMenuItem(
+                    text = if (labels == DiagramLabels.Notes) "Notes" else "Degrees",
+                    selected = settings.labels == labels,
+                    onClick = { viewModel.setLabels(labels) },
+                )
+            }
+            PullDownMenuDivider()
+            PullDownMenuSection("Fingerings per chord")
+            // A stepper rather than a list: the count runs 1-12. Lined up with the item labels above.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                RepeatingIconButton(label = "Fewer fingerings", onStep = { viewModel.changeVoicingCount(-1) }) {
+                    Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                }
+                Text("${settings.voicingCount}", style = MaterialTheme.typography.titleMedium)
+                RepeatingIconButton(label = "More fingerings", onStep = { viewModel.changeVoicingCount(1) }) {
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreMenu(viewModel: ChordFinderViewModel, button: MenuButton) {
     var moreOpen by remember { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
@@ -385,96 +476,32 @@ private fun ResultsHeader(
             }
         }
     }
-    val button = @Composable { onClick: () -> Unit, icon: @Composable () -> Unit ->
-        if (tonal) {
-            // The card is the tonal grey itself, so the buttons take the page color to stand out, as
-            // on the tuner and metronome panels.
-            FilledTonalIconButton(
-                onClick = onClick,
-                colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
-                content = icon,
+    Box {
+        button({ moreOpen = true }) {
+            // Brief check after copying, since the menu has already closed by then.
+            Icon(
+                imageVector = if (copied) Icons.Filled.Check else Icons.Filled.MoreVert,
+                contentDescription = if (copied) "Tab copied" else "More",
+                tint = MaterialTheme.colorScheme.onSurface,
             )
-        } else {
-            IconButton(onClick = onClick, content = icon)
         }
-    }
-    Row(
-        modifier = modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(if (tonal) 8.dp else 0.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.weight(1f)) {
-            results?.key?.let { key ->
-                KeyRow(keyName(key.tonicName, key.mode), key.alternatives.map { keyName(it.tonicName, it.mode) })
-            }
-        }
-        Box {
-            button({ optionsOpen = true }) {
-                Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
-            }
-            PullDownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
-                PullDownMenuSection("View")
-                VoicingView.entries.forEach { view ->
-                    PullDownMenuItem(
-                        text = if (view == VoicingView.Fretboard) "Fretboard" else "Tab",
-                        selected = settings.view == view,
-                        onClick = { viewModel.setView(view) },
-                    )
-                }
-                PullDownMenuDivider()
-                PullDownMenuSection("Labels")
-                DiagramLabels.entries.forEach { labels ->
-                    PullDownMenuItem(
-                        text = if (labels == DiagramLabels.Notes) "Notes" else "Degrees",
-                        selected = settings.labels == labels,
-                        onClick = { viewModel.setLabels(labels) },
-                    )
-                }
-                PullDownMenuDivider()
-                PullDownMenuSection("Fingerings per chord")
-                // A stepper rather than a list: the count runs 1-12. Lined up with the item labels above.
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    RepeatingIconButton(label = "Fewer fingerings", onStep = { viewModel.changeVoicingCount(-1) }) {
-                        Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                    Text("${settings.voicingCount}", style = MaterialTheme.typography.titleMedium)
-                    RepeatingIconButton(label = "More fingerings", onStep = { viewModel.changeVoicingCount(1) }) {
-                        Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                }
-            }
-        }
-        Box {
-            button({ moreOpen = true }) {
-                // Brief check after copying, since the menu has already closed by then.
-                Icon(
-                    imageVector = if (copied) Icons.Filled.Check else Icons.Filled.MoreVert,
-                    contentDescription = if (copied) "Tab copied" else "More",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            PullDownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
-                PullDownMenuItem(
-                    text = "Copy tab",
-                    icon = Icons.Filled.ContentCopy,
-                    onClick = {
-                        moreOpen = false
-                        onCopy()
-                    },
-                )
-                PullDownMenuItem(
-                    text = "Clear",
-                    icon = Icons.Filled.Clear,
-                    onClick = {
-                        moreOpen = false
-                        viewModel.clear()
-                    },
-                )
-            }
+        PullDownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
+            PullDownMenuItem(
+                text = "Copy tab",
+                icon = Icons.Filled.ContentCopy,
+                onClick = {
+                    moreOpen = false
+                    onCopy()
+                },
+            )
+            PullDownMenuItem(
+                text = "Clear",
+                icon = Icons.Filled.Clear,
+                onClick = {
+                    moreOpen = false
+                    viewModel.clear()
+                },
+            )
         }
     }
 }

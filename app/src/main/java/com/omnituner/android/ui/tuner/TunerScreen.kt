@@ -89,6 +89,7 @@ import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuDivider
 import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.common.PullDownMenuSection
+import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentSwitchColors
@@ -177,6 +178,29 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             if (viewModel.ui.value.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         }
     }
+
+    // Upright, the tuning picker and the Auto switch live in the top bar (in landscape the rail
+    // replaces the bar, and the panel carries them itself).
+    TopBarContent(
+        title = {
+            TuningMenu(
+                state = state,
+                onTuningPicked = viewModel::selectTuning,
+                onEditTuning = { tuning: Tuning ->
+                    dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes(), tuning.id))
+                },
+                onDeleteTuning = viewModel::deleteCustomTuning,
+                onNewTuning = {
+                    dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes(), state.tuning.id))
+                },
+                onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft(state.instruments)) },
+                onManageInstruments = { dialog = TunerDialog.ManageInstruments },
+            )
+        },
+        actions = {
+            AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = viewModel::selectMode)
+        },
+    )
 
     Column(
         modifier = Modifier
@@ -469,25 +493,6 @@ private fun TunerPanel(
     modifier: Modifier = Modifier,
 ) {
     val colors = animatedTuneColors(state)
-    val header = @Composable { headerModifier: Modifier ->
-        Row(
-            modifier = headerModifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TuningMenu(
-                state = state,
-                onTuningPicked = onTuningPicked,
-                onEditTuning = onEditTuning,
-                onDeleteTuning = onDeleteTuning,
-                onNewTuning = onNewTuning,
-                onNewInstrument = onNewInstrument,
-                onManageInstruments = onManageInstruments,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
-        }
-    }
     val content = @Composable { wide: Boolean ->
         PanelContent(
             state = state,
@@ -541,7 +546,6 @@ private fun TunerPanel(
                 }
             } else {
                 Column {
-                    header(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
                     Box(modifier = Modifier.weight(1f)) { content(false) }
                     StringRow(
                         state = state,

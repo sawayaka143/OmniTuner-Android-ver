@@ -98,6 +98,7 @@ import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
+import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
@@ -135,6 +136,25 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
         view.keepScreenOn = ui.isPlaying
         onDispose { view.keepScreenOn = false }
     }
+
+    // Upright, the meter and preset menus live in the top bar (in landscape the rail replaces the
+    // bar, and the panel carries them itself).
+    TopBarContent(
+        title = {
+            MeterMenu(
+                metronome = ui.state,
+                onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+            )
+        },
+        actions = {
+            PresetMenu(
+                ui = ui,
+                onApply = viewModel::applyPreset,
+                onDelete = viewModel::deletePreset,
+                onSave = { savingPreset = true },
+            )
+        },
+    )
 
     Column(
         modifier = Modifier
@@ -282,7 +302,6 @@ private fun TempoPanel(
                 }
             } else {
                 Column {
-                    header(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
                     readout(Modifier.weight(1f), false)
                     transport(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset), false)
                 }

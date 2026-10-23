@@ -63,6 +63,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -88,6 +89,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.omnituner.android.ui.chords.ChordFinderScreen
+import com.omnituner.android.ui.common.LocalTopBarSlots
+import com.omnituner.android.ui.common.TopBarSlots
 import com.omnituner.android.ui.metronome.MetronomeScreen
 import com.omnituner.android.ui.scales.ScalesScreen
 import com.omnituner.android.ui.theme.LocalAccentColors
@@ -123,6 +126,7 @@ fun AppRoot() {
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val current = Destination.fromRoute(entry?.destination?.route)
+    val slots = remember { TopBarSlots() }
     // Settings is a grouped list, so its page (and the top bar over it) drops to the grouped-list
     // page color; every other screen sits on the plain surface.
     val pageColor = if (current == Destination.Settings) {
@@ -161,7 +165,7 @@ fun AppRoot() {
             contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
             topBar = {
                 if (railSide == null) TopAppBar(
-                    title = { Text(current.title) },
+                    title = { (if (current.topLevel) slots.title else null)?.invoke() ?: Text(current.title) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
                     navigationIcon = {
                         if (!current.topLevel) {
@@ -179,6 +183,7 @@ fun AppRoot() {
                     },
                     actions = {
                         if (current.topLevel) {
+                            slots.actions?.invoke(this)
                             SettingsButton(onClick = openSettings)
                         }
                     },
@@ -199,20 +204,22 @@ fun AppRoot() {
                 }
             },
         ) { padding ->
-            NavHost(
-                navController = navController,
-                startDestination = Destination.Tuner.route,
-                modifier = Modifier.padding(padding),
-                enterTransition = { fadeThroughIn() },
-                exitTransition = { fadeThroughOut() },
-                popEnterTransition = { fadeThroughIn() },
-                popExitTransition = { fadeThroughOut() },
-            ) {
-                composable(Destination.Tuner.route) { TunerScreen() }
-                composable(Destination.Chords.route) { ChordFinderScreen() }
-                composable(Destination.Scales.route) { ScalesScreen() }
-                composable(Destination.Metronome.route) { MetronomeScreen() }
-                composable(Destination.Settings.route) { SettingsScreen() }
+            CompositionLocalProvider(LocalTopBarSlots provides slots) {
+                NavHost(
+                    navController = navController,
+                    startDestination = Destination.Tuner.route,
+                    modifier = Modifier.padding(padding),
+                    enterTransition = { fadeThroughIn() },
+                    exitTransition = { fadeThroughOut() },
+                    popEnterTransition = { fadeThroughIn() },
+                    popExitTransition = { fadeThroughOut() },
+                ) {
+                    composable(Destination.Tuner.route) { TunerScreen() }
+                    composable(Destination.Chords.route) { ChordFinderScreen() }
+                    composable(Destination.Scales.route) { ScalesScreen() }
+                    composable(Destination.Metronome.route) { MetronomeScreen() }
+                    composable(Destination.Settings.route) { SettingsScreen() }
+                }
             }
         }
         if (railSide == RailSide.Right) SideRail(current, selectTab, openSettings, railInsets)
