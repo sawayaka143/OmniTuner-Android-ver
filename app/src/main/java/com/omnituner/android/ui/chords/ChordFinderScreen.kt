@@ -35,17 +35,17 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -91,13 +91,12 @@ import com.omnituner.android.data.VoicingView
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.android.ui.common.NumberStepper
+import com.omnituner.android.ui.common.SheetTitle
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.common.PullDownMenu
-import com.omnituner.android.ui.common.PullDownMenuDivider
 import com.omnituner.android.ui.common.PullDownMenuItem
-import com.omnituner.android.ui.common.PullDownMenuSection
-import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalStatusColors
 import com.omnituner.android.ui.theme.SmoothShape
@@ -423,47 +422,60 @@ private typealias MenuButton = @Composable (onClick: () -> Unit, icon: @Composab
 
 @Composable
 private fun DisplayOptionsMenu(settings: ChordSettings, viewModel: ChordFinderViewModel, button: MenuButton) {
-    var optionsOpen by remember { mutableStateOf(false) }
-    Box {
-        button({ optionsOpen = true }) {
-            Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
-        }
-        PullDownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
-            PullDownMenuSection("View")
-            VoicingView.entries.forEach { view ->
-                PullDownMenuItem(
-                    text = if (view == VoicingView.Fretboard) "Fretboard" else "Tab",
-                    selected = settings.view == view,
-                    onClick = { viewModel.setView(view) },
-                )
-            }
-            PullDownMenuDivider()
-            PullDownMenuSection("Labels")
-            DiagramLabels.entries.forEach { labels ->
-                PullDownMenuItem(
-                    text = if (labels == DiagramLabels.Notes) "Notes" else "Degrees",
-                    selected = settings.labels == labels,
-                    onClick = { viewModel.setLabels(labels) },
-                )
-            }
-            PullDownMenuDivider()
-            PullDownMenuSection("Fingerings per chord")
-            // A stepper rather than a list: the count runs 1-12. Lined up with the item labels above.
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                RepeatingIconButton(label = "Fewer fingerings", onStep = { viewModel.changeVoicingCount(-1) }) {
-                    Icon(Icons.Filled.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                }
-                Text("${settings.voicingCount}", style = MaterialTheme.typography.titleMedium)
-                RepeatingIconButton(label = "More fingerings", onStep = { viewModel.changeVoicingCount(1) }) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
+    var optionsOpen by rememberSaveable { mutableStateOf(false) }
+    button({ optionsOpen = true }) {
+        Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
     }
+    if (optionsOpen) DisplayOptionsSheet(settings, viewModel, onDismiss = { optionsOpen = false })
+}
+
+/**
+ * The display options as a sheet. Unlike a pick-one sheet it stays open while you change things,
+ * so the cards can be watched updating behind it; swipe it down or tap outside to close.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DisplayOptionsSheet(settings: ChordSettings, viewModel: ChordFinderViewModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        SheetTitle("Display options")
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SheetSectionLabel("View")
+            SegmentedRow(
+                options = VoicingView.entries,
+                selected = settings.view,
+                label = { if (it == VoicingView.Fretboard) "Fretboard" else "Tab" },
+                onSelect = viewModel::setView,
+            )
+            Spacer(Modifier.height(4.dp))
+            SheetSectionLabel("Labels")
+            SegmentedRow(
+                options = DiagramLabels.entries,
+                selected = settings.labels,
+                label = { if (it == DiagramLabels.Notes) "Notes" else "Degrees" },
+                onSelect = viewModel::setLabels,
+            )
+        }
+        // The count runs 1-12, so a stepper rather than a list.
+        NumberStepper(
+            headline = "Fingerings per chord",
+            valueText = "${settings.voicingCount}",
+            onDecrement = { viewModel.changeVoicingCount(-1) },
+            onIncrement = { viewModel.changeVoicingCount(1) },
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun SheetSectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
