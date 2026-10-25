@@ -4,6 +4,10 @@ import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.view.Surface
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -246,10 +250,12 @@ fun AppRoot() {
                         navController = navController,
                         startDestination = Destination.Tuner.route,
                         modifier = Modifier.padding(padding),
-                        enterTransition = { fadeThroughIn() },
+                        // Tab -> Settings: the tab fades out, then Settings slides in from the right.
+                        // Back is the exact reverse, so the back swipe drags Settings off rightwards.
+                        enterTransition = { if (crossesToSettings()) settingsSlideIn() else fadeThroughIn() },
                         exitTransition = { fadeThroughOut() },
-                        popEnterTransition = { fadeThroughIn() },
-                        popExitTransition = { fadeThroughOut() },
+                        popEnterTransition = { if (crossesToSettings()) tabFadeInAfterSlide() else fadeThroughIn() },
+                        popExitTransition = { if (crossesToSettings()) settingsSlideOut() else fadeThroughOut() },
                     ) {
                         page(Destination.Tuner, motion) { TunerScreen() }
                         page(Destination.Chords, motion) { ChordFinderScreen() }
@@ -482,6 +488,28 @@ private fun fadeThroughIn(): EnterTransition =
         scaleIn(tween(FadeInMillis, delayMillis = FadeOutMillis, easing = LinearOutSlowInEasing), initialScale = 0.92f)
 
 private fun fadeThroughOut(): ExitTransition = fadeOut(tween(FadeOutMillis, easing = FastOutLinearInEasing))
+
+// Settings slides over the same 450 ms: it waits out the tab's fade, then takes the remaining
+// FadeInMillis, so the moment when neither page shows (where the rail and bars hand their room over)
+// stays at FadeOutMillis going in and, reversed, at SettingsSlideMillis coming back.
+internal const val SettingsSlideMillis = FadeInMillis
+private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val StandardAccelerate = CubicBezierEasing(0.3f, 0f, 1f, 1f)
+
+// Whether this transition runs between a tab and the Settings family, either way.
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.crossesToSettings(): Boolean =
+    Destination.fromRoute(initialState.destination.route).topLevel !=
+        Destination.fromRoute(targetState.destination.route).topLevel
+
+private fun settingsSlideIn(): EnterTransition =
+    slideInHorizontally(tween(SettingsSlideMillis, delayMillis = FadeOutMillis, easing = EmphasizedDecelerate)) { it }
+
+private fun settingsSlideOut(): ExitTransition =
+    slideOutHorizontally(tween(SettingsSlideMillis, easing = StandardAccelerate)) { it }
+
+// The tab's fade-out, reversed: it comes back once Settings has slid away.
+private fun tabFadeInAfterSlide(): EnterTransition =
+    fadeIn(tween(FadeOutMillis, delayMillis = SettingsSlideMillis, easing = LinearOutSlowInEasing))
 
 // Pill slide: a low-stiffness spring, settling in roughly 600 ms with a hint of overshoot.
 private const val PillStiffness = 120f

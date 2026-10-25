@@ -43,9 +43,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
-// Fraction of the page transition where the fade-through hands over: the old page has just faded
-// out and the new one has not begun, so the layout can change there without a visible jump.
-private const val HandOverFraction = FadeOutMillis.toFloat() / PageTransitionMillis
+// Fractions of the page transition where neither page shows, so the layout can change there
+// without a visible jump: going in, the tab has just faded out and Settings has not slid in yet;
+// coming back (the reverse), Settings has just slid off and the tab has not faded in yet.
+private const val HandOverIn = FadeOutMillis.toFloat() / PageTransitionMillis
+private const val HandOverBack = SettingsSlideMillis.toFloat() / PageTransitionMillis
 
 // Over the last third of the trip the gear cross-fades into the arrow.
 private const val CrossFadeFrom = 2f / 3f
@@ -129,11 +131,14 @@ internal class SettingsMotion(private val restingLevel: Float) {
         }
 
     /**
-     * Whether the page on screen is a tab. It flips at the fade-through's hand-over, when neither
-     * page is visible, so the space the rail and bars take can change unseen.
+     * Whether the page on screen is a tab. It flips at the hand-over, when neither page is visible,
+     * so the space the rail and bars take can change unseen.
      */
     val tabPageShowing: Boolean
-        get() = resolve { from, to, fraction -> (if (fraction < HandOverFraction) from else to) < 0.5f }
+        get() = resolve { from, to, fraction ->
+            val handOver = if (to < from) HandOverBack else HandOverIn
+            (if (fraction < handOver) from else to) < 0.5f
+        }
 }
 
 /**
