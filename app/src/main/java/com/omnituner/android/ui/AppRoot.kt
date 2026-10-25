@@ -36,10 +36,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.GraphicEq
@@ -52,9 +52,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationRail
@@ -68,23 +66,37 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -98,8 +110,8 @@ import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.LocalNavBarColors
 import com.omnituner.android.ui.theme.SmoothShape
-import com.omnituner.android.ui.tuner.ReferencePitchScreen
 import com.omnituner.android.ui.tuner.LicensesScreen
+import com.omnituner.android.ui.tuner.ReferencePitchScreen
 import com.omnituner.android.ui.tuner.SettingsScreen
 import com.omnituner.android.ui.tuner.TunerScreen
 
@@ -132,13 +144,25 @@ fun AppRoot() {
     val entry by navController.currentBackStackEntryAsState()
     val current = Destination.fromRoute(entry?.destination?.route)
     val slots = remember { TopBarSlots() }
+    // 0 on a tab, 1 on Settings and its sub-pages; it drives the Settings button's trip, the bars'
+    // cross-fade, the rail's slide and the page color, following the page transition (and the
+    // predictive back gesture) frame by frame.
+    val motion = remember { SettingsMotion(restingLevel = current.motionLevel) }
+
+    // A bar that is fading out keeps naming its own page, though `current` already names the next.
+    // Saved, so a back swipe after the activity is recreated on Settings still names the right tab.
+    var lastTab by rememberSaveable { mutableStateOf(if (current.topLevel) current else Destination.Tuner) }
+    var lastSettingsPage by rememberSaveable { mutableStateOf(if (current.topLevel) Destination.Settings else current) }
+    if (current.topLevel) lastTab = current else lastSettingsPage = current
+
     // Settings and its sub-pages are grouped lists, so their page (and the top bar over it) drops to
-    // the grouped-list page color; the tabs sit on the plain surface.
-    val pageColor = if (!current.topLevel) {
-        LocalGroupedListColors.current.page
-    } else {
-        MaterialTheme.colorScheme.background
-    }
+    // the grouped-list page color; the tabs sit on the plain surface. It blends along the motion.
+    val tabPageColor = MaterialTheme.colorScheme.background
+    val settingsPageColor = LocalGroupedListColors.current.page
+    // The tonal container matches the grouped-list page in light mode, so on Settings the button
+    // takes the group card color to stay visible on it.
+    val settingsButtonColor = LocalGroupedListColors.current.group
+
     val selectTab: (Destination) -> Unit = { destination ->
         navController.navigate(destination.route) {
             popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -147,108 +171,193 @@ fun AppRoot() {
         }
     }
 
-    val openSettings = { navController.navigate(Destination.Settings.route) }
-
-    // In landscape the tabs leave the bottom edge for a side rail; like the bar, it hides on Settings.
+    // In landscape the tabs leave the bottom edge for a side rail; it slides away on Settings.
     // The rail also takes over the top bar there (it already names the page, and holds the Settings
     // button), so the screens get the full height.
-    val railSide = railSide().takeIf { current.topLevel }
+    val railSide = railSide()
+    val landscape = railSide != null
     val railInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout).only(
         if (railSide == RailSide.Left) WindowInsetsSides.Left else WindowInsetsSides.Right,
     )
+    val spots = remember(railSide) { ButtonSpots() }
 
-    Row(Modifier.fillMaxSize().background(pageColor)) {
-        if (railSide == RailSide.Left) SideRail(current, selectTab, openSettings, railInsets)
-        Scaffold(
-            // The rail already pads its edge for the system bars and cutout, so the top bar and the
-            // content must not pad that side a second time.
-            modifier = Modifier
-                .weight(1f)
-                .then(if (railSide != null) Modifier.consumeWindowInsets(railInsets) else Modifier),
-            containerColor = pageColor,
-            // The cutout too: in landscape the camera sits on a side edge, beside the content.
-            contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
-            topBar = {
-                if (railSide == null && current.topLevel) {
-                    TopAppBar(
-                        title = { slots.title?.invoke() ?: Text(current.title) },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
-                        actions = {
-                            slots.actions?.invoke(this)
-                            SettingsButton(onClick = openSettings)
-                        },
-                    )
-                } else if (railSide == null) {
-                    // Settings and its sub-pages: a centred title between Back and the page's edge.
-                    CenterAlignedTopAppBar(
-                        title = { Text(current.title) },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = pageColor),
-                        navigationIcon = {
-                            // The tonal container matches the grouped-list page in light mode, so the
-                            // button takes the group card color to stay visible on it.
-                            FilledTonalIconButton(
-                                onClick = { navController.popBackStack() },
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = LocalGroupedListColors.current.group,
-                                ),
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                        },
-                    )
-                }
-            },
-            bottomBar = {
-                if (current.topLevel && railSide == null) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp,
+    // Each flips once per transition. The space the rail and the top bar take follows the page on
+    // screen, which changes at the fade-through's hand-over, so the reflow is never seen.
+    val tabPageShowing by remember { derivedStateOf { motion.tabPageShowing } }
+    val tabChromeShown by remember { derivedStateOf { motion.progress < 1f } }
+    val settingsBarShown by remember { derivedStateOf { motion.progress > 0f } }
+    val railReserved = landscape && tabPageShowing
+    val topBarReserved = !landscape || !tabPageShowing
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .drawBehind { drawRect(lerp(tabPageColor, settingsPageColor, motion.progress)) },
+    ) {
+        Row(Modifier.fillMaxSize()) {
+            if (railSide == RailSide.Left && tabChromeShown) {
+                SideRail(current, selectTab, railSide, railReserved, motion, spots, railInsets)
+            }
+            Scaffold(
+                // The rail already pads its edge for the system bars and cutout, so the top bar and
+                // the content must not pad that side a second time.
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (railReserved) Modifier.consumeWindowInsets(railInsets) else Modifier),
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                // The cutout too: in landscape the camera sits on a side edge, beside the content.
+                contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
+                // The bars themselves are drawn over the whole width below; this only keeps their room.
+                topBar = { if (topBarReserved) TopBarSpace() },
+                bottomBar = {
+                    if (current.topLevel && !landscape) {
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 0.dp,
+                        ) {
+                            NavTabs(
+                                current = current,
+                                onSelect = selectTab,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                },
+            ) { padding ->
+                CompositionLocalProvider(LocalTopBarSlots provides slots) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = Destination.Tuner.route,
+                        modifier = Modifier.padding(padding),
+                        enterTransition = { fadeThroughIn() },
+                        exitTransition = { fadeThroughOut() },
+                        popEnterTransition = { fadeThroughIn() },
+                        popExitTransition = { fadeThroughOut() },
                     ) {
-                        NavTabs(
-                            current = current,
-                            onSelect = selectTab,
-                            modifier = Modifier.weight(1f),
-                        )
+                        page(Destination.Tuner, motion) { TunerScreen() }
+                        page(Destination.Chords, motion) { ChordFinderScreen() }
+                        page(Destination.Scales, motion) { ScalesScreen() }
+                        page(Destination.Metronome, motion) { MetronomeScreen() }
+                        page(Destination.Settings, motion) {
+                            SettingsScreen(
+                                onOpenReferencePitch = { navController.navigate(Destination.ReferencePitch.route) },
+                                onOpenLicenses = { navController.navigate(Destination.Licenses.route) },
+                            )
+                        }
+                        page(Destination.ReferencePitch, motion) {
+                            ReferencePitchScreen(onDone = { navController.popBackStack() })
+                        }
+                        page(Destination.Licenses, motion) { LicensesScreen() }
                     }
-                }
-            },
-        ) { padding ->
-            CompositionLocalProvider(LocalTopBarSlots provides slots) {
-                NavHost(
-                    navController = navController,
-                    startDestination = Destination.Tuner.route,
-                    modifier = Modifier.padding(padding),
-                    enterTransition = { fadeThroughIn() },
-                    exitTransition = { fadeThroughOut() },
-                    popEnterTransition = { fadeThroughIn() },
-                    popExitTransition = { fadeThroughOut() },
-                ) {
-                    composable(Destination.Tuner.route) { TunerScreen() }
-                    composable(Destination.Chords.route) { ChordFinderScreen() }
-                    composable(Destination.Scales.route) { ScalesScreen() }
-                    composable(Destination.Metronome.route) { MetronomeScreen() }
-                    composable(Destination.Settings.route) {
-                        SettingsScreen(
-                            onOpenReferencePitch = { navController.navigate(Destination.ReferencePitch.route) },
-                            onOpenLicenses = { navController.navigate(Destination.Licenses.route) },
-                        )
-                    }
-                    composable(Destination.ReferencePitch.route) {
-                        ReferencePitchScreen(onDone = { navController.popBackStack() })
-                    }
-                    composable(Destination.Licenses.route) { LicensesScreen() }
                 }
             }
+            if (railSide == RailSide.Right && tabChromeShown) {
+                SideRail(current, selectTab, railSide, railReserved, motion, spots, railInsets)
+            }
         }
-        if (railSide == RailSide.Right) SideRail(current, selectTab, openSettings, railInsets)
+
+        // Both top bars sit over the full width, where each lies on its own page. Their containers
+        // are clear (the page color shows through), and the Settings button is left to the
+        // travelling button below, over an empty slot.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    isTraversalGroup = true
+                    traversalIndex = -1f
+                }
+                // In portrait both pages have a bar, so it keeps the opaque backing it always had.
+                .then(
+                    if (landscape) {
+                        Modifier
+                    } else {
+                        Modifier.drawBehind { drawRect(lerp(tabPageColor, settingsPageColor, motion.progress)) }
+                    },
+                ),
+        ) {
+            if (!landscape && tabChromeShown) {
+                TopAppBar(
+                    title = { slots.title?.invoke() ?: Text(lastTab.title) },
+                    // The tab's title and actions clear out quickly as the button sets off.
+                    modifier = Modifier.graphicsLayer {
+                        alpha = 1f - (motion.progress / TabBarFadeOutEnd).coerceIn(0f, 1f)
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    actions = {
+                        slots.actions?.invoke(this)
+                        ButtonSlot { spots.tab = it.centerInRoot() }
+                    },
+                )
+            }
+            if (settingsBarShown) {
+                // Settings and its sub-pages: a centred title between Back and the page's edge.
+                CenterAlignedTopAppBar(
+                    title = { Text(lastSettingsPage.title) },
+                    // The title arrives as the arrow lands.
+                    modifier = Modifier.graphicsLayer {
+                        alpha = ((motion.progress - SettingsTitleFadeInStart) / (1f - SettingsTitleFadeInStart))
+                            .coerceIn(0f, 1f)
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    navigationIcon = { ButtonSlot { spots.settings = it.centerInRoot() } },
+                )
+            }
+        }
+
+        Box(
+            Modifier.semantics {
+                isTraversalGroup = true
+                traversalIndex = -1f
+            },
+        ) {
+            SettingsBackButton(
+                motion = motion,
+                spots = spots,
+                // Fixed, not by distance: the rail's spot is further from Back than the bar's.
+                turns = if (landscape) 2 else 1,
+                settingsOpen = !current.topLevel,
+                settingsContainer = settingsButtonColor,
+                onClick = {
+                    if (current.topLevel) {
+                        navController.navigate(Destination.Settings.route)
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+            )
+        }
     }
 }
 
-@Composable
-private fun SettingsButton(onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick) {
-        Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
+private val Destination.motionLevel: Float get() = if (topLevel) 0f else 1f
+
+// A destination whose page reports its share of the tab <-> Settings motion.
+private fun NavGraphBuilder.page(
+    destination: Destination,
+    motion: SettingsMotion,
+    content: @Composable (NavBackStackEntry) -> Unit,
+) {
+    composable(destination.route) { entry ->
+        motion.Track(this, entry.id, destination.motionLevel)
+        content(entry)
     }
+}
+
+// The tab's bar is gone by this point of the motion; the Settings title starts from this one.
+private const val TabBarFadeOutEnd = 0.25f
+private const val SettingsTitleFadeInStart = 0.8f
+
+/** The height of a top app bar (and the status bar above it), which the Scaffold pads the content by. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TopBarSpace() {
+    Spacer(
+        Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(TopAppBarDefaults.windowInsets.only(WindowInsetsSides.Top))
+            .height(TopAppBarDefaults.TopAppBarExpandedHeight),
+    )
 }
 
 private enum class RailSide { Left, Right }
@@ -299,12 +408,44 @@ private fun displayRotation(): State<Int> {
 private fun SideRail(
     current: Destination,
     onSelect: (Destination) -> Unit,
-    onSettings: () -> Unit,
+    side: RailSide,
+    reserved: Boolean,
+    motion: SettingsMotion,
+    spots: ButtonSpots,
     windowInsets: WindowInsets,
 ) {
     NavigationRail(
+        modifier = Modifier
+            // Slides over the page, not under it.
+            .zIndex(1f)
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                // Once Settings shows, the rail gives its room back to the page but stays in place,
+                // sliding off its edge.
+                val width = if (reserved) placeable.width else 0
+                layout(width, placeable.height) {
+                    placeable.place(if (side == RailSide.Right) width - placeable.width else 0, 0)
+                }
+            }
+            .onGloballyPositioned {
+                spots.railOuter = it
+                spots.updateRail()
+            }
+            .graphicsLayer {
+                val offEdge = size.width * motion.progress
+                translationX = if (side == RailSide.Left) -offEdge else offEdge
+            }
+            .onGloballyPositioned {
+                spots.railInner = it
+                spots.updateRail()
+            },
         containerColor = MaterialTheme.colorScheme.surface,
-        header = { SettingsButton(onClick = onSettings) },
+        header = {
+            ButtonSlot {
+                spots.railSlot = it
+                spots.updateRail()
+            }
+        },
         windowInsets = windowInsets.union(WindowInsets.systemBars.only(WindowInsetsSides.Vertical)),
     ) {
         // Centred on its edge, like a dock, rather than stacked from the top.
@@ -316,8 +457,9 @@ private fun SideRail(
 
 // M3 "fade through": the old screen fades out quickly, then the new one fades in while
 // growing slightly, so unrelated tabs never visibly overlap.
-private const val FadeOutMillis = 150
-private const val FadeInMillis = 300
+internal const val FadeOutMillis = 150
+internal const val FadeInMillis = 300
+internal const val PageTransitionMillis = FadeOutMillis + FadeInMillis
 
 private fun fadeThroughIn(): EnterTransition =
     fadeIn(tween(FadeInMillis, delayMillis = FadeOutMillis, easing = LinearOutSlowInEasing)) +
