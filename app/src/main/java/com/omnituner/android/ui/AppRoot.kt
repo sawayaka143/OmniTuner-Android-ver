@@ -196,7 +196,7 @@ fun AppRoot() {
     ) {
         Row(Modifier.fillMaxSize()) {
             if (railSide == RailSide.Left && tabChromeShown) {
-                SideRail(current, selectTab, railSide, railReserved, motion, spots, railInsets)
+                SideRail(lastTab, selectTab, railSide, railReserved, motion, spots, railInsets)
             }
             Scaffold(
                 // The rail already pads its edge for the system bars and cutout, so the top bar and
@@ -211,13 +211,29 @@ fun AppRoot() {
                 // The bars themselves are drawn over the whole width below; this only keeps their room.
                 topBar = { if (topBarReserved) TopBarSpace() },
                 bottomBar = {
-                    if (current.topLevel && !landscape) {
+                    // Like the rail, the bar slides off its edge on the way to Settings and gives its
+                    // room back at the hand-over, when neither page shows.
+                    if (!landscape && tabChromeShown) {
                         NavigationBar(
+                            modifier = Modifier
+                                .layout { measurable, constraints ->
+                                    val placeable = measurable.measure(constraints)
+                                    if (tabPageShowing) {
+                                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                                    } else {
+                                        // Reported as empty (0 x 0), so the Scaffold pads the page for
+                                        // the system bar alone; Scaffold places it at the very bottom,
+                                        // so it is drawn up from there.
+                                        layout(0, 0) { placeable.place(0, -placeable.height) }
+                                    }
+                                }
+                                .graphicsLayer { translationY = size.height * motion.progress },
                             containerColor = MaterialTheme.colorScheme.surface,
                             tonalElevation = 0.dp,
                         ) {
                             NavTabs(
-                                current = current,
+                                // The tab it leaves stays selected while it slides away.
+                                current = lastTab,
                                 onSelect = selectTab,
                                 modifier = Modifier.weight(1f),
                             )
@@ -253,7 +269,7 @@ fun AppRoot() {
                 }
             }
             if (railSide == RailSide.Right && tabChromeShown) {
-                SideRail(current, selectTab, railSide, railReserved, motion, spots, railInsets)
+                SideRail(lastTab, selectTab, railSide, railReserved, motion, spots, railInsets)
             }
         }
 
