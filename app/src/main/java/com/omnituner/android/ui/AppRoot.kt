@@ -250,12 +250,13 @@ fun AppRoot() {
                         navController = navController,
                         startDestination = Destination.Tuner.route,
                         modifier = Modifier.padding(padding),
-                        // Tab -> Settings: the tab fades out, then Settings slides in from the right.
-                        // Back is the exact reverse, so the back swipe drags Settings off rightwards.
-                        enterTransition = { if (crossesToSettings()) settingsSlideIn() else fadeThroughIn() },
+                        // Going deeper (tab -> Settings -> a sub-page): the page below fades out, then the
+                        // deeper one slides in from the right. Back is the exact reverse, so the back
+                        // swipe drags the page off rightwards. Tab <-> tab stays a fade-through.
+                        enterTransition = { if (changesDepth()) pageSlideIn() else fadeThroughIn() },
                         exitTransition = { fadeThroughOut() },
-                        popEnterTransition = { if (crossesToSettings()) tabFadeInAfterSlide() else fadeThroughIn() },
-                        popExitTransition = { if (crossesToSettings()) settingsSlideOut() else fadeThroughOut() },
+                        popEnterTransition = { if (changesDepth()) fadeInAfterSlide() else fadeThroughIn() },
+                        popExitTransition = { if (changesDepth()) pageSlideOut() else fadeThroughOut() },
                     ) {
                         page(Destination.Tuner, motion) { TunerScreen() }
                         page(Destination.Chords, motion) { ChordFinderScreen() }
@@ -489,26 +490,34 @@ private fun fadeThroughIn(): EnterTransition =
 
 private fun fadeThroughOut(): ExitTransition = fadeOut(tween(FadeOutMillis, easing = FastOutLinearInEasing))
 
-// Settings slides over the same 450 ms: it waits out the tab's fade, then takes the remaining
-// FadeInMillis, so the moment when neither page shows (where the rail and bars hand their room over)
+// Settings (and its sub-pages) slide over the same 450 ms: each waits out the fade of the page
+// below, then takes the remaining FadeInMillis, so the moment when neither page shows (where the rail and bars hand their room over)
 // stays at FadeOutMillis going in and, reversed, at SettingsSlideMillis coming back.
 internal const val SettingsSlideMillis = FadeInMillis
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val StandardAccelerate = CubicBezierEasing(0.3f, 0f, 1f, 1f)
 
-// Whether this transition runs between a tab and the Settings family, either way.
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.crossesToSettings(): Boolean =
-    Destination.fromRoute(initialState.destination.route).topLevel !=
-        Destination.fromRoute(targetState.destination.route).topLevel
+// How deep a page sits: the tabs, Settings, then its sub-pages.
+private val Destination.depth: Int
+    get() = when {
+        topLevel -> 0
+        this == Destination.Settings -> 1
+        else -> 2
+    }
 
-private fun settingsSlideIn(): EnterTransition =
+// Whether this transition goes a level deeper or back up (either way), rather than sideways.
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.changesDepth(): Boolean =
+    Destination.fromRoute(initialState.destination.route).depth !=
+        Destination.fromRoute(targetState.destination.route).depth
+
+private fun pageSlideIn(): EnterTransition =
     slideInHorizontally(tween(SettingsSlideMillis, delayMillis = FadeOutMillis, easing = EmphasizedDecelerate)) { it }
 
-private fun settingsSlideOut(): ExitTransition =
+private fun pageSlideOut(): ExitTransition =
     slideOutHorizontally(tween(SettingsSlideMillis, easing = StandardAccelerate)) { it }
 
-// The tab's fade-out, reversed: it comes back once Settings has slid away.
-private fun tabFadeInAfterSlide(): EnterTransition =
+// The fade-out of the page below, reversed: it comes back once the deeper page has slid away.
+private fun fadeInAfterSlide(): EnterTransition =
     fadeIn(tween(FadeOutMillis, delayMillis = SettingsSlideMillis, easing = LinearOutSlowInEasing))
 
 // Pill slide: a low-stiffness spring, settling in roughly 600 ms with a hint of overshoot.
