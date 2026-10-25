@@ -2,6 +2,7 @@ package com.omnituner.android.ui
 
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.PathEasing
 import androidx.compose.animation.core.Transition
@@ -58,6 +59,10 @@ private val EmphasizedEasing = PathEasing(
     },
 )
 
+// Material's standard curves for elements leaving and entering the screen.
+private val StandardAccelerate = CubicBezierEasing(0.3f, 0f, 1f, 1f)
+private val StandardDecelerate = CubicBezierEasing(0f, 0f, 0f, 1f)
+
 /**
  * How far the app stands between a tab (0) and the Settings family (1), tied to the NavHost's page
  * transition so the predictive back gesture seeks it along with the pages. Each page reports a
@@ -108,6 +113,20 @@ internal class SettingsMotion(private val restingLevel: Float) {
     /** 0 on a tab, 1 on Settings and its sub-pages, eased in between. */
     val progress: Float
         get() = resolve { from, to, fraction -> from + (to - from) * EmphasizedEasing.transform(fraction) }
+
+    /**
+     * How far the tab chrome (the bottom bar, the landscape rail) has slid off its edge: 0 in place,
+     * 1 gone. It leaves on Material's accelerate curve over the whole transition, starting gently and
+     * speeding off the screen, and comes back on the decelerate curve, settling into place.
+     */
+    val chromeOffEdge: Float
+        get() = resolve { from, to, fraction ->
+            when {
+                to > from -> StandardAccelerate.transform(fraction)
+                to < from -> 1f - StandardDecelerate.transform(fraction)
+                else -> to
+            }
+        }
 
     /**
      * Whether the page on screen is a tab. It flips at the fade-through's hand-over, when neither

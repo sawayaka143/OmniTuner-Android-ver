@@ -227,7 +227,7 @@ fun AppRoot() {
                                         layout(0, 0) { placeable.place(0, -placeable.height) }
                                     }
                                 }
-                                .graphicsLayer { translationY = size.height * motion.progress },
+                                .graphicsLayer { translationY = size.height * motion.chromeOffEdge },
                             containerColor = MaterialTheme.colorScheme.surface,
                             tonalElevation = 0.dp,
                         ) {
@@ -448,7 +448,7 @@ private fun SideRail(
                 spots.updateRail()
             }
             .graphicsLayer {
-                val offEdge = size.width * motion.progress
+                val offEdge = size.width * motion.chromeOffEdge
                 translationX = if (side == RailSide.Left) -offEdge else offEdge
             }
             .onGloballyPositioned {
