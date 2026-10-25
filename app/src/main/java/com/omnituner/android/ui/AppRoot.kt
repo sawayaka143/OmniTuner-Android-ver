@@ -340,6 +340,9 @@ private val TabHeight = 64.dp
 private val TabInset = 4.dp
 private val TabShape = SmoothShape.Full
 
+// Padding around the bar's row, so the outer pills line up with the screens' 16 dp card margin.
+private val BarEdgePadding = 16.dp - TabInset
+
 // The rail is the stock 80 dp wide; its tabs keep the bar's inset on either side.
 private val RailTabWidth = 72.dp
 private val RailSlot = TabHeight + TabInset * 2
@@ -360,7 +363,7 @@ private fun NavTabs(
     modifier: Modifier = Modifier,
 ) {
     val tabs = Destination.tabs
-    BoxWithConstraints(modifier) {
+    BoxWithConstraints(modifier.padding(horizontal = BarEdgePadding)) {
         val slot = maxWidth / tabs.size
         val pillOffset = animatePillOffset(slot, tabs.indexOf(current))
         Box(
