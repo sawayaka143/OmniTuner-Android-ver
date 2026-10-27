@@ -1,10 +1,6 @@
 package com.omnituner.android.ui.tuner
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,10 +9,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -25,111 +22,117 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omnituner.android.data.IN_TUNE_TOLERANCE_CENTS
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private const val TICK_COUNT = 41
-private const val CENTER_TICK = 20
+private const val RANGE_CENTS = 50
+private const val TICK_STEP_CENTS = 5
+private val MAJOR_TICKS = setOf(0, 10, 25, 50)
+private val LABELLED_TICKS = listOf(-50, -25, 0, 25, 50)
+
+// The ruler and the needle share one span so +/-50 lands exactly on the end tick.
+private const val SPAN_START = 0.02f
+private const val SPAN_WIDTH = 0.96f
 
 @Composable
 fun NeedleMeter(
     needlePercent: Float,
     needleColor: Color,
-    glow: Boolean,
     cents: Double?,
     modifier: Modifier = Modifier,
     scaleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
-    val pulse = rememberInfiniteTransition(label = "glow")
-    val glowAlpha by pulse.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(450, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "glowAlpha",
-    )
-    val baseColor = scaleColor
     val textMeasurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(fontSize = 11.sp, color = baseColor)
+    val labelStyle = TextStyle(fontSize = 11.sp, color = scaleColor)
     val readout = cents?.coerceIn(-50.0, 50.0)?.roundToInt() ?: 0
+    val offScale = cents != null && abs(cents) > RANGE_CENTS
+    // No pitch: the needle fades out, leaving only a faint mark at 0 instead of a false "perfect".
+    val needleAlpha by animateFloatAsState(
+        targetValue = when {
+            cents == null -> 0f
+            offScale -> 0.5f
+            else -> 1f
+        },
+        animationSpec = tween(200),
+        label = "needleAlpha",
+    )
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(120.dp)
-            .semantics { contentDescription = "Tuning meter, needle at $readout cents, range -50 to +50" },
+            .semantics {
+                contentDescription = if (cents == null) {
+                    "Tuning meter, no pitch detected"
+                } else {
+                    "Tuning meter, needle at $readout cents, range -50 to +50"
+                }
+            },
     ) {
         val width = size.width
-        val centerY = size.height * 0.55f
+        val centerY = size.height * 0.42f
         val majorHeight = size.height * 0.30f
         val minorHeight = size.height * 0.18f
+        fun xAt(cents: Float) = width * (SPAN_START + SPAN_WIDTH * (cents + RANGE_CENTS) / (2 * RANGE_CENTS))
 
-        drawLine(
-            color = baseColor.copy(alpha = 0.2f),
-            start = Offset(width * 0.02f, centerY),
-            end = Offset(width * 0.98f, centerY),
-            strokeWidth = 2f,
+        // In-tune zone: a soft band behind the centre ticks.
+        val bandLeft = xAt(-IN_TUNE_TOLERANCE_CENTS.toFloat())
+        val bandRight = xAt(IN_TUNE_TOLERANCE_CENTS.toFloat())
+        val bandHeight = majorHeight * 1.7f
+        drawRoundRect(
+            color = needleColor.copy(alpha = 0.14f),
+            topLeft = Offset(bandLeft, centerY - bandHeight / 2),
+            size = Size(bandRight - bandLeft, bandHeight),
+            cornerRadius = CornerRadius((bandRight - bandLeft) / 2),
         )
 
-        for (i in 0 until TICK_COUNT) {
-            val x = width * (0.02f + 0.96f * i / (TICK_COUNT - 1))
-            val isCenter = i == CENTER_TICK
-            val isMajor = i % 5 == 0
-            val height = when {
-                isCenter -> majorHeight * 1.25f
-                isMajor -> majorHeight
-                else -> minorHeight
-            }
+        for (c in -RANGE_CENTS..RANGE_CENTS step TICK_STEP_CENTS) {
+            val major = abs(c) in MAJOR_TICKS
+            val tickHeight = if (major) majorHeight else minorHeight
+            val x = xAt(c.toFloat())
             drawLine(
-                color = when {
-                    isCenter -> needleColor
-                    isMajor -> baseColor.copy(alpha = 0.6f)
-                    else -> baseColor.copy(alpha = 0.35f)
-                },
-                start = Offset(x, centerY - height / 2),
-                end = Offset(x, centerY + height / 2),
-                strokeWidth = if (isCenter) 4f else if (isMajor) 3f else 2f,
+                color = scaleColor.copy(alpha = if (major) 0.75f else 0.45f),
+                start = Offset(x, centerY - tickHeight / 2),
+                end = Offset(x, centerY + tickHeight / 2),
+                strokeWidth = if (major) 3f else 2f,
                 cap = StrokeCap.Round,
             )
         }
 
-        val needleX = width * (needlePercent / 100f).coerceIn(0f, 1f)
-        if (glow) {
-            drawCircle(
-                color = needleColor.copy(alpha = glowAlpha * 0.5f),
-                radius = size.height * 0.28f,
-                center = Offset(needleX, centerY),
-            )
-        }
+        val needleX = width * (SPAN_START + SPAN_WIDTH * (needlePercent / 100f).coerceIn(0f, 1f))
+        val needleHalf = majorHeight * 1.1f
+        // Resting mark at 0, visible only while the needle is away.
         drawLine(
-            color = needleColor,
-            start = Offset(needleX, centerY - majorHeight * 0.95f),
-            end = Offset(needleX, centerY + majorHeight * 0.95f),
+            color = needleColor.copy(alpha = 0.35f * (1f - needleAlpha)),
+            start = Offset(xAt(0f), centerY - majorHeight * 0.5f),
+            end = Offset(xAt(0f), centerY + majorHeight * 0.5f),
+            strokeWidth = 4f,
+            cap = StrokeCap.Round,
+        )
+        drawLine(
+            color = needleColor.copy(alpha = needleAlpha),
+            start = Offset(needleX, centerY - needleHalf),
+            end = Offset(needleX, centerY + needleHalf),
             strokeWidth = 6f,
             cap = StrokeCap.Round,
         )
-        drawCircle(
-            color = needleColor,
-            radius = 9f,
-            center = Offset(needleX, centerY),
-            style = Stroke(width = 3f),
-        )
 
-        val labels = listOf("-50", "-25", "0", "+25", "+50")
-        labels.forEachIndexed { index, text ->
-            val x = width * (0.02f + 0.96f * index / (labels.size - 1))
+        // Labels sit clear of the needle's lower end.
+        val labelTop = centerY + needleHalf + 8.dp.toPx()
+        LABELLED_TICKS.forEach { c ->
+            val label = when {
+                c > 0 -> "+$c"
+                else -> "$c"
+            }
             val measured = textMeasurer.measure(
-                text = text,
+                text = label,
                 style = labelStyle.copy(
-                    color = if (index == 2) needleColor else baseColor,
-                    fontWeight = if (index == 2) FontWeight.Bold else FontWeight.Normal,
+                    color = if (c == 0) needleColor else scaleColor,
+                    fontWeight = if (c == 0) FontWeight.Bold else FontWeight.Normal,
                 ),
             )
-            drawText(
-                measured,
-                topLeft = Offset(x - measured.size.width / 2f, centerY + majorHeight * 0.5f + 6.dp.toPx()),
-            )
+            drawText(measured, topLeft = Offset(xAt(c.toFloat()) - measured.size.width / 2f, labelTop))
         }
     }
 }

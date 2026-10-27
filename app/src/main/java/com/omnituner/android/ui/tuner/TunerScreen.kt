@@ -510,7 +510,6 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
                     needlePercent = needle,
                     needleColor = colors.needle,
                     scaleColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    glow = state.pulse,
                     cents = state.cents,
                     modifier = Modifier.height(meterHeight),
                 )
