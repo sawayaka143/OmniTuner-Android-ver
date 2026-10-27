@@ -20,25 +20,18 @@ class MetronomeTimingTest {
     }
 
     @Test
-    fun meterModelDetectsCompoundMeters() {
+    fun meterModelBeatsPerBarMatchesNumerator() {
         val sixEight = meterModel(6, 8)
-        assertTrue(sixEight.compound)
-        assertEquals(2, sixEight.beatsPerBar)
-        assertEquals(3, sixEight.divisionsPerBeat)
-        assertEquals(1.5, sixEight.beatQuarters, 1e-12)
+        assertEquals(6, sixEight.beatsPerBar)
+        assertEquals(0.5, sixEight.beatQuarters, 1e-12)
 
         val nineEight = meterModel(9, 8)
-        assertTrue(nineEight.compound)
-        assertEquals(3, nineEight.beatsPerBar)
-
-        assertFalse(meterModel(3, 8).compound)
-
-        assertFalse(meterModel(6, 4).compound)
+        assertEquals(9, nineEight.beatsPerBar)
     }
 
     @Test
     fun describeMeter() {
-        assertTrue(describeMeter(meterModel(6, 8)).startsWith("Compound 6/8"))
+        assertTrue(describeMeter(meterModel(6, 8)).startsWith("6/8 — 6 eighth-note beats per bar"))
         assertTrue(describeMeter(meterModel(4, 4)).startsWith("4/4 — 4 quarter-note beats per bar"))
     }
 

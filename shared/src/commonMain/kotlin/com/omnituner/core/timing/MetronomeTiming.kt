@@ -24,25 +24,19 @@ private fun noteName(denominator: Int): String = NOTE_NAME[denominator] ?: "1/$d
 
 fun meterModel(numerator: Int, denominator: Int): MeterModel {
     val unitQuarters = 4.0 / denominator
-    val compound = numerator % 3 == 0 && numerator >= 6 && denominator >= 8
-    val divisionsPerBeat = if (compound) 3 else 1
-    val beatsPerBar = if (compound) numerator / 3 else numerator
+    val beatsPerBar = numerator
     return MeterModel(
         numerator = numerator,
         denominator = denominator,
-        compound = compound,
-        divisionsPerBeat = divisionsPerBeat,
+        compound = false,
+        divisionsPerBeat = 1,
         beatsPerBar = beatsPerBar,
-        beatQuarters = unitQuarters * divisionsPerBeat,
+        beatQuarters = unitQuarters,
         barQuarters = unitQuarters * numerator,
     )
 }
 
 fun describeMeter(model: MeterModel): String {
-    if (model.compound) {
-        return "Compound ${model.numerator}/${model.denominator} — ${model.beatsPerBar} " +
-            "dotted-${noteName(model.denominator)} beats per bar"
-    }
     val plural = if (model.beatsPerBar > 1) "s" else ""
     return "${model.numerator}/${model.denominator} — ${model.beatsPerBar} " +
         "${noteName(model.denominator)}-note beat$plural per bar"
