@@ -21,28 +21,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -84,9 +78,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
-import com.omnituner.android.ui.common.PullDownMenuDivider
-import com.omnituner.android.ui.common.PullDownMenuItem
-import com.omnituner.android.ui.common.PullDownMenuSection
 import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.SmoothShape
@@ -208,16 +199,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
             },
             onRetry = viewModel::startCapture,
             onModeChange = viewModel::selectMode,
-            onTuningPicked = viewModel::selectTuning,
-            onEditTuning = { tuning: Tuning ->
-                dialog = TunerDialog.EditTuning(TuningDraft(tuning.id, tuning.label, tuning.midiNotes(), tuning.id))
-            },
-            onDeleteTuning = viewModel::deleteCustomTuning,
-            onNewTuning = {
-                dialog = TunerDialog.EditTuning(TuningDraft(null, "", state.tuning.midiNotes(), state.tuning.id))
-            },
-            onNewInstrument = { dialog = TunerDialog.EditInstrument(newInstrumentDraft(state.instruments)) },
-            onManageInstruments = { dialog = TunerDialog.ManageInstruments },
+            onOpenPicker = { pickerOpen = true },
             onSelectString = viewModel::selectString,
             modifier = Modifier
                 .padding(top = 8.dp, bottom = 12.dp)
@@ -322,89 +304,6 @@ private fun TuningButton(state: TunerUiState, onClick: () -> Unit, modifier: Mod
     }
 }
 
-/**
- * The tuning list unfolded into the panel in landscape (upright it is the [TuningPickerSheet]):
- * each instrument's tunings (custom ones with edit and delete), then the New tuning /
- * New instrument / Manage actions.
- */
-@Composable
-private fun TuningMenuItems(
-    state: TunerUiState,
-    onTuningPicked: (instrumentId: String, tuningId: String) -> Unit,
-    onEditTuning: (Tuning) -> Unit,
-    onDeleteTuning: (String) -> Unit,
-    onNewTuning: () -> Unit,
-    onNewInstrument: () -> Unit,
-    onManageInstruments: () -> Unit,
-    close: () -> Unit,
-) {
-    state.catalog.forEachIndexed { index, entry ->
-        if (index > 0) PullDownMenuDivider()
-        PullDownMenuSection(entry.instrument.menuTitle(), emphasized = true)
-        entry.tunings.forEach { tuning ->
-            val selected = entry.instrument.id == state.instrument.id && tuning.id == state.tuning.id
-            val editable = tuning.isCustom && tuning.id != "${entry.instrument.id}-default"
-            PullDownMenuItem(
-                text = tuning.label,
-                selected = selected,
-                onClick = {
-                    close()
-                    onTuningPicked(entry.instrument.id, tuning.id)
-                },
-                trailing = if (editable) {
-                    {
-                        Row {
-                            IconButton(onClick = {
-                                close()
-                                onTuningPicked(entry.instrument.id, tuning.id)
-                                onEditTuning(tuning)
-                            }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Edit ${tuning.label}", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            IconButton(onClick = { onDeleteTuning(tuning.id) }) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = "Delete ${tuning.label}",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    null
-                },
-            )
-        }
-    }
-    PullDownMenuDivider()
-    PullDownMenuItem(
-        text = "New tuning…",
-        icon = Icons.Filled.Add,
-        onClick = {
-            close()
-            onNewTuning()
-        },
-    )
-    PullDownMenuItem(
-        text = "New instrument…",
-        icon = Icons.Filled.Add,
-        onClick = {
-            close()
-            onNewInstrument()
-        },
-    )
-    if (state.catalog.any { it.instrument.isCustom }) {
-        PullDownMenuItem(
-            text = "Manage instruments…",
-            icon = Icons.Filled.Tune,
-            onClick = {
-                close()
-                onManageInstruments()
-            },
-        )
-    }
-}
-
 internal fun Instrument.menuTitle(): String = "$label $stringCount-string"
 
 @Composable
@@ -463,12 +362,7 @@ private fun TunerPanel(
     onOpenSettings: () -> Unit,
     onRetry: () -> Unit,
     onModeChange: (TunerMode) -> Unit,
-    onTuningPicked: (instrumentId: String, tuningId: String) -> Unit,
-    onEditTuning: (Tuning) -> Unit,
-    onDeleteTuning: (String) -> Unit,
-    onNewTuning: () -> Unit,
-    onNewInstrument: () -> Unit,
-    onManageInstruments: () -> Unit,
+    onOpenPicker: () -> Unit,
     onSelectString: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -494,34 +388,20 @@ private fun TunerPanel(
         BoxWithConstraints {
             if (maxWidth > maxHeight) {
                 // Landscape: the strings run down the left edge (highest on top, as on the Scales
-                // board), the readout takes the middle, and the tuning menu unfolds into a list on
-                // the right, under the Auto switch.
+                // board); beside them the tuning button and Auto switch share a header row over
+                // the readout, which takes all the remaining width.
                 Row(modifier = Modifier.fillMaxSize().padding(PanelHeaderInset)) {
                     StringColumn(state = state, onSelect = onSelectString)
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) { content(true) }
-                    Column(modifier = Modifier.width(TuningListWidth).fillMaxHeight()) {
-                        AutoSwitch(
-                            auto = state.mode == TunerMode.Auto,
-                            onModeChange = onModeChange,
-                            modifier = Modifier.align(Alignment.End),
-                        )
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(TuningMenuShape)
-                                .verticalScroll(rememberScrollState()),
+                    Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            TuningMenuItems(
-                                state = state,
-                                onTuningPicked = onTuningPicked,
-                                onEditTuning = onEditTuning,
-                                onDeleteTuning = onDeleteTuning,
-                                onNewTuning = onNewTuning,
-                                onNewInstrument = onNewInstrument,
-                                onManageInstruments = onManageInstruments,
-                                close = {},
-                            )
+                            TuningButton(state = state, onClick = onOpenPicker, modifier = Modifier.weight(1f, fill = false))
+                            Spacer(Modifier.weight(1f))
+                            AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
                         }
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content(true) }
                     }
                 }
             } else {
@@ -748,7 +628,6 @@ private val StringButtonSpacing = 8.dp
 private val StringColumnMin = 40.dp
 
 // The pull-down's own max width, so the unfolded list reads the same as the menu.
-private val TuningListWidth = 280.dp
 
 @Composable
 private fun StringRow(
