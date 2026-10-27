@@ -308,7 +308,7 @@ private fun TempoPanel(
     }
 }
 
-private const val WheelIdleMs = 2500L
+private const val WheelIdleMs = 1000L
 private val FoldSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
 
 /** The panel-header trigger shared by both menus: a small caption over a large value. */
