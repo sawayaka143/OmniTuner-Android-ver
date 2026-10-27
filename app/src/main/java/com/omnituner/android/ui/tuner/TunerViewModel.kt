@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -73,6 +75,8 @@ data class TunerUiState(
     val status: TuneStatus = TuneStatus.Idle,
     val tunedStrings: Set<String> = emptySet(),
     val pulse: Boolean = false,
+    // An unclear frame after a lock: the last reading stays up but dimmed.
+    val holding: Boolean = false,
     val haptics: Boolean = true,
     val proAccuracy: Boolean = false,
     val recent: List<RecentTuning> = emptyList(),
@@ -192,6 +196,13 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             frameEvents.collect { onFrame(it) }
+        }
+        // The lowest string sets the detection floor and the high-pass cutoff.
+        viewModelScope.launch {
+            library.state
+                .map { state -> state.tuning.strings.minOfOrNull { it.freq } }
+                .distinctUntilChanged()
+                .collect { capture.setLowestFrequency(it) }
         }
     }
 
@@ -356,7 +367,8 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         val status = when {
             !current.capturing -> TuneStatus.Idle
             showTuned -> TuneStatus.InTune
-            targetName != null && tracking == PitchTrackingState.LOCKED -> TuneStatus.Adjusting(targetName)
+            targetName != null && (tracking == PitchTrackingState.LOCKED || tracking == PitchTrackingState.HOLDING) ->
+                TuneStatus.Adjusting(targetName)
             else -> TuneStatus.Listening
         }
 
@@ -379,6 +391,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             status = status,
             tunedStrings = current.lock.tunedStrings,
             pulse = current.lock.pulseUntil > SystemClock.elapsedRealtime(),
+            holding = tracking == PitchTrackingState.HOLDING,
             haptics = settings.inTuneFeedback && settings.haptics,
             proAccuracy = settings.proAccuracy,
             recent = state.library.recent,

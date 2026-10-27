@@ -40,6 +40,7 @@ fun NeedleMeter(
     needlePercent: Float,
     needleColor: Color,
     cents: Double?,
+    dimmed: Boolean = false,
     modifier: Modifier = Modifier,
     scaleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
@@ -51,7 +52,7 @@ fun NeedleMeter(
     val needleAlpha by animateFloatAsState(
         targetValue = when {
             cents == null -> 0f
-            offScale -> 0.5f
+            offScale || dimmed -> 0.5f
             else -> 1f
         },
         animationSpec = tween(200),

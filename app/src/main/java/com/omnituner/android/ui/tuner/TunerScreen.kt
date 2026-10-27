@@ -489,6 +489,7 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
                     modifier = Modifier.graphicsLayer {
                         scaleX = noteScale.value
                         scaleY = noteScale.value
+                        alpha = if (state.holding) 0.5f else 1f
                     },
                 )
                 // Pro accuracy adds the exact offset; without it the note and needle say enough.
@@ -511,6 +512,7 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
                     needleColor = colors.needle,
                     scaleColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     cents = state.cents,
+                    dimmed = state.holding,
                     modifier = Modifier.height(meterHeight),
                 )
             }

@@ -32,6 +32,13 @@ class TuneLock {
             return false
         }
 
+        if (tracking == PitchTrackingState.HOLDING) {
+            // An unclear frame: confirmation stays as it is, but a pending hold must start over.
+            if (!confirmed) holdStartedAt = null
+            outOfRangeSince = null
+            return false
+        }
+
         val locked = tracking == PitchTrackingState.LOCKED
         val inRange = locked && cents != null && abs(cents) <= tolerance
 

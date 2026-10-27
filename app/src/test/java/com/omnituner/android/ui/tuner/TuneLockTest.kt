@@ -75,4 +75,23 @@ class TuneLockTest {
         assertFalse(lock.step(1000, 0.0, PitchTrackingState.LISTENING, 5.0, 0))
         assertFalse(lock.confirmed)
     }
+
+    @Test
+    fun holdingKeepsAConfirmedLockInsteadOfReleasingIt() {
+        val lock = TuneLock()
+        lock.step(0, 1.0, PitchTrackingState.LOCKED, 5.0, 0)
+        assertTrue(lock.confirmed)
+        lock.step(100, 1.0, PitchTrackingState.HOLDING, 5.0, 0)
+        lock.step(100 + RELEASE_HYSTERESIS_MS + 50, 1.0, PitchTrackingState.HOLDING, 5.0, 0)
+        assertTrue(lock.confirmed)
+    }
+
+    @Test
+    fun holdingRestartsAPendingHold() {
+        val lock = TuneLock()
+        lock.step(0, 1.0, PitchTrackingState.LOCKED, 5.0, 500)
+        lock.step(300, 1.0, PitchTrackingState.HOLDING, 5.0, 500)
+        assertFalse(lock.step(600, 1.0, PitchTrackingState.LOCKED, 5.0, 500))
+        assertTrue(lock.step(1100, 1.0, PitchTrackingState.LOCKED, 5.0, 500))
+    }
 }
