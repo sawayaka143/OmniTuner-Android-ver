@@ -193,6 +193,10 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
         edit { it.copy(ramp = it.ramp.copy(enabled = enabled)) }
     }
 
+    fun setRampTargetBpm(bpm: Int) {
+        edit { it.copy(ramp = it.ramp.copy(targetBpm = bpm.toDouble().coerceIn(BPM_MIN.toDouble(), BPM_MAX.toDouble()))) }
+    }
+
     fun changeRampTargetBpm(delta: Int) {
         edit {
             it.copy(ramp = it.ramp.copy(targetBpm = (it.ramp.targetBpm + delta).coerceIn(BPM_MIN.toDouble(), BPM_MAX.toDouble())))

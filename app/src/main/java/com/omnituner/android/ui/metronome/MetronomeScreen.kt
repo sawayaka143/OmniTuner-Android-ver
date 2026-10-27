@@ -1,5 +1,22 @@
 package com.omnituner.android.ui.metronome
 
+import com.omnituner.android.ui.common.WheelPickerPage
+import com.omnituner.android.ui.common.PickerRow
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -877,6 +894,7 @@ private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewMo
         onSelect = viewModel::setBarPattern,
         menuColor = LocalGroupedListColors.current.group,
     )
+    val accent = LocalAccentColors.current
     FlowRow(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -892,6 +910,10 @@ private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewMo
                     viewModel.setBarPattern(pattern)
                 },
                 label = { Text("$bar") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.accent,
+                    selectedLabelColor = accent.onAccent,
+                ),
             )
         }
     }
@@ -904,18 +926,24 @@ private fun PolyOptions(metronome: MetronomeState, viewModel: MetronomeViewModel
         checked = metronome.poly.enabled,
         onCheckedChange = viewModel::setPolyEnabled,
     )
-    if (metronome.poly.enabled) {
-        NumberStepper(
-            headline = "Events per bar",
-            valueText = "${metronome.poly.events}",
-            onDecrement = { viewModel.changePolyEvents(-1) },
-            onIncrement = { viewModel.changePolyEvents(1) },
-        )
-        SwitchRow(
-            headline = "Accent first event",
-            checked = metronome.poly.accentFirst,
-            onCheckedChange = viewModel::setPolyAccentFirst,
-        )
+    AnimatedVisibility(
+        visible = metronome.poly.enabled,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) {
+        Column {
+            NumberStepper(
+                headline = "Events per bar",
+                valueText = "${metronome.poly.events}",
+                onDecrement = { viewModel.changePolyEvents(-1) },
+                onIncrement = { viewModel.changePolyEvents(1) },
+            )
+            SwitchRow(
+                headline = "Accent first event",
+                checked = metronome.poly.accentFirst,
+                onCheckedChange = viewModel::setPolyAccentFirst,
+            )
+        }
     }
 }
 
@@ -931,19 +959,67 @@ private fun PracticeOptions(metronome: MetronomeState, viewModel: MetronomeViewM
         checked = metronome.ramp.enabled,
         onCheckedChange = viewModel::setRampEnabled,
     )
-    if (metronome.ramp.enabled) {
-        NumberStepper(
-            headline = "Target BPM",
-            valueText = "${metronome.ramp.targetBpm.roundToInt()}",
-            onDecrement = { viewModel.changeRampTargetBpm(-1) },
-            onIncrement = { viewModel.changeRampTargetBpm(1) },
+    var pickingTarget by rememberSaveable { mutableStateOf(false) }
+    AnimatedVisibility(
+        visible = metronome.ramp.enabled,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) {
+        Column {
+            PickerRow(
+                headline = "Target BPM",
+                value = "${metronome.ramp.targetBpm.roundToInt()}",
+                onClick = { pickingTarget = true },
+            )
+            NumberStepper(
+                headline = "Ramp bars",
+                valueText = "${metronome.ramp.bars}",
+                onDecrement = { viewModel.changeRampBars(-1) },
+                onIncrement = { viewModel.changeRampBars(1) },
+            )
+        }
+    }
+    if (pickingTarget) {
+        TargetBpmDialog(
+            initial = metronome.ramp.targetBpm.roundToInt(),
+            onDismiss = { pickingTarget = false },
+            onSet = {
+                viewModel.setRampTargetBpm(it)
+                pickingTarget = false
+            },
         )
-        NumberStepper(
-            headline = "Ramp bars",
-            valueText = "${metronome.ramp.bars}",
-            onDecrement = { viewModel.changeRampBars(-1) },
-            onIncrement = { viewModel.changeRampBars(1) },
-        )
+    }
+}
+
+/** Full-screen wheel picker for the ramp's target tempo: the Reference pitch page without Reset. */
+@Composable
+private fun TargetBpmDialog(initial: Int, onDismiss: () -> Unit, onSet: (Int) -> Unit) {
+    var bpm by rememberSaveable { mutableIntStateOf(initial) }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = LocalGroupedListColors.current.page) {
+            Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                WheelPickerPage(
+                    title = "Adjust target tempo",
+                    unit = "BPM",
+                    value = bpm,
+                    range = BPM_MIN..BPM_MAX,
+                    label = "Target tempo",
+                    valueText = { "$it beats per minute" },
+                    onValueChange = { bpm = it },
+                    onSet = { onSet(bpm) },
+                )
+                FilledTonalIconButton(
+                    onClick = onDismiss,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = LocalGroupedListColors.current.group),
+                    modifier = Modifier.padding(8.dp),
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
     }
 }
 
