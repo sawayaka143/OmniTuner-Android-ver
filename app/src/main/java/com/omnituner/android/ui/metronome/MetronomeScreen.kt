@@ -399,7 +399,7 @@ private fun MeterMenu(
         OptionSheet(
             title = "Meter",
             options = METER_PRESETS.map {
-                PickerOption(it, "${it.numerator}/${it.denominator}", supporting = meterFeel(it.denominator))
+                PickerOption(it, "${it.numerator}/${it.denominator}")
             },
             selected = meter,
             onSelect = onPick,
@@ -497,7 +497,12 @@ private fun TempoReadout(
     wide: Boolean = false,
 ) {
     val metronome = ui.state
-    val beats = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator).beatsPerBar
+    // One dot per written pulse (12/8 shows twelve), grouped into the meter's beats. While playing the
+    // dots follow the bar being played, which keeps the old meter until the next bar line.
+    val chosen = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator)
+    val playingBar = ui.isPlaying && ui.pulsesPerBar > 0
+    val beats = if (playingBar) ui.pulsesPerBar else chosen.numerator
+    val beatGroup = if (playingBar) ui.pulsesPerBeat else chosen.divisionsPerBeat
     val currentBeat = if (ui.isPlaying) floor(ui.progress * beats).toInt().coerceIn(0, beats - 1) else null
 
     // A small kick on every beat, the metronome's counterpart of the tuner's in-tune note pop.
@@ -533,6 +538,7 @@ private fun TempoReadout(
         ) {
             BeatDots(
                 beats = beats,
+                group = beatGroup,
                 current = currentBeat,
                 countIn = ui.inCountIn,
                 barActive = ui.barActive,
@@ -701,12 +707,13 @@ private val BeatDotSpacing = 8.dp
 
 /**
  * One dot per beat of the bar; the sounding beat lights in the accent (the needle's counterpart).
- * The downbeat dot is drawn full size and the others smaller so bar starts read at a glance.
+ * Dots that start a beat are drawn full size and the rest smaller so beats read at a glance.
  * Count-in and muted bars light neutral, since nothing is "in time" to play along to yet.
  */
 @Composable
 private fun BeatDots(
     beats: Int,
+    group: Int,
     current: Int?,
     countIn: Boolean,
     barActive: Boolean,
@@ -725,12 +732,12 @@ private fun BeatDots(
             repeat(beats) { index ->
                 val on = index == current
                 val color by animateColorAsState(
-                    targetValue = if (on) lit else scheme.onSurface.copy(alpha = if (index == 0) 0.28f else 0.14f),
+                    targetValue = if (on) lit else scheme.onSurface.copy(alpha = if (index % group == 0) 0.28f else 0.14f),
                     animationSpec = spring(stiffness = Spring.StiffnessMedium),
                     label = "beatDot",
                 )
                 val size by animateDpAsState(
-                    targetValue = if (index == 0 || on) dot else dot * 0.7f,
+                    targetValue = if (index % group == 0 || on) dot else dot * 0.7f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
                     label = "beatDotSize",
                 )
@@ -834,14 +841,14 @@ private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp
     ) {
         Text(
             "Tap",
-            style = if (size > TapButtonSize) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
-private val TapButtonSize = 64.dp
-private val WideTapButtonSize = 88.dp
+private val TapButtonSize = 128.dp
+private val WideTapButtonSize = 136.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1132,12 +1139,6 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 
 private fun subdivisionLabel(n: Int): String =
     SUBDIVISIONS.firstOrNull { it.n == n }?.label ?: "$n per beat"
-
-private fun meterFeel(denominator: Int): String = when (denominator) {
-    8 -> "compound feel"
-    16 -> "fast"
-    else -> "simple"
-}
 
 private fun presetSummary(state: MetronomeState): String =
     "${state.bpm.roundToInt()} BPM · ${state.timeSignature.numerator}/${state.timeSignature.denominator}"

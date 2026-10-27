@@ -19,6 +19,9 @@ data class TransportSnapshot(
     val barIndex: Int,
     val patternPos: Int,
     val beatsPerBar: Int,
+    /** Written pulses in the bar being played (the numerator) and how many of them make one beat. */
+    val pulsesPerBar: Int,
+    val pulsesPerBeat: Int,
     val barActive: Boolean,
     val countIn: Boolean,
     val bpm: Int,
@@ -35,6 +38,9 @@ class MetronomeScheduler(
         private set
 
     private var dirty = false
+
+    // A tempo change made while playing waits for the next bar line, like the meter does.
+    private var bpmPending = false
 
     private var barCount = 0
     private var patternPos = 0
@@ -54,7 +60,7 @@ class MetronomeScheduler(
     fun configure(state: MetronomeState) {
         if (state.bpm != config.bpm) {
             config = config.copy(bpm = state.bpm)
-            if (isPlaying) retune() else spb = 60.0 / state.bpm
+            if (isPlaying) bpmPending = true else spb = 60.0 / state.bpm
         }
         if (state.masterVol != config.masterVol) {
             config = config.copy(masterVol = state.masterVol)
@@ -87,6 +93,7 @@ class MetronomeScheduler(
     fun start(now: Double = clock()) {
         if (isPlaying) return
         dirty = false
+        bpmPending = false
         model = meterModel(config.timeSignature.numerator, config.timeSignature.denominator)
         spb = 60.0 / config.bpm
         rampStartBpm = config.bpm
@@ -117,6 +124,8 @@ class MetronomeScheduler(
             barIndex = barCount,
             patternPos = patternPos,
             beatsPerBar = model.beatsPerBar,
+            pulsesPerBar = model.numerator,
+            pulsesPerBeat = model.divisionsPerBeat,
             barActive = barCount < 0 || config.barPattern.getOrNull(patternPos) == 1,
             countIn = barCount < 0,
             bpm = (60.0 / spb).toInt(),
@@ -159,14 +168,6 @@ class MetronomeScheduler(
 
     private fun timeOf(beat: Double): Double = anchorT + (beat - anchorB) * spb
 
-    private fun retune(now: Double = clock()) {
-        val elapsedB = anchorB + (now - anchorT) / spb
-        spb = 60.0 / config.bpm
-        anchorT = now
-        anchorB = elapsedB
-        rampStartBpm = config.bpm
-    }
-
     private fun setSpbAt(bpm: Double, atBeat: Double) {
         if (!bpm.isFinite() || bpm <= 0) return
         val t = anchorT + (atBeat - anchorB) * spb
@@ -197,6 +198,11 @@ class MetronomeScheduler(
             patternPos = 0
         } else {
             patternPos = (patternPos + 1) % maxOf(1, config.barPattern.size)
+        }
+        if (bpmPending) {
+            bpmPending = false
+            rampStartBpm = config.bpm
+            setSpbAt(config.bpm, barBase)
         }
         applyRampStep()
         buildBar()

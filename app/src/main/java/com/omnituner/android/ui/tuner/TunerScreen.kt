@@ -480,16 +480,17 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = if (wide) Arrangement.SpaceBetween else Arrangement.SpaceEvenly,
         ) {
-            NoteName(
-                state = state,
-                size = noteSize,
-                color = colors.note,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = noteScale.value
-                    scaleY = noteScale.value
-                },
-            )
+            // The note and its readings stay together as one group, so the pitch sits right under it.
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                NoteName(
+                    state = state,
+                    size = noteSize,
+                    color = colors.note,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = noteScale.value
+                        scaleY = noteScale.value
+                    },
+                )
                 // Pro accuracy adds the exact offset; without it the note and needle say enough.
                 if (state.proAccuracy) {
                     Text(

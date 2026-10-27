@@ -754,11 +754,6 @@ private fun KeyFinderCard(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun KeyFinderFields(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
-    Text(
-        text = "Enter a chord progression and the matching key is detected live.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
     ChordField(value = ui.keyInput, onValueChange = viewModel::setKeyInput, count = ui.keyAnalysis.count)
 }
 
