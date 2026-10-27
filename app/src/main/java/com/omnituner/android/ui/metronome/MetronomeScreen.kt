@@ -1,5 +1,9 @@
 package com.omnituner.android.ui.metronome
 
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import com.omnituner.android.ui.common.WheelPickerPage
 import com.omnituner.android.ui.common.PickerRow
 import androidx.compose.runtime.mutableIntStateOf
@@ -190,7 +194,12 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
     }
 
     if (optionsOpen) {
-        OptionsSheet(metronome = ui.state, viewModel = viewModel, onDismiss = { optionsOpen = false })
+        OptionsSheet(
+            metronome = ui.state,
+            viewModel = viewModel,
+            playingBar = ui.patternPos.takeIf { ui.isPlaying && !ui.inCountIn },
+            onDismiss = { optionsOpen = false },
+        )
     }
 
     if (savingPreset) {
@@ -836,7 +845,7 @@ private val WideTapButtonSize = 88.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewModel, onDismiss: () -> Unit) {
+private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewModel, playingBar: Int?, onDismiss: () -> Unit) {
     // Laid out like Settings: an inset grouped list on the grouped-list page color.
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = LocalGroupedListColors.current.page) {
         Column(
@@ -845,7 +854,7 @@ private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewMode
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp),
         ) {
             GroupedSection("Meter") { MeterOptions(metronome, viewModel) }
-            GroupedSection("Bar mute pattern") { PatternOptions(metronome, viewModel) }
+            GroupedSection("Bar mute pattern") { PatternOptions(metronome, viewModel, playingBar) }
             GroupedSection("Polyrhythm") { PolyOptions(metronome, viewModel) }
             GroupedSection("Practice") { PracticeOptions(metronome, viewModel) }
             GroupedSection("Sounds") { SoundOptions(metronome, viewModel) }
@@ -878,38 +887,26 @@ private fun MeterOptions(metronome: MetronomeState, viewModel: MetronomeViewMode
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The mute pattern as the loop it is: one cell per bar (filled accent plays, outline is muted), as
+ * many cells as bars in the loop, with quick fills above and, while running, a ring on the bar
+ * being played ([playingBar]).
+ */
 @Composable
-private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewModel) {
-    val presets = PATTERN_PRESETS.map { PickerOption(it.bars, it.label) }
-    val options = if (presets.any { it.key == metronome.barPattern }) {
-        presets
-    } else {
-        presets + PickerOption(metronome.barPattern, "Custom")
-    }
-    MenuPickerRow(
-        headline = "Preset",
-        options = options,
-        selected = metronome.barPattern,
-        onSelect = viewModel::setBarPattern,
-        menuColor = LocalGroupedListColors.current.group,
-    )
+private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewModel, playingBar: Int?) {
+    val pattern = metronome.barPattern
     val accent = LocalAccentColors.current
-    FlowRow(
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+    Row(
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        (1..PATTERN_MAX_BARS).forEach { bar ->
+        PATTERN_PRESETS.forEach { preset ->
             FilterChip(
-                selected = metronome.barPattern.getOrNull(bar - 1) == 1,
-                onClick = {
-                    val pattern = metronome.barPattern.toMutableList()
-                    while (pattern.size < bar) pattern.add(0)
-                    pattern[bar - 1] = if (pattern[bar - 1] == 1) 0 else 1
-                    viewModel.setBarPattern(pattern)
-                },
-                label = { Text("$bar") },
+                selected = pattern == preset.bars,
+                onClick = { viewModel.setBarPattern(preset.bars) },
+                label = { Text(preset.label) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = accent.accent,
                     selectedLabelColor = accent.onAccent,
@@ -917,7 +914,60 @@ private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewMo
             )
         }
     }
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        pattern.withIndex().toList().chunked(PATTERN_CELLS_PER_ROW).forEach { rowCells ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowCells.forEach { (index, value) ->
+                    BarCell(
+                        number = index + 1,
+                        plays = value == 1,
+                        current = index == playingBar,
+                        onClick = {
+                            viewModel.setBarPattern(pattern.toMutableList().also { it[index] = if (value == 1) 0 else 1 })
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // Keep a short last row's cells the same width as the full rows above.
+                repeat(PATTERN_CELLS_PER_ROW - rowCells.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+    NumberStepper(
+        headline = "Bars in loop",
+        valueText = "${pattern.size}",
+        onDecrement = { if (pattern.size > 1) viewModel.setBarPattern(pattern.dropLast(1)) },
+        onIncrement = { if (pattern.size < PATTERN_MAX_BARS) viewModel.setBarPattern(pattern + 1) },
+    )
 }
+
+@Composable
+private fun BarCell(number: Int, plays: Boolean, current: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val accent = LocalAccentColors.current
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = SmoothShape(12.dp),
+        color = if (plays) accent.accent else Color.Transparent,
+        contentColor = if (plays) accent.onAccent else scheme.onSurfaceVariant,
+        border = BorderStroke(
+            width = if (current) 2.dp else 1.dp,
+            color = if (current) scheme.onSurface else scheme.outlineVariant,
+        ),
+        modifier = modifier
+            .height(40.dp)
+            .semantics { stateDescription = if (plays) "Plays" else "Muted" },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text("$number", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+private const val PATTERN_CELLS_PER_ROW = 8
 
 @Composable
 private fun PolyOptions(metronome: MetronomeState, viewModel: MetronomeViewModel) {

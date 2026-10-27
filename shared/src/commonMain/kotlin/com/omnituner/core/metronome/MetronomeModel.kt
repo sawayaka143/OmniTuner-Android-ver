@@ -135,10 +135,10 @@ data class PatternPreset(
 )
 
 val PATTERN_PRESETS: List<PatternPreset> = listOf(
-    PatternPreset("All on", listOf(1)),
-    PatternPreset("1 : 1", listOf(1, 0)),
-    PatternPreset("2 : 1", listOf(1, 1, 0)),
-    PatternPreset("2 : 2", listOf(1, 1, 0, 0)),
-    PatternPreset("3 : 1", listOf(1, 1, 1, 0)),
-    PatternPreset("4 : 4", listOf(1, 1, 1, 1, 0, 0, 0, 0)),
+    PatternPreset("All bars", listOf(1)),
+    PatternPreset("Alternate", listOf(1, 0)),
+    PatternPreset("Play 2, mute 1", listOf(1, 1, 0)),
+    PatternPreset("Play 2, mute 2", listOf(1, 1, 0, 0)),
+    PatternPreset("Play 3, mute 1", listOf(1, 1, 1, 0)),
+    PatternPreset("Play 4, mute 4", listOf(1, 1, 1, 1, 0, 0, 0, 0)),
 )
