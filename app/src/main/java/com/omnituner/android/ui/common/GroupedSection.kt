@@ -26,19 +26,21 @@ private val SectionShape = SmoothShape(20.dp)
  */
 @Composable
 fun GroupedSection(
-    title: String,
+    title: String?,
     modifier: Modifier = Modifier,
     titleStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     titleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Text(
-            text = title,
-            style = titleStyle,
-            color = titleColor,
-            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
-        )
+        if (title != null) {
+            Text(
+                text = title,
+                style = titleStyle,
+                color = titleColor,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+            )
+        }
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = SectionShape,

@@ -644,6 +644,7 @@ private fun TempoEntryDialog(current: Int, onDismiss: () -> Unit, onSet: (Int) -
     LaunchedEffect(Unit) { focus.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LocalGroupedListColors.current.group,
         title = { Text("Tempo") },
         text = {
             OutlinedTextField(
@@ -984,6 +985,7 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LocalGroupedListColors.current.group,
         title = { Text("Save preset") },
         text = {
             OutlinedTextField(

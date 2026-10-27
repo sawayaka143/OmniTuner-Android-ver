@@ -93,12 +93,14 @@ import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.NumberStepper
+import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.SheetTitle
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.LocalStatusColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.theory.BadgeKind
@@ -427,46 +429,38 @@ private fun DisplayOptionsMenu(settings: ChordSettings, viewModel: ChordFinderVi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DisplayOptionsSheet(settings: ChordSettings, viewModel: ChordFinderViewModel, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = LocalGroupedListColors.current.page) {
         SheetTitle("Display options")
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SheetSectionLabel("View")
-            SegmentedRow(
-                options = VoicingView.entries,
-                selected = settings.view,
-                label = { if (it == VoicingView.Fretboard) "Fretboard" else "Tab" },
-                onSelect = viewModel::setView,
-            )
-            Spacer(Modifier.height(4.dp))
-            SheetSectionLabel("Labels")
-            SegmentedRow(
-                options = DiagramLabels.entries,
-                selected = settings.labels,
-                label = { if (it == DiagramLabels.Notes) "Notes" else "Degrees" },
-                onSelect = viewModel::setLabels,
-            )
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            GroupedSection(title = "View") {
+                SegmentedRow(
+                    options = VoicingView.entries,
+                    selected = settings.view,
+                    label = { if (it == VoicingView.Fretboard) "Fretboard" else "Tab" },
+                    onSelect = viewModel::setView,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            GroupedSection(title = "Labels") {
+                SegmentedRow(
+                    options = DiagramLabels.entries,
+                    selected = settings.labels,
+                    label = { if (it == DiagramLabels.Notes) "Notes" else "Degrees" },
+                    onSelect = viewModel::setLabels,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            // The count runs 1-12, so a stepper rather than a list.
+            GroupedSection(title = null) {
+                NumberStepper(
+                    headline = "Fingerings per chord",
+                    valueText = "${settings.voicingCount}",
+                    onDecrement = { viewModel.changeVoicingCount(-1) },
+                    onIncrement = { viewModel.changeVoicingCount(1) },
+                )
+            }
         }
-        // The count runs 1-12, so a stepper rather than a list.
-        NumberStepper(
-            headline = "Fingerings per chord",
-            valueText = "${settings.voicingCount}",
-            onDecrement = { viewModel.changeVoicingCount(-1) },
-            onIncrement = { viewModel.changeVoicingCount(1) },
-        )
-        Spacer(Modifier.height(16.dp))
     }
-}
-
-@Composable
-private fun SheetSectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable
