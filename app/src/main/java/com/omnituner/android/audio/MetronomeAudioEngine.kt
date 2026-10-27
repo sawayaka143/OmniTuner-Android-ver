@@ -6,6 +6,7 @@ import android.media.AudioTrack
 import android.os.Process
 import com.omnituner.core.metronome.MetronomeScheduler
 import com.omnituner.core.metronome.MetronomeState
+import com.omnituner.core.metronome.TimeSignature
 import com.omnituner.core.sound.DynamicsCompressor
 import com.omnituner.core.sound.MetronomeVoices
 import kotlin.math.roundToInt
@@ -14,7 +15,7 @@ import kotlin.random.Random
 class MetronomeAudioEngine {
 
     fun interface TransportListener {
-        fun onTransport(barIndex: Int, patternPos: Int, progress: Double, countIn: Boolean, barActive: Boolean)
+        fun onTransport(barIndex: Int, patternPos: Int, progress: Double, countIn: Boolean, barActive: Boolean, timeSignature: TimeSignature)
     }
 
     private val scheduler = MetronomeScheduler { clockSeconds() }
@@ -149,6 +150,7 @@ class MetronomeAudioEngine {
                         snapshot.progress,
                         snapshot.countIn,
                         snapshot.barActive,
+                        snapshot.timeSignature,
                     )
                 }
             }

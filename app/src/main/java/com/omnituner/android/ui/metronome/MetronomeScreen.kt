@@ -362,7 +362,7 @@ private fun MeterMenu(
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box(modifier = modifier) {
         HeaderMenuTrigger(
-            caption = subdivisionLabel(metronome.divisionsPerBeat),
+            caption = "Meter",
             value = "${meter.numerator}/${meter.denominator}",
             expanded = expanded,
             onClick = { expanded = true },
@@ -373,7 +373,7 @@ private fun MeterMenu(
         OptionSheet(
             title = "Meter",
             options = METER_PRESETS.map {
-                PickerOption(it, "${it.numerator}/${it.denominator}", supporting = meterFeel(it.denominator))
+                PickerOption(it, "${it.numerator}/${it.denominator}")
             },
             selected = meter,
             onSelect = onPick,
@@ -471,7 +471,8 @@ private fun TempoReadout(
     wide: Boolean = false,
 ) {
     val metronome = ui.state
-    val beats = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator).beatsPerBar
+    val activeMeter = ui.activeTimeSignature
+    val beats = meterModel(activeMeter.numerator, activeMeter.denominator).beatsPerBar
     val currentBeat = if (ui.isPlaying) floor(ui.progress * beats).toInt().coerceIn(0, beats - 1) else null
 
     // A small kick on every beat, the metronome's counterpart of the tuner's in-tune note pop.
@@ -807,14 +808,14 @@ private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp
     ) {
         Text(
             "Tap",
-            style = if (size > TapButtonSize) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            style = if (size >= 88.dp) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
-private val TapButtonSize = 64.dp
-private val WideTapButtonSize = 88.dp
+private val TapButtonSize = 96.dp
+private val WideTapButtonSize = 96.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1004,12 +1005,6 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 
 private fun subdivisionLabel(n: Int): String =
     SUBDIVISIONS.firstOrNull { it.n == n }?.label ?: "$n per beat"
-
-private fun meterFeel(denominator: Int): String = when (denominator) {
-    8 -> "compound feel"
-    16 -> "fast"
-    else -> "simple"
-}
 
 private fun presetSummary(state: MetronomeState): String =
     "${state.bpm.roundToInt()} BPM · ${state.timeSignature.numerator}/${state.timeSignature.denominator}"

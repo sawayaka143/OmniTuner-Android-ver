@@ -22,6 +22,7 @@ data class TransportSnapshot(
     val barActive: Boolean,
     val countIn: Boolean,
     val bpm: Int,
+    val timeSignature: TimeSignature,
 )
 
 class MetronomeScheduler(
@@ -120,6 +121,7 @@ class MetronomeScheduler(
             barActive = barCount < 0 || config.barPattern.getOrNull(patternPos) == 1,
             countIn = barCount < 0,
             bpm = (60.0 / spb).toInt(),
+            timeSignature = TimeSignature(model.numerator, model.denominator),
         )
     }
 

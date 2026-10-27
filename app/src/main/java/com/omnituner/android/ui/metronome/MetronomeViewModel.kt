@@ -60,6 +60,7 @@ data class MetronomeUiState(
     val progress: Double = 0.0,
     val inCountIn: Boolean = false,
     val barActive: Boolean = true,
+    val activeTimeSignature: TimeSignature = state.timeSignature,
 )
 
 private data class Transport(
@@ -68,6 +69,7 @@ private data class Transport(
     val progress: Double = 0.0,
     val inCountIn: Boolean = false,
     val barActive: Boolean = true,
+    val activeTimeSignature: TimeSignature? = null,
 )
 
 class MetronomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -85,6 +87,7 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
         playing,
         transport,
     ) { state, presets, isPlaying, t ->
+        val activeTs = if (isPlaying && t.activeTimeSignature != null) t.activeTimeSignature else state.timeSignature
         MetronomeUiState(
             state = state,
             presets = presets,
@@ -94,12 +97,13 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
             progress = t.progress,
             inCountIn = t.inCountIn,
             barActive = t.barActive,
+            activeTimeSignature = activeTs,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MetronomeUiState())
 
     init {
-        engine.setTransportListener { barIndex, patternPos, progress, countIn, barActive ->
-            transport.value = Transport(barIndex, patternPos, progress, countIn, barActive)
+        engine.setTransportListener { barIndex, patternPos, progress, countIn, barActive, timeSignature ->
+            transport.value = Transport(barIndex, patternPos, progress, countIn, barActive, timeSignature)
         }
         store.flow.onEach { engine.configure(it) }.launchIn(viewModelScope)
     }

@@ -160,6 +160,23 @@ class MetronomeSchedulerTest {
     }
 
     @Test
+    fun timeSignatureStagingAppliesAtBarBoundary() {
+        val clock = FakeClock()
+        val scheduler = configured(clock) { copy(bpm = 600.0, timeSignature = TimeSignature(4, 4)) }
+
+        scheduler.start(clock.now)
+        assertEquals(TimeSignature(4, 4), scheduler.getTransport()?.timeSignature)
+
+        scheduler.configure(DEFAULT_METRONOME_STATE.copy(bpm = 600.0, timeSignature = TimeSignature(3, 4)))
+        assertEquals(TimeSignature(4, 4), scheduler.getTransport()?.timeSignature)
+
+        clock.now += 0.5
+        scheduler.tick(MetronomeScheduler.LOOKAHEAD_VISIBLE_S)
+        assertEquals(TimeSignature(3, 4), scheduler.getTransport()?.timeSignature)
+        scheduler.stop()
+    }
+
+    @Test
     fun stopClearsPlayingState() {
         val clock = FakeClock()
         val scheduler = configured(clock)
