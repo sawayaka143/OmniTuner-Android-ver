@@ -21,13 +21,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
@@ -110,6 +111,8 @@ private fun Context.hasRecordPermission(): Boolean =
 @Composable
 fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     val state by viewModel.ui.collectAsState()
+    // Read only inside the meter's draw pass, so the level redraws the meter without recomposing.
+    val inputLevel = viewModel.inputLevel.collectAsState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = LocalHapticFeedback.current
@@ -186,6 +189,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     ) {
         TunerPanel(
             state = state,
+            inputLevel = { inputLevel.value },
             hasPermission = hasPermission,
             permanentlyDenied = permanentlyDenied,
             onAllow = { permissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
@@ -281,7 +285,7 @@ private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifie
                 role = Role.Switch,
                 onValueChange = { onModeChange(if (it) TunerMode.Auto else TunerMode.Manual) },
             )
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 16.dp, end = AutoSwitchEndPadding, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -312,6 +316,18 @@ private fun animatedTuneColors(state: TunerUiState): TuneColors {
 private val PanelCorner = 32.dp
 private val PanelHeaderInset = 12.dp
 
+// Landscape: where the header's text and the meter's outer labels sit, in from the column beside
+// the strings. It is the header picker's own start padding, so the picker needs none added.
+private val PanelContentInset = 16.dp
+private val AutoSwitchEndPadding = 8.dp
+
+// Landscape: the share of the readout's width each top corner keeps for its control (the tuning
+// picker, the Auto switch); the note may grow into everything between them.
+private const val WideSideBand = 0.3f
+
+// Landscape: the height the overlaid header takes, kept clear by the full-panel messages.
+private val WideHeaderClearance = 56.dp
+
 // Concentric with the panel: inner radius = panel radius - inset, so the menu's press highlight
 // follows the panel's corner at an even distance instead of bulging into it.
 private val TuningMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
@@ -319,6 +335,7 @@ private val TuningMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
 @Composable
 private fun TunerPanel(
     state: TunerUiState,
+    inputLevel: () -> Float,
     hasPermission: Boolean,
     permanentlyDenied: Boolean,
     onAllow: () -> Unit,
@@ -333,6 +350,7 @@ private fun TunerPanel(
     val content = @Composable { wide: Boolean ->
         PanelContent(
             state = state,
+            inputLevel = inputLevel,
             colors = colors,
             hasPermission = hasPermission,
             permanentlyDenied = permanentlyDenied,
@@ -351,25 +369,39 @@ private fun TunerPanel(
         BoxWithConstraints {
             if (maxWidth > maxHeight) {
                 // Landscape: the strings run down the left edge (highest on top, as on the Scales
-                // board); beside them the tuning button and Auto switch share a header row over
-                // the readout, which takes all the remaining width.
+                // board); beside them the readout takes the full height, with the tuning button and
+                // Auto switch laid over its top corners. A header strip would cost the note its
+                // height for two controls that only use the ends; instead each keeps to a side band
+                // and the note fills the middle.
                 Row(modifier = Modifier.fillMaxSize().padding(PanelHeaderInset)) {
                     StringColumn(state = state, onSelect = onSelectString)
-                    Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        val sideBand = maxWidth * WideSideBand
+                        content(true)
+                        // SpaceBetween, not a weighted Spacer: the picker doesn't fill its weighted
+                        // share, and a Spacer would leave that unused share after Auto instead of
+                        // before it, floating the switch mid-panel.
+                        // The end padding tops Auto's own 8 dp up to the picker's 16 dp, so the
+                        // header's text and switch sit on the same edges as the meter below.
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = PanelContentInset - AutoSwitchEndPadding),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             TuningHeaderPicker(
                                 instrument = state.instrument,
                                 tuningLabel = state.tuning.label,
                                 onClick = onOpenPicker,
-                                modifier = Modifier.weight(1f, fill = false),
+                                // Kept to its side band, so a long tuning name ellipsizes before
+                                // it can reach under the note.
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .widthIn(max = sideBand),
                             )
-                            Spacer(Modifier.weight(1f))
                             AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
                         }
-                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content(true) }
                     }
                 }
             } else {
@@ -389,6 +421,7 @@ private fun TunerPanel(
 @Composable
 private fun PanelContent(
     state: TunerUiState,
+    inputLevel: () -> Float,
     colors: TuneColors,
     hasPermission: Boolean,
     permanentlyDenied: Boolean,
@@ -398,8 +431,11 @@ private fun PanelContent(
     wide: Boolean,
 ) {
     val error = state.error
+    // Landscape lays the header over the panel's top, so the full-panel messages start below it.
+    val emptyModifier = if (wide) Modifier.padding(top = WideHeaderClearance) else Modifier
     when {
         !hasPermission -> EmptyState(
+            modifier = emptyModifier,
             icon = Icons.Filled.MicOff,
             title = "Microphone access needed",
             body = "OmniTuner listens to your instrument to show how far off each string is.",
@@ -407,18 +443,22 @@ private fun PanelContent(
             onAction = if (permanentlyDenied) onOpenSettings else onAllow,
         )
         error != null -> EmptyState(
+            modifier = emptyModifier,
             icon = Icons.Filled.ErrorOutline,
             title = "Can't use the microphone",
             body = error,
             action = "Try again",
             onAction = onRetry,
         )
-        else -> Readout(state = state, colors = colors, wide = wide)
+        else -> Readout(state = state, inputLevel = inputLevel, colors = colors, wide = wide)
     }
 }
 
+// The faded note and the "no note" dash share one strength, so idle reads the same either way.
+private const val IdleNoteAlpha = 0.35f
+
 @Composable
-private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
+private fun Readout(state: TunerUiState, inputLevel: () -> Float, colors: TuneColors, wide: Boolean) {
     val noteScale = remember { Animatable(1f) }
     LaunchedEffect(state.pulse) {
         if (state.pulse) {
@@ -434,30 +474,72 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
         animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
         label = "needle",
     )
+    // Manual with no pitch yet: the target string's note waits, faded, where the reading will
+    // land, and comes up to full strength when it does.
+    val liveLabel = state.noteMidi?.let { midiNoteLabel(it) }
+    val waiting = liveLabel == null && state.targetMidi != null
+    val noteLabel = liveLabel ?: state.targetMidi?.let { midiNoteLabel(it) }
+    val noteAlpha by animateFloatAsState(
+        targetValue = when {
+            state.holding -> 0.5f
+            waiting -> IdleNoteAlpha
+            else -> 1f
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "noteAlpha",
+    )
+    // Auto with nothing heard: the status line asks for a string instead of sitting blank.
+    val prompting = state.mode == TunerMode.Auto && state.capturing && state.cents == null && !state.holding
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = if (wide) PanelContentInset else 20.dp, vertical = 16.dp),
     ) {
-        val noteSize = with(LocalDensity.current) { (maxHeight * 0.26f).coerceIn(56.dp, 168.dp).toSp() }
-        val meterHeight = min(120.dp, maxHeight * 0.28f)
+        val meterHeight = min(120.dp, maxHeight * if (wide) 0.22f else 0.28f)
+        val typography = MaterialTheme.typography
+        val noteSize = with(LocalDensity.current) {
+            if (wide) {
+                // Landscape is short, so a share of the height left the note ~60 dp tall: unreadable
+                // from a stand. It takes all the height the other lines don't need (in dp, so a
+                // larger system font can't push it past the meter), and no more width than the
+                // middle band the header's corner controls leave free (a note with its octave runs
+                // about 1.45 times its size wide, "C#4" being the widest).
+                val reserved = meterHeight +
+                    typography.headlineSmall.lineHeight.toDp() + // status
+                    typography.bodyMedium.lineHeight.toDp() + // frequency
+                    (if (state.proAccuracy) typography.titleLarge.lineHeight.toDp() else 0.dp)
+                val byHeight = maxHeight - reserved - 8.dp
+                val byWidth = maxWidth * (1f - 2 * WideSideBand) / 1.45f
+                min(byHeight, byWidth).coerceIn(56.dp, 260.dp).toSp()
+            } else {
+                (maxHeight * 0.26f).coerceIn(56.dp, 168.dp).toSp()
+            }
+        }
+        // Landscape keeps the octave in proportion to the larger note; upright it stays headlineLarge.
+        val octaveSize = if (wide) noteSize * 0.4f else typography.headlineLarge.fontSize
 
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = if (wide) Arrangement.SpaceBetween else Arrangement.SpaceEvenly,
+            verticalArrangement = if (wide) Arrangement.Top else Arrangement.SpaceEvenly,
         ) {
             // The note and its readings stay together as one group, so the pitch sits right under it.
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Landscape: the group centres in the height the status and meter leave above them, as
+            // it does upright, between the header's corner controls.
+            Column(
+                modifier = if (wide) Modifier.weight(1f).wrapContentHeight(Alignment.CenterVertically) else Modifier,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 NoteName(
-                    state = state,
+                    label = noteLabel,
                     size = noteSize,
-                    color = colors.note,
+                    octaveSize = octaveSize,
+                    color = if (waiting) colors.content else colors.note,
                     modifier = Modifier.graphicsLayer {
                         scaleX = noteScale.value
                         scaleY = noteScale.value
-                        alpha = if (state.holding) 0.5f else 1f
+                        alpha = noteAlpha
                     },
                 )
                 // Pro accuracy adds the exact offset; without it the note and needle say enough.
@@ -481,15 +563,22 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
                     scaleColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     cents = state.cents,
                     dimmed = state.holding,
+                    inputLevel = inputLevel,
                     modifier = Modifier.height(meterHeight),
                 )
             }
+            // The status line always holds its one line (blank or not), so the prompt and the
+            // readings swap in place without moving the meter.
             val status = @Composable {
                 Text(
-                    text = statusLabel(state),
+                    text = if (prompting) "Play a string" else statusLabel(state),
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (state.tuned) colors.note else colors.content,
+                    fontWeight = if (prompting) FontWeight.Normal else FontWeight.SemiBold,
+                    color = when {
+                        state.tuned -> colors.note
+                        prompting -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> colors.content
+                    },
                     textAlign = TextAlign.Center,
                 )
             }
@@ -507,8 +596,13 @@ private fun Readout(state: TunerUiState, colors: TuneColors, wide: Boolean) {
 }
 
 @Composable
-private fun NoteName(state: TunerUiState, size: TextUnit, color: Color, modifier: Modifier = Modifier) {
-    val label = state.noteMidi?.let { midiNoteLabel(it) }
+private fun NoteName(
+    label: String?,
+    size: TextUnit,
+    octaveSize: TextUnit,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
     val name = label?.takeWhile { it != '-' && !it.isDigit() }
     val octave = if (label != null && name != null) label.drop(name.length) else ""
     val big = MaterialTheme.typography.displayLarge.copy(
@@ -520,13 +614,13 @@ private fun NoteName(state: TunerUiState, size: TextUnit, color: Color, modifier
         Text(
             text = name ?: "—",
             style = big,
-            color = if (name == null) LocalContentColor.current.copy(alpha = 0.35f) else color,
+            color = if (name == null) LocalContentColor.current.copy(alpha = IdleNoteAlpha) else color,
             modifier = Modifier.alignByBaseline(),
         )
         if (octave.isNotEmpty()) {
             Text(
                 text = octave,
-                style = MaterialTheme.typography.headlineLarge,
+                style = MaterialTheme.typography.headlineLarge.copy(fontSize = octaveSize, lineHeight = octaveSize),
                 fontWeight = FontWeight.SemiBold,
                 color = color,
                 modifier = Modifier.alignByBaseline(),
@@ -564,9 +658,10 @@ private fun EmptyState(
     body: String,
     action: String,
     onAction: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

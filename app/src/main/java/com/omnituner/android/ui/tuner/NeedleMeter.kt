@@ -31,9 +31,6 @@ private const val TICK_STEP_CENTS = 5
 private val MAJOR_TICKS = setOf(0, 10, 25, 50)
 private val LABELLED_TICKS = listOf(-50, -25, 0, 25, 50)
 
-// The ruler and the needle share one span so +/-50 lands exactly on the end tick.
-private const val SPAN_START = 0.02f
-private const val SPAN_WIDTH = 0.96f
 
 @Composable
 fun NeedleMeter(
@@ -41,6 +38,8 @@ fun NeedleMeter(
     needleColor: Color,
     cents: Double?,
     dimmed: Boolean = false,
+    // The mic level, 0..1; read only while drawing, so it redraws the meter and nothing else.
+    inputLevel: () -> Float = { 0f },
     modifier: Modifier = Modifier,
     scaleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
 ) {
@@ -71,11 +70,15 @@ fun NeedleMeter(
                 }
             },
     ) {
-        val width = size.width
         val centerY = size.height * 0.42f
         val majorHeight = size.height * 0.30f
         val minorHeight = size.height * 0.18f
-        fun xAt(cents: Float) = width * (SPAN_START + SPAN_WIDTH * (cents + RANGE_CENTS) / (2 * RANGE_CENTS))
+        // The ruler and the needle share one span, inset by half the widest end label, so the
+        // "-50" and "+50" labels finish exactly at the meter's edges and line up with whatever
+        // sits above it (the landscape header), at any width.
+        val spanInset = LABELLED_TICKS.maxOf { textMeasurer.measure(tickLabel(it), labelStyle).size.width } / 2f
+        val spanWidth = size.width - 2 * spanInset
+        fun xAt(cents: Float) = spanInset + spanWidth * (cents + RANGE_CENTS) / (2 * RANGE_CENTS)
 
         // In-tune zone: a soft band behind the centre ticks.
         val bandLeft = xAt(-IN_TUNE_TOLERANCE_CENTS.toFloat())
@@ -101,13 +104,17 @@ fun NeedleMeter(
             )
         }
 
-        val needleX = width * (SPAN_START + SPAN_WIDTH * (needlePercent / 100f).coerceIn(0f, 1f))
+        val needleX = spanInset + spanWidth * (needlePercent / 100f).coerceIn(0f, 1f)
         val needleHalf = majorHeight * 1.1f
-        // Resting mark at 0, visible only while the needle is away.
+        // Resting mark at 0, visible only while the needle is away. It is also the listening cue:
+        // it stirs with the mic level (room tone barely, a string up to the needle's own length),
+        // so an idle tuner shows it is hearing without anything moving in the layout.
+        val level = inputLevel().coerceIn(0f, 1f)
+        val restHalf = majorHeight * (0.5f + 0.6f * level)
         drawLine(
-            color = needleColor.copy(alpha = 0.35f * (1f - needleAlpha)),
-            start = Offset(xAt(0f), centerY - majorHeight * 0.5f),
-            end = Offset(xAt(0f), centerY + majorHeight * 0.5f),
+            color = needleColor.copy(alpha = (0.35f + 0.35f * level) * (1f - needleAlpha)),
+            start = Offset(xAt(0f), centerY - restHalf),
+            end = Offset(xAt(0f), centerY + restHalf),
             strokeWidth = 4f,
             cap = StrokeCap.Round,
         )
@@ -122,12 +129,8 @@ fun NeedleMeter(
         // Labels sit clear of the needle's lower end.
         val labelTop = centerY + needleHalf + 8.dp.toPx()
         LABELLED_TICKS.forEach { c ->
-            val label = when {
-                c > 0 -> "+$c"
-                else -> "$c"
-            }
             val measured = textMeasurer.measure(
-                text = label,
+                text = tickLabel(c),
                 style = labelStyle.copy(
                     color = if (c == 0) needleColor else scaleColor,
                     fontWeight = if (c == 0) FontWeight.Bold else FontWeight.Normal,
@@ -137,3 +140,5 @@ fun NeedleMeter(
         }
     }
 }
+
+private fun tickLabel(cents: Int): String = if (cents > 0) "+$cents" else "$cents"

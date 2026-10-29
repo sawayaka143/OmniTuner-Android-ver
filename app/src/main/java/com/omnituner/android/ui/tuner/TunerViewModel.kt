@@ -31,6 +31,7 @@ import com.omnituner.core.data.validateNotes
 import com.omnituner.core.data.validateStringCount
 import com.omnituner.core.data.validateTuningName
 import kotlin.math.abs
+import kotlin.math.log10
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +50,20 @@ import kotlinx.coroutines.launch
 const val LOCK_PULSE_MS = 900L
 private const val NOTE_SNAP_CENTS = 50.0
 
+// The listening cue's range: room tone near the floor barely stirs it, a plucked string fills it.
+private const val LEVEL_FLOOR_DB = -66.0
+private const val LEVEL_CEILING_DB = -24.0
+private const val LEVEL_ATTACK = 0.5f
+private const val LEVEL_RELEASE = 0.12f
+
+/** One step of the cue's level: the frame's RMS mapped to 0..1 on a dB scale, rising fast, falling slow. */
+private fun smoothedLevel(previous: Float, rms: Double): Float {
+    val db = if (rms > 0) 20 * log10(rms) else LEVEL_FLOOR_DB
+    val target = ((db - LEVEL_FLOOR_DB) / (LEVEL_CEILING_DB - LEVEL_FLOOR_DB)).coerceIn(0.0, 1.0).toFloat()
+    val rate = if (target > previous) LEVEL_ATTACK else LEVEL_RELEASE
+    return previous + (target - previous) * rate
+}
+
 sealed interface TuneStatus {
     data object Idle : TuneStatus
     data object Listening : TuneStatus
@@ -66,6 +81,8 @@ data class TunerUiState(
     val tuning: Tuning = INSTRUMENTS.first().tunings.first(),
     val catalog: List<InstrumentTunings> = emptyList(),
     val activeIndex: Int? = null,
+    // Manual mode only: the selected string's note, shown faded until a pitch arrives.
+    val targetMidi: Int? = null,
     val cents: Double? = null,
     val tolerance: Int = 5,
     val needlePercent: Float = 50f,
@@ -167,6 +184,11 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
 
     val lockEvents: Flow<Unit> = lockChannel.receiveAsFlow()
 
+    // The mic level, 0..1 and smoothed, for the meter's listening cue. Kept out of [ui] so a
+    // level that changes every frame only redraws the meter instead of recomposing the screen.
+    private val level = MutableStateFlow(0f)
+    val inputLevel: StateFlow<Float> = level
+
     private val session: StateFlow<Session> = combine(
         latestFrame,
         capturing,
@@ -211,6 +233,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         val error = capture.start { frame ->
             latestFrame.value = frame
             frameEvents.tryEmit(frame)
+            level.value = smoothedLevel(level.value, frame.inputLevel)
         }
         capturing.value = error == null
         captureError.value = error
@@ -220,6 +243,7 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
         if (!capturing.value) return
         capture.stop()
         capturing.value = false
+        level.value = 0f
         latestFrame.value = PitchFrame.Silent
         frameEvents.tryEmit(PitchFrame.Silent)
     }
@@ -382,6 +406,11 @@ class TunerViewModel(application: Application) : AndroidViewModel(application) {
             tuning = state.library.tuning,
             catalog = state.library.catalog,
             activeIndex = reading.activeIndex,
+            targetMidi = if (currentMode == TunerMode.Manual) {
+                reading.activeIndex?.let { frequencyToMidiNote(state.library.tuning.strings[it].freq) }
+            } else {
+                null
+            },
             cents = cents,
             tolerance = IN_TUNE_TOLERANCE_CENTS,
             needlePercent = needlePercentFromCents(cents).toFloat(),
