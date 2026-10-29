@@ -609,6 +609,8 @@ data class DiatonicBadge(
     val kind: BadgeKind,
     val numeral: String,
     val detail: String,
+    /** A minor key's major V, which needs the raised 7th of harmonic minor. */
+    val harmonicMinor: Boolean = false,
 )
 
 fun keyName(tonicName: String, mode: ModeName): String = when (mode) {
@@ -632,6 +634,12 @@ private val QUALITY_WORD: Map<String, String> = mapOf(
 )
 
 private val NUMERALS = listOf("I", "II", "III", "IV", "V", "VI", "VII")
+
+private val HARMONIC_MINOR_STEPS = listOf(0, 2, 3, 5, 7, 8, 11)
+
+// The raised 7th's major V counts as in key. Its vii° stays a borrow from the parallel major,
+// which only scores when the tonic chord sounds too.
+private const val HARMONIC_DOMINANT = 4
 
 private data class DegreeLookup(
     val degreeIndex: Int,
@@ -694,10 +702,25 @@ fun computeBadgeForPc(
             (actualFifth == null || actualFifth == lookup.fifth)
 
     val primary = lookupIn(chord.rootPc, tonicPc, modeName.steps)
-    if (primary != null) {
-        if (qualityMatches(primary)) {
-            return DiatonicBadge(BadgeKind.Good, primary.numeral, "diatonic to $key")
+    if (primary != null && qualityMatches(primary)) {
+        return DiatonicBadge(BadgeKind.Good, primary.numeral, "diatonic to $key")
+    }
+
+    // Minor keys take their V from harmonic minor (the raised 7th), so E in A minor is as much
+    // in key as Em. Without this the relative major ties and wins.
+    if (modeName == ModeName.Aeolian) {
+        val harmonic = lookupIn(chord.rootPc, tonicPc, HARMONIC_MINOR_STEPS)
+        if (harmonic != null && harmonic.degreeIndex == HARMONIC_DOMINANT && qualityMatches(harmonic)) {
+            return DiatonicBadge(
+                BadgeKind.Good,
+                harmonic.numeral,
+                "from $scaleRootName harmonic minor",
+                harmonicMinor = true,
+            )
         }
+    }
+
+    if (primary != null) {
         return DiatonicBadge(
             BadgeKind.Warn,
             primary.numeral,

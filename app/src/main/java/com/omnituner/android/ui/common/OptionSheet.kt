@@ -2,6 +2,7 @@ package com.omnituner.android.ui.common
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -21,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 import kotlinx.coroutines.launch
 
 data class PickerOption<T>(
@@ -70,11 +72,12 @@ fun PickerRow(
 // box size is ~14 dp, matching a 14 dp leading dot.
 private val MenuMinWidth = 220.dp
 private val MenuMaxWidth = 280.dp
-private val MenuCheckSize = 20.dp
+private val MenuCheckSize = 24.dp
 
 /**
  * The app's one pull-down menu: every anchored menu (picker rows in grouped lists, action overflow
- * menus such as the Chords "More") goes through this so they share width, shape and color.
+ * menus such as the Chords "More") goes through this so they share width, shape and color (the
+ * grouped-list group color, as in Settings).
  * Pickers opened from a top bar or panel header use [OptionSheet] instead.
  */
 @Composable
@@ -82,7 +85,7 @@ fun PullDownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = MenuDefaults.containerColor,
+    containerColor: Color = LocalGroupedListColors.current.group,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     DropdownMenu(
@@ -110,12 +113,18 @@ fun PullDownMenuItem(
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val accent = LocalAccentColors.current.accent
     DropdownMenuItem(
         text = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 leading?.invoke()
                 Column {
-                    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text,
+                        color = if (selected) accent else Color.Unspecified,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     if (supporting != null) {
                         Text(
                             text = supporting,
@@ -133,7 +142,7 @@ fun PullDownMenuItem(
                 selected -> Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.onSurface,
+                    tint = accent,
                     modifier = Modifier.size(MenuCheckSize),
                 )
                 icon != null -> Icon(
@@ -150,20 +159,13 @@ fun PullDownMenuItem(
     )
 }
 
-/**
- * A section title inside a [PullDownMenu], aligned with the item labels. [emphasized] sets it larger
- * than the items, for titles that name what the items belong to (the tuner's instruments).
- */
+/** A section title inside a [PullDownMenu], aligned with the item labels. */
 @Composable
-fun PullDownMenuSection(title: String, emphasized: Boolean = false) {
+fun PullDownMenuSection(title: String) {
     Text(
         text = title,
-        style = if (emphasized) {
-            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-        } else {
-            MaterialTheme.typography.labelLarge
-        },
-        color = if (emphasized) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
@@ -186,7 +188,7 @@ fun <T> MenuPickerRow(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
-    menuColor: Color = MenuDefaults.containerColor,
+    menuColor: Color = LocalGroupedListColors.current.group,
     leading: (@Composable (T) -> Unit)? = null,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -246,35 +248,33 @@ fun <T> OptionSheet(
     val close: () -> Unit = {
         scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = LocalGroupedListColors.current.page,
+    ) {
         SheetTitle(title)
-        LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-            options.groupBy { it.section }.entries.forEachIndexed { index, (section, group) ->
-                if (section != null) {
-                    // A divider and a bolder title, so a section header can't be mistaken for the
-                    // grey supporting line of the option above it.
-                    item(key = "section-$section") {
-                        Column {
-                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                            Text(
-                                text = section,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+        // Each section is a grouped card under its grey title, as in the tuning sheet.
+        LazyColumn(
+            modifier = Modifier.weight(1f, fill = false),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            options.groupBy { it.section }.entries.forEach { (section, group) ->
+                item(key = "section-$section") {
+                    GroupedSection(title = section) {
+                        group.forEachIndexed { index, option ->
+                            if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                            OptionItem(
+                                option = option,
+                                selected = option.key == selected,
+                                onSelect = { key ->
+                                    onSelect(key)
+                                    close()
+                                },
+                                trailing = trailing,
                             )
                         }
                     }
-                }
-                items(group) { option ->
-                    OptionItem(
-                        option = option,
-                        selected = option.key == selected,
-                        onSelect = { key ->
-                            onSelect(key)
-                            close()
-                        },
-                        trailing = trailing,
-                    )
                 }
             }
         }
@@ -287,8 +287,9 @@ fun <T> OptionSheet(
 fun SheetTitle(title: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleLarge,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 32.dp, end = 16.dp, bottom = 8.dp),
     )
 }
 
@@ -299,13 +300,14 @@ private fun <T> OptionItem(
     onSelect: (T) -> Unit,
     trailing: (@Composable (T) -> Unit)?,
 ) {
+    val accent = LocalAccentColors.current.accent
     val supportingContent: (@Composable () -> Unit)? = option.supporting?.let { text ->
         val content: @Composable () -> Unit = { Text(text) }
         content
     }
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = { Text(option.label) },
+        headlineContent = { Text(option.label, color = if (selected) accent else Color.Unspecified) },
         supportingContent = supportingContent,
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -314,7 +316,7 @@ private fun <T> OptionItem(
                     Icon(
                         imageVector = Icons.Filled.Check,
                         contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = accent,
                     )
                 }
             }

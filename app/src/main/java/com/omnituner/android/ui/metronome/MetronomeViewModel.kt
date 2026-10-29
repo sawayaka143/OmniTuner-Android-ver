@@ -60,6 +60,9 @@ data class MetronomeUiState(
     val progress: Double = 0.0,
     val inCountIn: Boolean = false,
     val barActive: Boolean = true,
+    /** The bar being played, which lags the chosen meter until the next bar line. */
+    val pulsesPerBar: Int = 0,
+    val pulsesPerBeat: Int = 1,
 )
 
 private data class Transport(
@@ -68,6 +71,8 @@ private data class Transport(
     val progress: Double = 0.0,
     val inCountIn: Boolean = false,
     val barActive: Boolean = true,
+    val pulsesPerBar: Int = 0,
+    val pulsesPerBeat: Int = 1,
 )
 
 class MetronomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -94,12 +99,14 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
             progress = t.progress,
             inCountIn = t.inCountIn,
             barActive = t.barActive,
+            pulsesPerBar = t.pulsesPerBar,
+            pulsesPerBeat = t.pulsesPerBeat,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MetronomeUiState())
 
     init {
-        engine.setTransportListener { barIndex, patternPos, progress, countIn, barActive ->
-            transport.value = Transport(barIndex, patternPos, progress, countIn, barActive)
+        engine.setTransportListener { barIndex, patternPos, progress, countIn, barActive, pulses, perBeat ->
+            transport.value = Transport(barIndex, patternPos, progress, countIn, barActive, pulses, perBeat)
         }
         store.flow.onEach { engine.configure(it) }.launchIn(viewModelScope)
     }
@@ -191,6 +198,10 @@ class MetronomeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setRampEnabled(enabled: Boolean) {
         edit { it.copy(ramp = it.ramp.copy(enabled = enabled)) }
+    }
+
+    fun setRampTargetBpm(bpm: Int) {
+        edit { it.copy(ramp = it.ramp.copy(targetBpm = bpm.toDouble().coerceIn(BPM_MIN.toDouble(), BPM_MAX.toDouble()))) }
     }
 
     fun changeRampTargetBpm(delta: Int) {

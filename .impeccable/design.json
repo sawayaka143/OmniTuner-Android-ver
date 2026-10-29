@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T00:00:00Z",
+  "title": "Design System: OmniTuner",
+  "extensions": {
+    "colorMeta": {
+      "accent-pink": { "role": "primary", "displayName": "The Signal (fallback Pink)", "canonical": "#FC48B3", "tonalRamp": ["#3D0026", "#62003F", "#8A0B5A", "#B32277", "#D93A95", "#FC48B3", "#FF9ACF", "#FFD8EB"] },
+      "accent-blue": { "role": "primary", "displayName": "Signal Blue", "canonical": "#2B67FE" },
+      "accent-cyan": { "role": "primary", "displayName": "Signal Cyan", "canonical": "#00B2FF" },
+      "accent-green": { "role": "primary", "displayName": "Signal Green", "canonical": "#0EB4A0" },
+      "accent-lime": { "role": "primary", "displayName": "Signal Lime", "canonical": "#B2D20C" },
+      "accent-yellow": { "role": "primary", "displayName": "Signal Yellow", "canonical": "#FFCC32" },
+      "accent-orange": { "role": "primary", "displayName": "Signal Orange", "canonical": "#FF7F65" },
+      "accent-black-light": { "role": "primary", "displayName": "Signal Black (light theme)", "canonical": "#0E0E0E" },
+      "accent-black-dark": { "role": "primary", "displayName": "Signal Black (dark theme, flips to near-white)", "canonical": "#F2F2F2" },
+      "good-green-light": { "role": "tertiary", "displayName": "Good Green", "canonical": "#1E7A45", "tonalRamp": ["#0B2615", "#124A2A", "#1E7A45", "#3B9862", "#5FB682", "#8FD3A8", "#B5ECC8", "#D3F0DD"] },
+      "good-green-dark": { "role": "tertiary", "displayName": "Good Green (dark)", "canonical": "#8FD3A8" },
+      "ink-light": { "role": "neutral", "displayName": "Ink", "canonical": "#000000" },
+      "ink-dark": { "role": "neutral", "displayName": "Ink (dark)", "canonical": "#FFFFFF" },
+      "paper-light": { "role": "neutral", "displayName": "Paper", "canonical": "#FFFFFF" },
+      "paper-dark": { "role": "neutral", "displayName": "Paper (AMOLED black)", "canonical": "#000000" },
+      "board-grey-light": { "role": "neutral", "displayName": "Board Grey", "canonical": "#F3F3F2", "tonalRamp": ["#121212", "#1C1C1C", "#333333", "#6B6B6B", "#868688", "#DADADA", "#F3F3F2", "#FFFFFF"] },
+      "board-grey-dark": { "role": "neutral", "displayName": "Board Grey (dark)", "canonical": "#1C1C1C" },
+      "control-ink-light": { "role": "neutral", "displayName": "Control Ink", "canonical": "#171717" },
+      "control-ink-dark": { "role": "neutral", "displayName": "Control Ink (dark)", "canonical": "#ECECEC" },
+      "muted-label": { "role": "neutral", "displayName": "Muted Label", "canonical": "#868688" },
+      "hairline-light": { "role": "neutral", "displayName": "Hairline", "canonical": "#DADADA" },
+      "hairline-dark": { "role": "neutral", "displayName": "Hairline (dark)", "canonical": "#333333" },
+      "off-pitch-red-light": { "role": "status", "displayName": "Off-Pitch Red", "canonical": "#B3261E" },
+      "off-pitch-red-dark": { "role": "status", "displayName": "Off-Pitch Red (dark)", "canonical": "#F2B8B5" },
+      "warn-amber-light": { "role": "status", "displayName": "Warn Amber (Chords)", "canonical": "#8A4D00" },
+      "warn-amber-dark": { "role": "status", "displayName": "Warn Amber (Chords, dark)", "canonical": "#C07A5E" },
+      "info-violet-light": { "role": "status", "displayName": "Info Violet (Chords)", "canonical": "#544A8F" },
+      "info-violet-dark": { "role": "status", "displayName": "Info Violet (Chords, dark)", "canonical": "#9A8FB8" }
+    },
+    "typographyMeta": {
+      "readout": { "displayName": "Readout", "purpose": "Tuner note name and metronome BPM: displayLarge rebuilt in Bold, sized to fit its panel, tabular figures." },
+      "display": { "displayName": "Display", "purpose": "Base style the readouts are built from." },
+      "headline": { "displayName": "Headline", "purpose": "Sheet, menu and dialog titles (headlineSmall SemiBold)." },
+      "title": { "displayName": "Title", "purpose": "Screen titles and card headings." },
+      "body": { "displayName": "Body", "purpose": "Rows, values, descriptions; section titles in Muted Label." },
+      "label": { "displayName": "Label", "purpose": "Bottom-nav tab labels." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "nav-pill-spring", "value": "spring(stiffness = 120, dampingRatio = 0.8)", "purpose": "Bottom-nav pill slide; settles in about 600 ms with a hint of overshoot." },
+      { "name": "segment-pill-spring", "value": "spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.75)", "purpose": "Selected-segment pill in SegmentedRow." },
+      { "name": "nav-icon-pop", "value": "scale 1.0 -> 1.15 over 220 ms, settle spring(stiffness = 150, dampingRatio = 0.6)", "purpose": "Selected tab icon pops once and drifts back." },
+      { "name": "corner-smoothing", "value": "0.6", "purpose": "Continuous-corner smoothing for every SmoothShape." }
+    ],
+    "breakpoints": [
+      { "name": "landscape", "value": "maxWidth > maxHeight (per screen, BoxWithConstraints)" },
+      { "name": "grouped-list-max", "value": "640dp" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Filled Button",
+      "kind": "button",
+      "refersTo": "button-filled",
+      "description": "The main action: Control Ink pill with Paper text.",
+      "html": "<button class=\"ds-btn-filled\">Generate</button>",
+      "css": ".ds-btn-filled { background: #171717; color: #fff; border: none; border-radius: 999px; padding: 10px 24px; font: 500 14px/20px Roboto, system-ui, sans-serif; letter-spacing: 0.1px; transition: opacity 0.15s; } .ds-btn-filled:hover { opacity: 0.92; } .ds-btn-filled:active { opacity: 0.84; } .ds-btn-filled:focus-visible { outline: 2px solid #FC48B3; outline-offset: 2px; }"
+    },
+    {
+      "name": "Tonal Button",
+      "kind": "button",
+      "refersTo": "button-tonal",
+      "description": "Secondary action on the Board Grey fill.",
+      "html": "<button class=\"ds-btn-tonal\">Tap</button>",
+      "css": ".ds-btn-tonal { background: #F3F3F2; color: #171717; border: none; border-radius: 999px; padding: 10px 24px; font: 500 14px/20px Roboto, system-ui, sans-serif; transition: background 0.15s; } .ds-btn-tonal:hover { background: #EAEAE9; } .ds-btn-tonal:focus-visible { outline: 2px solid #FC48B3; outline-offset: 2px; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented-track",
+      "description": "Equal segments on a Board Grey track; one accent pill behind the selected label.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-seg-item ds-seg-on\">Voicings</button><button class=\"ds-seg-item\">Key Finder</button></div>",
+      "css": ".ds-seg { display: flex; width: 280px; height: 44px; padding: 4px; background: #F3F3F2; border-radius: 16px; box-sizing: border-box; } .ds-seg-item { flex: 1; border: none; background: transparent; border-radius: 12px; font: 500 14px/20px Roboto, system-ui, sans-serif; color: #000; cursor: pointer; transition: background 0.3s cubic-bezier(0.3, 1.3, 0.5, 1); } .ds-seg-on { background: #FC48B3; color: #000; } .ds-seg-item:focus-visible { outline: 2px solid #171717; outline-offset: -2px; }"
+    },
+    {
+      "name": "Grouped Section",
+      "kind": "card",
+      "refersTo": "group-card",
+      "description": "Settings-style group: grey section title, white card, transparent rows with inset dividers, accent switch.",
+      "html": "<div class=\"ds-page\"><div class=\"ds-group-title\">Tuner</div><div class=\"ds-group\"><div class=\"ds-row\"><span>Reference pitch</span><span class=\"ds-val\">440 Hz</span></div><div class=\"ds-row\"><span>Pro accuracy</span><span class=\"ds-switch\"></span></div></div></div>",
+      "css": ".ds-page { background: #F3F3F2; padding: 16px; width: 320px; font-family: Roboto, system-ui, sans-serif; } .ds-group-title { color: #868688; font-size: 16px; line-height: 24px; padding: 0 0 8px 16px; } .ds-group { background: #fff; border-radius: 20px; overflow: hidden; } .ds-row { display: flex; justify-content: space-between; align-items: center; min-height: 56px; padding: 0 16px; font-size: 16px; color: #000; position: relative; } .ds-row + .ds-row::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; border-top: 1px solid #DADADA; } .ds-row:hover { background: rgba(0,0,0,0.04); } .ds-val { color: #868688; } .ds-switch { width: 52px; height: 32px; border-radius: 16px; background: #FC48B3; position: relative; } .ds-switch::after { content: ''; position: absolute; right: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "nav-tab-selected",
+      "description": "Four tabs; one neutral pill behind icon and label of the selected tab, which carries the accent.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-tab ds-tab-on\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\"><path fill=\"currentColor\" d=\"M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z\"/></svg><span>Tuner</span></a><a class=\"ds-tab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" d=\"M8 21h8l-2-17h-4z M12 14l5-8\"/></svg><span>Metronome</span></a><a class=\"ds-tab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\"/></svg><span>Chords</span></a><a class=\"ds-tab\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\"><path fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" d=\"M3 8h18M3 12h18M3 16h18\"/></svg><span>Scales</span></a></nav>",
+      "css": ".ds-nav { display: flex; gap: 0; padding: 4px 12px; background: #fff; width: 360px; box-sizing: border-box; font-family: Roboto, system-ui, sans-serif; } .ds-tab { flex: 1; height: 64px; margin: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 999px; color: #868688; font-size: 12px; line-height: 16px; font-weight: 500; cursor: pointer; transition: background 0.4s cubic-bezier(0.3, 1.2, 0.5, 1); } .ds-tab:hover { background: rgba(0,0,0,0.03); } .ds-tab-on { background: #F3F3F2; color: #FC48B3; } .ds-tab:focus-visible { outline: 2px solid #171717; }"
+    },
+    {
+      "name": "Anchored Menu",
+      "kind": "custom",
+      "refersTo": "menu",
+      "description": "Pull-down menu: group color, medium squircle, accent check on the selected item.",
+      "html": "<div class=\"ds-menu\"><div class=\"ds-menu-item ds-menu-on\"><span>System</span><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\"><path fill=\"currentColor\" d=\"M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z\"/></svg></div><div class=\"ds-menu-item\"><span>Light</span></div><div class=\"ds-menu-item\"><span>Dark</span></div></div>",
+      "css": ".ds-menu { width: 240px; background: #fff; border-radius: 16px; padding: 8px 0; font-family: Roboto, system-ui, sans-serif; } .ds-menu-item { display: flex; justify-content: space-between; align-items: center; height: 48px; padding: 0 16px; font-size: 16px; color: #000; cursor: pointer; } .ds-menu-item:hover { background: rgba(0,0,0,0.04); } .ds-menu-on { color: #FC48B3; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Pedalboard",
+    "overview": "OmniTuner is a row of compact, purpose-built units on one neutral board. The tuner, metronome, chords and scales each do one job with their own controls, but they sit on the same black-or-white surface, share the same squircle housing and are wired to the same signal: the user's accent color. The board stays quiet so the units can be read at a glance from a music stand.\n\nThe mood is calm and restrained, precise and trustworthy, soft and tactile. Calm comes from a grey-scale Material scheme where stock components render in black and white. Trust comes from exact readouts (tabular numerals, the cents offset, the needle) and steady, non-flashy motion. The tactile part lives in the form: continuous corners on every rounded surface, a selection pill that springs between tabs and segments, and an icon that pops once when its tab is chosen. Components are refined and restrained: stock Material 3 forms, carefully tuned, never decorated.\n\nDensity is moderate: one main readout per screen, controls grouped in cards with 16 dp margins, nothing scrolled when a landscape layout can fit it.",
+    "keyCharacteristics": [
+      "Neutral scheme: pure white / pure black pages, one grey per theme for every filled surface.",
+      "One user-chosen accent, used only where it carries musical meaning.",
+      "Continuous \"squircle\" corners everywhere (smoothing 0.6); true circles only for icon buttons, swatches and dots.",
+      "Flat: no shadows, depth comes from the page/card grey step.",
+      "Springy, single-pill selection shared by the bottom nav and every segmented control.",
+      "System font through the Material type scale; big readouts in bold with tabular figures."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "The accent appears only where it carries musical meaning (in tune, the beat, the root, the current choice). Never use it for decoration, headers, borders or general chrome.", "section": "colors" },
+      { "name": "The One Grey Rule", "body": "Each theme has exactly one fill grey (#F3F3F2 light, #1C1C1C dark). No `surfaceContainer*` ladder, no near-identical second grey.", "section": "colors" },
+      { "name": "The Hex Lives in Theme.kt Rule", "body": "Screens read `MaterialTheme.colorScheme`, `LocalAccentColors`, `LocalGroupedListColors`, `LocalNavBarColors` or `LocalStatusColors`; hex values exist only in `ui/theme/Theme.kt`.", "section": "colors" },
+      { "name": "The Native Voice Rule", "body": "No bundled fonts. All text goes through `MaterialTheme.typography.*` in sp, so it scales with the system setting.", "section": "typography" },
+      { "name": "The Fit, Don't Scroll Rule", "body": "In landscape, size the content to the screen; a tool on a music stand should never need scrolling to be read.", "section": "layout" },
+      { "name": "The No Shift Rule", "body": "Transient indicators (progress, spinners, \"copied\" ticks) overlay or fill reserved space; they never push the content below them.", "section": "layout" },
+      { "name": "The Flat Board Rule", "body": "Separate layers by the single page/card tone step, never by drop shadows or extra greys.", "section": "elevation" },
+      { "name": "The Squircle Rule", "body": "Never `RoundedCornerShape`. If it has a rounded corner, it is a `SmoothShape`.", "section": "shapes" }
+    ],
+    "dos": [
+      "**Do** keep the accent to the musical-meaning list in Colors; everything else is Ink, Paper or Board Grey.",
+      "**Do** use `SmoothShape` for every rounded corner and keep nested shapes concentric (16 dp track, 4 dp inset, 12 dp pill).",
+      "**Do** separate layers by one tone step (Paper / Board Grey), with inset Hairline dividers between rows.",
+      "**Do** build option choices from the shared pickers (`MenuPickerRow`, `PickerRow` + `OptionSheet`, `PullDownMenu`) and segmented choices from `SegmentedRow`.",
+      "**Do** set big readouts in bold with tabular figures, sized to fit their panel.",
+      "**Do** fit landscape layouts to the screen and cap grouped lists at 640 dp."
+    ],
+    "donts": [
+      "**Don't** spread the accent to headers, borders, backgrounds or decorative chrome.",
+      "**Don't** add a second fill grey or use the `surfaceContainer*` ladder.",
+      "**Don't** use drop shadows or tonal elevation.",
+      "**Don't** use `RoundedCornerShape`, or a circle where a squircle belongs.",
+      "**Don't** bundle custom fonts or hand-pick text sizes outside the type scale.",
+      "**Don't** build custom dropdowns, wheels, spinners or segmented controls, or use a raw `DropdownMenu`.",
+      "**Don't** let a transient indicator push content down.",
+      "**Don't** change colors, borders or sizes beyond what a task asks without the user's OK."
+    ]
+  }
+}

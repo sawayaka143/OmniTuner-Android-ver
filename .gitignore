@@ -22,3 +22,7 @@ local.properties
 /.idea/artifacts/
 /.idea/deviceManager.xml
 /.idea/deploymentTargetSelector.xml
+
+# Claude Code: skills are tracked, session worktrees and IDE files are not
+.claude/worktrees/
+.claude/.idea/

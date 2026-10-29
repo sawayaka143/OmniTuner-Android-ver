@@ -52,6 +52,31 @@ class BiquadFilter {
         normalize(alpha, cosW0)
     }
 
+    /** Highpass with a plain (linear) Q, e.g. the 0.5412 / 1.3066 pair of a 4th-order Butterworth. */
+    fun setHighpassLinear(sampleRate: Double, frequency: Double, q: Double) {
+        val w0 = 2.0 * PI * frequency / sampleRate
+        val cosW0 = cos(w0)
+        val alpha = sin(w0) / (2.0 * q)
+        rawAlpha = alpha
+
+        b0 = (1.0 + cosW0) / 2.0
+        b1 = -(1.0 + cosW0)
+        b2 = (1.0 + cosW0) / 2.0
+        normalize(alpha, cosW0)
+    }
+
+    fun setLowpassLinear(sampleRate: Double, frequency: Double, q: Double) {
+        val w0 = 2.0 * PI * frequency / sampleRate
+        val cosW0 = cos(w0)
+        val alpha = sin(w0) / (2.0 * q)
+        rawAlpha = alpha
+
+        b0 = (1.0 - cosW0) / 2.0
+        b1 = 1.0 - cosW0
+        b2 = (1.0 - cosW0) / 2.0
+        normalize(alpha, cosW0)
+    }
+
     fun setBandpass(sampleRate: Double, frequency: Double, qLinear: Double) {
         val w0 = 2.0 * PI * frequency / sampleRate
         val cosW0 = cos(w0)

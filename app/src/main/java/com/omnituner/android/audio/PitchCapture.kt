@@ -9,7 +9,7 @@ import android.media.MediaRecorder
 import android.os.Process
 import com.omnituner.core.audio.BiquadFilter
 import com.omnituner.core.audio.PitchDetector
-import com.omnituner.core.audio.PitchSmoother
+import com.omnituner.core.audio.PitchEngine
 import com.omnituner.core.audio.PitchTrackingState
 
 data class PitchFrame(
@@ -24,10 +24,16 @@ data class PitchFrame(
 
 class PitchCapture(private val context: Context) {
 
-    private val smoother = PitchSmoother()
-    private val detector = PitchDetector()
-    private val highpass = BiquadFilter()
+    private val engine = PitchEngine()
+
+    // 4th-order Butterworth high-pass (two cascaded biquads) and a 2nd-order low-pass.
+    private val highpassA = BiquadFilter()
+    private val highpassB = BiquadFilter()
     private val lowpass = BiquadFilter()
+
+    // Lowest string of the current tuning; sets the detection floor and the high-pass cutoff.
+    @Volatile
+    private var lowestFrequency: Double? = null
 
     @Volatile
     private var running = false
@@ -63,12 +69,11 @@ class PitchCapture(private val context: Context) {
             return "Microphone is unavailable."
         }
 
-        highpass.setHighpass(SAMPLE_RATE.toDouble(), 38.0, 0.7)
-        lowpass.setLowpass(SAMPLE_RATE.toDouble(), 1250.0, 0.7)
-        highpass.reset()
+        applyFilters(lowestFrequency)
+        highpassA.reset()
+        highpassB.reset()
         lowpass.reset()
-        smoother.reset()
-        smoother.markListening()
+        engine.start()
 
         recorder = created
         running = true
@@ -96,8 +101,20 @@ class PitchCapture(private val context: Context) {
             active.release()
         }
         recorder = null
-        smoother.reset()
-        smoother.markIdle()
+        engine.stop()
+    }
+
+    /** Retunes the detection range for a new tuning; safe to call while capturing. */
+    fun setLowestFrequency(hz: Double?) {
+        lowestFrequency = hz
+    }
+
+    private fun applyFilters(lowest: Double?) {
+        val rate = SAMPLE_RATE.toDouble()
+        val cutoff = PitchDetector.highpassHzFor(lowest)
+        highpassA.setHighpassLinear(rate, cutoff, HIGHPASS_Q_A)
+        highpassB.setHighpassLinear(rate, cutoff, HIGHPASS_Q_B)
+        lowpass.setLowpassLinear(rate, LOWPASS_HZ, LOWPASS_Q)
     }
 
     private fun captureLoop(active: AudioRecord, onFrame: (PitchFrame) -> Unit) {
@@ -108,15 +125,24 @@ class PitchCapture(private val context: Context) {
         var ringWrite = 0
         var ringFilled = 0
         var lastAnalysisAt = 0L
+        var appliedLowest = lowestFrequency
 
         while (running) {
             val read = active.read(shortChunk, 0, READ_CHUNK)
             if (read < 0) break
             if (read == 0) continue
 
+            val lowest = lowestFrequency
+            if (lowest != appliedLowest) {
+                applyFilters(lowest)
+                appliedLowest = lowest
+            }
+
             for (i in 0 until read) chunk[i] = shortChunk[i] / 32768f
-            highpass.process(chunk, filtered, read)
-            lowpass.process(filtered, chunk, read)
+            highpassA.process(chunk, filtered, read)
+            highpassB.process(filtered, chunk, read)
+            lowpass.process(chunk, filtered, read)
+            System.arraycopy(filtered, 0, chunk, 0, read)
             for (i in 0 until read) {
                 ring[ringWrite] = chunk[i]
                 ringWrite = (ringWrite + 1) % WINDOW_SIZE
@@ -126,9 +152,8 @@ class PitchCapture(private val context: Context) {
             val now = System.currentTimeMillis()
             if (ringFilled == WINDOW_SIZE && now - lastAnalysisAt >= ANALYSIS_INTERVAL_MS) {
                 val window = FloatArray(WINDOW_SIZE) { ring[(ringWrite + it) % WINDOW_SIZE] }
-                val estimate = detector.analyse(window, SAMPLE_RATE.toDouble())
-                smoother.onAnalysisResult(estimate.frequency, estimate.confidence, estimate.inputLevel)
-                onFrame(PitchFrame(smoother.frequency, estimate.inputLevel, smoother.trackingState))
+                val estimate = engine.process(window, SAMPLE_RATE.toDouble(), PitchDetector.minFrequencyFor(lowest))
+                onFrame(PitchFrame(engine.frequency, estimate.inputLevel, engine.trackingState))
                 lastAnalysisAt = now
             }
         }
@@ -146,5 +171,9 @@ class PitchCapture(private val context: Context) {
         const val READ_CHUNK = 2048
         const val ANALYSIS_INTERVAL_MS = 45L
         const val JOIN_TIMEOUT_MS = 500L
+        const val HIGHPASS_Q_A = 0.5412
+        const val HIGHPASS_Q_B = 1.3066
+        const val LOWPASS_HZ = 1800.0
+        const val LOWPASS_Q = 0.7
     }
 }

@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omnituner.android.ui.common.GroupedSection
+import com.omnituner.android.ui.common.menuTitle
+import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.core.data.Tuning
 import kotlinx.coroutines.launch
@@ -189,15 +191,18 @@ private fun PickerItem(
     onClick: () -> Unit,
     actions: (@Composable () -> Unit)? = null,
 ) {
+    val accent = LocalAccentColors.current.accent
     ListItem(
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        headlineContent = { Text(headline, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        headlineContent = {
+            Text(headline, color = if (selected) accent else Color.Unspecified, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
         supportingContent = { Text(supporting, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 actions?.invoke()
                 if (selected) {
-                    Icon(Icons.Filled.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Filled.Check, contentDescription = "Selected", tint = accent)
                 }
             }
         },

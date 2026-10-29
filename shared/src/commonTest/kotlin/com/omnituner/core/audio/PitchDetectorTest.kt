@@ -110,6 +110,88 @@ class PitchDetectorTest {
     }
 
     @Test
+    fun lowStringsBelowOldFloorAreDetected() {
+        assertDetects(sine(30.87), 30.87, 2.0)
+        assertDetects(sine(41.2), 41.2, 2.0)
+    }
+
+    @Test
+    fun highStringsUpToNewCeilingAreDetected() {
+        assertDetects(sine(1400.0), 1400.0, 2.0)
+    }
+
+    @Test
+    fun lowStringWithStrongSecondHarmonicStaysOnFundamental() {
+        // Plucked low E: the 2nd and 3rd partials outweigh the fundamental.
+        assertDetects(
+            sine(82.4069, amplitude = 0.05, harmonics = listOf(164.8138 to 0.2, 247.2207 to 0.12)),
+            82.4069,
+            1.0,
+        )
+    }
+
+    @Test
+    fun noiseDoesNotLandOnRandomSubharmonic() {
+        val random = Random(11)
+        val buffer = sine(110.0, amplitude = 0.2)
+        for (i in buffer.indices) buffer[i] += ((random.nextDouble() - 0.5) * 0.08).toFloat()
+        // Noise shifts the reading by a few cents; the point is it stays on the fundamental.
+        assertDetects(buffer, 110.0, 15.0)
+    }
+
+    @Test
+    fun rejectedFrameStillReportsClarityAndCandidate() {
+        val random = Random(7)
+        val buffer = FloatArray(WINDOW) { ((random.nextDouble() - 0.5) * 0.6).toFloat() }
+        val estimate = detector.analyse(buffer, SAMPLE_RATE)
+        assertNull(estimate.frequency)
+        assertTrue(estimate.clarity < PitchDetector.MIN_CONFIDENCE)
+        assertNotNull(estimate.candidateFrequency)
+    }
+
+    @Test
+    fun silenceGateParameterRaisesTheFloor() {
+        val estimate = detector.analyse(sine(440.0, amplitude = 0.01), SAMPLE_RATE, silenceGate = 0.02)
+        assertNull(estimate.frequency)
+        assertTrue(estimate.inputLevel > 0.0)
+    }
+
+    @Test
+    fun minFrequencyParameterNarrowsTheRange() {
+        // 40 Hz is below a 60 Hz floor, so it must not be reported as 40 Hz.
+        val estimate = detector.analyse(sine(40.0), SAMPLE_RATE, minFrequency = 60.0)
+        val f = estimate.frequency
+        assertTrue(f == null || abs(centsBetween(f, 40.0)) > 50.0)
+    }
+
+    @Test
+    fun trackedContinuationReportsTheTrackedNote() {
+        val estimate = detector.analyse(sine(196.0), SAMPLE_RATE, trackedFrequency = 197.0)
+        val tracked = assertNotNull(estimate.trackedFrequency)
+        assertTrue(abs(centsBetween(tracked, 196.0)) < 1.0)
+        assertTrue(estimate.trackedClarity > 0.9)
+    }
+
+    @Test
+    fun trackedContinuationIsAbsentWithoutATrackedFrequency() {
+        assertNull(detector.analyse(sine(196.0), SAMPLE_RATE).trackedFrequency)
+    }
+
+    @Test
+    fun trackedContinuationIgnoresANoteOutsideTheLagWindow() {
+        assertNull(detector.analyse(sine(196.0), SAMPLE_RATE, trackedFrequency = 330.0).trackedFrequency)
+    }
+
+    @Test
+    fun rangeHelpersFollowTheLowestString() {
+        assertEquals(27.0, PitchDetector.minFrequencyFor(null), 1e-9)
+        assertEquals(27.0, PitchDetector.minFrequencyFor(30.87), 1e-9)
+        assertEquals(49.44, PitchDetector.minFrequencyFor(82.4), 0.01)
+        assertEquals(20.0, PitchDetector.highpassHzFor(null), 1e-9)
+        assertEquals(41.2, PitchDetector.highpassHzFor(82.4), 0.01)
+    }
+
+    @Test
     fun rmsMatchesDefinition() {
         val buffer = floatArrayOf(0.1f, -0.1f, 0.1f, -0.1f)
         assertEquals(0.1, PitchDetector.computeRMS(buffer), 1e-7)

@@ -1,5 +1,26 @@
 package com.omnituner.android.ui.metronome
 
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
+import com.omnituner.android.ui.common.WheelPickerPage
+import com.omnituner.android.ui.common.PickerRow
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -33,13 +54,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -93,6 +111,9 @@ import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.HeaderPicker
+import com.omnituner.android.ui.common.HeaderPickerRow
+import com.omnituner.android.ui.common.OptionsButton
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
@@ -135,22 +156,29 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
         onDispose { view.keepScreenOn = false }
     }
 
-    // Upright, the meter and preset menus live in the top bar (in landscape the rail replaces the
-    // bar, and the panel carries them itself).
+    // Upright, the meter and preset menus and the options button live in the top bar (in landscape
+    // the rail replaces the bar, and the panel header carries them itself).
     TopBarContent(
         title = {
-            MeterMenu(
-                metronome = ui.state,
-                onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+            HeaderPickerRow(
+                title = {
+                    MeterMenu(
+                        metronome = ui.state,
+                        onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+                    )
+                },
+                secondary = {
+                    PresetMenu(
+                        ui = ui,
+                        onApply = viewModel::applyPreset,
+                        onDelete = viewModel::deletePreset,
+                        onSave = { savingPreset = true },
+                    )
+                },
             )
         },
         actions = {
-            PresetMenu(
-                ui = ui,
-                onApply = viewModel::applyPreset,
-                onDelete = viewModel::deletePreset,
-                onSave = { savingPreset = true },
-            )
+            OptionsButton(onClick = { optionsOpen = true }, contentDescription = "Metronome options")
         },
     )
 
@@ -173,7 +201,12 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
     }
 
     if (optionsOpen) {
-        OptionsSheet(metronome = ui.state, viewModel = viewModel, onDismiss = { optionsOpen = false })
+        OptionsSheet(
+            metronome = ui.state,
+            viewModel = viewModel,
+            playingBar = ui.patternPos.takeIf { ui.isPlaying && !ui.inCountIn },
+            onDismiss = { optionsOpen = false },
+        )
     }
 
     if (savingPreset) {
@@ -192,6 +225,9 @@ private val PanelHeaderInset = 12.dp
 
 // Concentric with the panel, as on the tuner: inner radius = panel radius - inset.
 private val HeaderMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
+
+// Taller than the shared picker's default, as the metronome's header row has always been.
+private val HeaderPickerPadding = 10.dp
 
 @Composable
 private fun TempoPanel(
@@ -231,13 +267,23 @@ private fun TempoPanel(
                 onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
                 modifier = Modifier.weight(1f, fill = false),
             )
-            PresetMenu(
-                ui = ui,
-                onApply = viewModel::applyPreset,
-                onDelete = viewModel::deletePreset,
-                onSave = onSavePreset,
+            Row(
                 modifier = Modifier.weight(1f, fill = false),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PresetMenu(
+                    ui = ui,
+                    onApply = viewModel::applyPreset,
+                    onDelete = viewModel::deletePreset,
+                    onSave = onSavePreset,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                OptionsButton(
+                    onClick = onOptions,
+                    contentDescription = "Metronome options",
+                    containerColor = MaterialTheme.colorScheme.surface,
+                )
+            }
         }
     }
     val readout = @Composable { readoutModifier: Modifier, wide: Boolean ->
@@ -261,7 +307,6 @@ private fun TempoPanel(
                 if (!ui.isPlaying) wheelOpen = false
                 viewModel.toggle()
             },
-            onOptions = onOptions,
             tall = tall,
             modifier = transportModifier,
         )
@@ -313,46 +358,6 @@ private val FoldSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBounc
 
 /** The panel-header trigger shared by both menus: a small caption over a large value. */
 @Composable
-private fun HeaderMenuTrigger(
-    caption: String,
-    value: String,
-    expanded: Boolean,
-    onClick: () -> Unit,
-    contentDescription: String,
-    alignEnd: Boolean = false,
-) {
-    Surface(onClick = onClick, shape = HeaderMenuShape, color = Color.Transparent) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f, fill = false),
-                horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
-            ) {
-                Text(
-                    text = caption,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = LocalContentColor.current.copy(alpha = 0.75f),
-                    maxLines = 1,
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-            Icon(
-                imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-@Composable
 private fun MeterMenu(
     metronome: MetronomeState,
     onPick: (TimeSignature) -> Unit,
@@ -361,19 +366,19 @@ private fun MeterMenu(
     val meter = metronome.timeSignature
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box(modifier = modifier) {
-        HeaderMenuTrigger(
+        HeaderPicker(
             caption = subdivisionLabel(metronome.divisionsPerBeat),
             value = "${meter.numerator}/${meter.denominator}",
-            expanded = expanded,
             onClick = { expanded = true },
             contentDescription = "Choose meter",
+            verticalPadding = HeaderPickerPadding,
         )
     }
     if (expanded) {
         OptionSheet(
             title = "Meter",
             options = METER_PRESETS.map {
-                PickerOption(it, "${it.numerator}/${it.denominator}", supporting = meterFeel(it.denominator))
+                PickerOption(it, "${it.numerator}/${it.denominator}")
             },
             selected = meter,
             onSelect = onPick,
@@ -393,13 +398,13 @@ private fun PresetMenu(
     var expanded by rememberSaveable { mutableStateOf(false) }
     val current = ui.presets.firstOrNull { it.state == ui.state }
     Box(modifier = modifier) {
-        HeaderMenuTrigger(
+        HeaderPicker(
             caption = "Preset",
             value = current?.name ?: if (ui.presets.isEmpty()) "None" else "Custom",
-            expanded = expanded,
             onClick = { expanded = true },
             contentDescription = "Choose preset",
             alignEnd = true,
+            verticalPadding = HeaderPickerPadding,
         )
     }
     if (expanded) {
@@ -471,7 +476,12 @@ private fun TempoReadout(
     wide: Boolean = false,
 ) {
     val metronome = ui.state
-    val beats = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator).beatsPerBar
+    // One dot per written pulse (12/8 shows twelve), grouped into the meter's beats. While playing the
+    // dots follow the bar being played, which keeps the old meter until the next bar line.
+    val chosen = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator)
+    val playingBar = ui.isPlaying && ui.pulsesPerBar > 0
+    val beats = if (playingBar) ui.pulsesPerBar else chosen.numerator
+    val beatGroup = if (playingBar) ui.pulsesPerBeat else chosen.divisionsPerBeat
     val currentBeat = if (ui.isPlaying) floor(ui.progress * beats).toInt().coerceIn(0, beats - 1) else null
 
     // A small kick on every beat, the metronome's counterpart of the tuner's in-tune note pop.
@@ -507,6 +517,7 @@ private fun TempoReadout(
         ) {
             BeatDots(
                 beats = beats,
+                group = beatGroup,
                 current = currentBeat,
                 countIn = ui.inCountIn,
                 barActive = ui.barActive,
@@ -644,6 +655,7 @@ private fun TempoEntryDialog(current: Int, onDismiss: () -> Unit, onSet: (Int) -
     LaunchedEffect(Unit) { focus.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LocalGroupedListColors.current.group,
         title = { Text("Tempo") },
         text = {
             OutlinedTextField(
@@ -674,12 +686,13 @@ private val BeatDotSpacing = 8.dp
 
 /**
  * One dot per beat of the bar; the sounding beat lights in the accent (the needle's counterpart).
- * The downbeat dot is drawn full size and the others smaller so bar starts read at a glance.
+ * Dots that start a beat are drawn full size and the rest smaller so beats read at a glance.
  * Count-in and muted bars light neutral, since nothing is "in time" to play along to yet.
  */
 @Composable
 private fun BeatDots(
     beats: Int,
+    group: Int,
     current: Int?,
     countIn: Boolean,
     barActive: Boolean,
@@ -698,12 +711,12 @@ private fun BeatDots(
             repeat(beats) { index ->
                 val on = index == current
                 val color by animateColorAsState(
-                    targetValue = if (on) lit else scheme.onSurface.copy(alpha = if (index == 0) 0.28f else 0.14f),
+                    targetValue = if (on) lit else scheme.onSurface.copy(alpha = if (index % group == 0) 0.28f else 0.14f),
                     animationSpec = spring(stiffness = Spring.StiffnessMedium),
                     label = "beatDot",
                 )
                 val size by animateDpAsState(
-                    targetValue = if (index == 0 || on) dot else dot * 0.7f,
+                    targetValue = if (index % group == 0 || on) dot else dot * 0.7f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
                     label = "beatDotSize",
                 )
@@ -723,7 +736,6 @@ private fun BeatDots(
 private fun TransportRow(
     isPlaying: Boolean,
     onToggle: () -> Unit,
-    onOptions: () -> Unit,
     modifier: Modifier = Modifier,
     // Landscape: the buttons fill the height they are given, as blocks with the panel's inner corner.
     tall: Boolean = false,
@@ -757,23 +769,12 @@ private fun TransportRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        // Icon only: the row is too narrow inside the panel for a "More" label.
-        FilledTonalButton(
-            onClick = onOptions,
-            shape = shape,
-            colors = panelTonalColors(),
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier
-                .width(MoreButtonWidth)
-                .then(height),
-        ) {
-            Icon(Icons.Filled.Tune, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurface)
-        }
+        // The options button left this row for the top bar (or the landscape panel header), where
+        // every tool keeps it, so Start takes the full width.
     }
 }
 
 private val TransportHeight = 56.dp
-private val MoreButtonWidth = 72.dp
 
 // The panel is the tonal grey itself, so tonal buttons on it take the page color to stand out.
 @Composable
@@ -807,18 +808,18 @@ private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp
     ) {
         Text(
             "Tap",
-            style = if (size > TapButtonSize) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
         )
     }
 }
 
-private val TapButtonSize = 64.dp
-private val WideTapButtonSize = 88.dp
+private val TapButtonSize = 128.dp
+private val WideTapButtonSize = 136.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewModel, onDismiss: () -> Unit) {
+private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewModel, playingBar: Int?, onDismiss: () -> Unit) {
     // Laid out like Settings: an inset grouped list on the grouped-list page color.
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = LocalGroupedListColors.current.page) {
         Column(
@@ -827,7 +828,7 @@ private fun OptionsSheet(metronome: MetronomeState, viewModel: MetronomeViewMode
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp),
         ) {
             GroupedSection("Meter") { MeterOptions(metronome, viewModel) }
-            GroupedSection("Bar mute pattern") { PatternOptions(metronome, viewModel) }
+            GroupedSection("Bar mute pattern") { PatternOptions(metronome, viewModel, playingBar) }
             GroupedSection("Polyrhythm") { PolyOptions(metronome, viewModel) }
             GroupedSection("Practice") { PracticeOptions(metronome, viewModel) }
             GroupedSection("Sounds") { SoundOptions(metronome, viewModel) }
@@ -860,41 +861,87 @@ private fun MeterOptions(metronome: MetronomeState, viewModel: MetronomeViewMode
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The mute pattern as the loop it is: one cell per bar (filled accent plays, outline is muted), as
+ * many cells as bars in the loop, with quick fills above and, while running, a ring on the bar
+ * being played ([playingBar]).
+ */
 @Composable
-private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewModel) {
-    val presets = PATTERN_PRESETS.map { PickerOption(it.bars, it.label) }
-    val options = if (presets.any { it.key == metronome.barPattern }) {
-        presets
-    } else {
-        presets + PickerOption(metronome.barPattern, "Custom")
-    }
-    MenuPickerRow(
-        headline = "Preset",
-        options = options,
-        selected = metronome.barPattern,
-        onSelect = viewModel::setBarPattern,
-        menuColor = LocalGroupedListColors.current.group,
-    )
-    FlowRow(
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+private fun PatternOptions(metronome: MetronomeState, viewModel: MetronomeViewModel, playingBar: Int?) {
+    val pattern = metronome.barPattern
+    val accent = LocalAccentColors.current
+    Row(
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        (1..PATTERN_MAX_BARS).forEach { bar ->
+        PATTERN_PRESETS.forEach { preset ->
             FilterChip(
-                selected = metronome.barPattern.getOrNull(bar - 1) == 1,
-                onClick = {
-                    val pattern = metronome.barPattern.toMutableList()
-                    while (pattern.size < bar) pattern.add(0)
-                    pattern[bar - 1] = if (pattern[bar - 1] == 1) 0 else 1
-                    viewModel.setBarPattern(pattern)
-                },
-                label = { Text("$bar") },
+                selected = pattern == preset.bars,
+                onClick = { viewModel.setBarPattern(preset.bars) },
+                label = { Text(preset.label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.accent,
+                    selectedLabelColor = accent.onAccent,
+                ),
             )
         }
     }
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        pattern.withIndex().toList().chunked(PATTERN_CELLS_PER_ROW).forEach { rowCells ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowCells.forEach { (index, value) ->
+                    BarCell(
+                        number = index + 1,
+                        plays = value == 1,
+                        current = index == playingBar,
+                        onClick = {
+                            viewModel.setBarPattern(pattern.toMutableList().also { it[index] = if (value == 1) 0 else 1 })
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // Keep a short last row's cells the same width as the full rows above.
+                repeat(PATTERN_CELLS_PER_ROW - rowCells.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+    NumberStepper(
+        headline = "Bars in loop",
+        valueText = "${pattern.size}",
+        onDecrement = { if (pattern.size > 1) viewModel.setBarPattern(pattern.dropLast(1)) },
+        onIncrement = { if (pattern.size < PATTERN_MAX_BARS) viewModel.setBarPattern(pattern + 1) },
+    )
 }
+
+@Composable
+private fun BarCell(number: Int, plays: Boolean, current: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val accent = LocalAccentColors.current
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = SmoothShape(12.dp),
+        color = if (plays) accent.accent else Color.Transparent,
+        contentColor = if (plays) accent.onAccent else scheme.onSurfaceVariant,
+        border = BorderStroke(
+            width = if (current) 2.dp else 1.dp,
+            color = if (current) scheme.onSurface else scheme.outlineVariant,
+        ),
+        modifier = modifier
+            .height(40.dp)
+            .semantics { stateDescription = if (plays) "Plays" else "Muted" },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text("$number", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+private const val PATTERN_CELLS_PER_ROW = 8
 
 @Composable
 private fun PolyOptions(metronome: MetronomeState, viewModel: MetronomeViewModel) {
@@ -903,18 +950,24 @@ private fun PolyOptions(metronome: MetronomeState, viewModel: MetronomeViewModel
         checked = metronome.poly.enabled,
         onCheckedChange = viewModel::setPolyEnabled,
     )
-    if (metronome.poly.enabled) {
-        NumberStepper(
-            headline = "Events per bar",
-            valueText = "${metronome.poly.events}",
-            onDecrement = { viewModel.changePolyEvents(-1) },
-            onIncrement = { viewModel.changePolyEvents(1) },
-        )
-        SwitchRow(
-            headline = "Accent first event",
-            checked = metronome.poly.accentFirst,
-            onCheckedChange = viewModel::setPolyAccentFirst,
-        )
+    AnimatedVisibility(
+        visible = metronome.poly.enabled,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) {
+        Column {
+            NumberStepper(
+                headline = "Events per bar",
+                valueText = "${metronome.poly.events}",
+                onDecrement = { viewModel.changePolyEvents(-1) },
+                onIncrement = { viewModel.changePolyEvents(1) },
+            )
+            SwitchRow(
+                headline = "Accent first event",
+                checked = metronome.poly.accentFirst,
+                onCheckedChange = viewModel::setPolyAccentFirst,
+            )
+        }
     }
 }
 
@@ -930,19 +983,67 @@ private fun PracticeOptions(metronome: MetronomeState, viewModel: MetronomeViewM
         checked = metronome.ramp.enabled,
         onCheckedChange = viewModel::setRampEnabled,
     )
-    if (metronome.ramp.enabled) {
-        NumberStepper(
-            headline = "Target BPM",
-            valueText = "${metronome.ramp.targetBpm.roundToInt()}",
-            onDecrement = { viewModel.changeRampTargetBpm(-1) },
-            onIncrement = { viewModel.changeRampTargetBpm(1) },
+    var pickingTarget by rememberSaveable { mutableStateOf(false) }
+    AnimatedVisibility(
+        visible = metronome.ramp.enabled,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) {
+        Column {
+            PickerRow(
+                headline = "Target BPM",
+                value = "${metronome.ramp.targetBpm.roundToInt()}",
+                onClick = { pickingTarget = true },
+            )
+            NumberStepper(
+                headline = "Ramp bars",
+                valueText = "${metronome.ramp.bars}",
+                onDecrement = { viewModel.changeRampBars(-1) },
+                onIncrement = { viewModel.changeRampBars(1) },
+            )
+        }
+    }
+    if (pickingTarget) {
+        TargetBpmDialog(
+            initial = metronome.ramp.targetBpm.roundToInt(),
+            onDismiss = { pickingTarget = false },
+            onSet = {
+                viewModel.setRampTargetBpm(it)
+                pickingTarget = false
+            },
         )
-        NumberStepper(
-            headline = "Ramp bars",
-            valueText = "${metronome.ramp.bars}",
-            onDecrement = { viewModel.changeRampBars(-1) },
-            onIncrement = { viewModel.changeRampBars(1) },
-        )
+    }
+}
+
+/** Full-screen wheel picker for the ramp's target tempo: the Reference pitch page without Reset. */
+@Composable
+private fun TargetBpmDialog(initial: Int, onDismiss: () -> Unit, onSet: (Int) -> Unit) {
+    var bpm by rememberSaveable { mutableIntStateOf(initial) }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = LocalGroupedListColors.current.page) {
+            Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                WheelPickerPage(
+                    title = "Adjust target tempo",
+                    unit = "BPM",
+                    value = bpm,
+                    range = BPM_MIN..BPM_MAX,
+                    label = "Target tempo",
+                    valueText = { "$it beats per minute" },
+                    onValueChange = { bpm = it },
+                    onSet = { onSet(bpm) },
+                )
+                FilledTonalIconButton(
+                    onClick = onDismiss,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = LocalGroupedListColors.current.group),
+                    modifier = Modifier.padding(8.dp),
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
     }
 }
 
@@ -984,6 +1085,7 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LocalGroupedListColors.current.group,
         title = { Text("Save preset") },
         text = {
             OutlinedTextField(
@@ -1004,12 +1106,6 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 
 private fun subdivisionLabel(n: Int): String =
     SUBDIVISIONS.firstOrNull { it.n == n }?.label ?: "$n per beat"
-
-private fun meterFeel(denominator: Int): String = when (denominator) {
-    8 -> "compound feel"
-    16 -> "fast"
-    else -> "simple"
-}
 
 private fun presetSummary(state: MetronomeState): String =
     "${state.bpm.roundToInt()} BPM · ${state.timeSignature.numerator}/${state.timeSignature.denominator}"

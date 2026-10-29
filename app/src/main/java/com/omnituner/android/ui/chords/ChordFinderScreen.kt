@@ -78,6 +78,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalIconButton
@@ -89,16 +90,18 @@ import com.omnituner.android.data.DiagramLabels
 import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.VoicingView
 import com.omnituner.android.ui.common.LibraryTuningSheet
-import com.omnituner.android.ui.common.OptionSheet
-import com.omnituner.android.ui.common.PickerOption
+import com.omnituner.android.ui.common.NoteWheel
 import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.NumberStepper
+import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.SheetTitle
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.TopBarContent
+import com.omnituner.android.ui.common.TuningHeaderPicker
 import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.LocalStatusColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.theory.BadgeKind
@@ -131,25 +134,44 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
         )
     }
 
-    // Upright, the display options and the overflow (Copy tab / Clear) live in the top bar while
-    // there are voicings to act on; in landscape the rail replaces the bar and the input card
-    // carries them.
-    // They grow in beside the Settings button when there are results, rather than popping in.
+    var tuningSheet by rememberSaveable { mutableStateOf(false) }
+    val library = ui.library
+
+    // Upright, the instrument and tuning are the bar's title, the options button (on the Voicings
+    // tab) and the overflow (Copy tab / Clear, once there are voicings to act on) its actions; in
+    // landscape the rail replaces the bar and the input card carries them.
+    // The buttons grow in beside the Settings button rather than popping in.
     TopBarContent(
+        title = library?.let {
+            {
+                TuningHeaderPicker(
+                    instrument = it.instrument,
+                    tuningLabel = it.tuning.label,
+                    onClick = { tuningSheet = true },
+                )
+            }
+        },
         actions = {
+            val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
             AnimatedVisibility(
-                visible = ui.tab == ChordsTab.Voicings && ui.results != null,
+                visible = ui.tab == ChordsTab.Voicings,
                 enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
                 exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut(),
             ) {
                 Row {
-                    val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
-                    DisplayOptionsMenu(ui.settings, viewModel, barButton)
-                    MoreMenu(viewModel, barButton)
+                    DisplayOptionsMenu(ui.settings, ui.tonicPc, viewModel, barButton)
+                    AnimatedVisibility(
+                        visible = ui.results != null,
+                        enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
+                        exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut(),
+                    ) {
+                        MoreMenu(viewModel, barButton)
+                    }
                 }
             }
         },
     )
+    if (tuningSheet && library != null) TuningSheet(library, viewModel, onDismiss = { tuningSheet = false })
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth > maxHeight) {
@@ -161,7 +183,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
                 Pane(Modifier.width(inputWidth)) {
                     tabs()
                     when (ui.tab) {
-                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, withResultsBar = true)
+                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, withResultsBar = true, onOpenTuning = { tuningSheet = true })
                         ChordsTab.KeyFinder -> KeyFinderInput(ui, viewModel)
                     }
                 }
@@ -209,27 +231,26 @@ private fun Pane(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewModel, withResultsBar: Boolean = false) {
-    var tuningSheet by rememberSaveable { mutableStateOf(false) }
-    var tonicSheet by rememberSaveable { mutableStateOf(false) }
+private fun VoicingsInput(
+    ui: ChordFinderUiState,
+    viewModel: ChordFinderViewModel,
+    withResultsBar: Boolean = false,
+    // Landscape only: upright the top bar's title is the tuning picker, so the card leaves it out.
+    onOpenTuning: (() -> Unit)? = null,
+) {
     val library = ui.library
 
     // The progress bar floats in the gap under the input card instead of taking a row of its own,
     // so starting or finishing a generate never shifts the results below.
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
-            if (library != null) {
+            if (library != null && onOpenTuning != null) {
                 PickerRow(
                     headline = "Tuning",
                     value = "${library.instrument.label} · ${library.tuning.label}",
-                    onClick = { tuningSheet = true },
+                    onClick = onOpenTuning,
                 )
             }
-            PickerRow(
-                headline = "Tonic",
-                value = pcName(ui.tonicPc, flatsForPc(ui.tonicPc)),
-                onClick = { tonicSheet = true },
-            )
             ChordField(
                 value = ui.progressionInput,
                 onValueChange = viewModel::setProgressionInput,
@@ -245,6 +266,7 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
                 ResultsHeader(
                     results = ui.results,
                     settings = ui.settings,
+                    tonicPc = ui.tonicPc,
                     viewModel = viewModel,
                     tonal = true,
                     modifier = Modifier.padding(vertical = 8.dp),
@@ -258,7 +280,8 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
                 Button(shape = SmoothShape.Full, onClick = viewModel::generate, modifier = Modifier.weight(1f)) {
                     Text("Generate")
                 }
-                FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle) {
+                // The card is the tonal grey itself, so its tonal buttons take the page color to show.
+                FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle, colors = cardTonalColors()) {
                     Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Shuffle")
@@ -267,6 +290,7 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
                     shape = SmoothShape.Full,
                     onClick = viewModel::playProgression,
                     enabled = ui.results != null,
+                    colors = cardTonalColors(),
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = "Play progression", modifier = Modifier.size(18.dp))
                 }
@@ -282,18 +306,14 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
             )
         }
     }
-
-    if (tuningSheet && library != null) TuningSheet(library, viewModel, onDismiss = { tuningSheet = false })
-    if (tonicSheet) {
-        OptionSheet(
-            title = "Tonic",
-            options = (0 until 12).map { PickerOption(it, pcName(it, flatsForPc(it))) },
-            selected = ui.tonicPc,
-            onSelect = viewModel::setTonic,
-            onDismiss = { tonicSheet = false },
-        )
-    }
 }
+
+@Composable
+private fun cardTonalColors() =
+    ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+
+// Each tonic spelled the way the key is usually written (Bb, not A#).
+private val TonicLabels = (0 until 12).map { pcName(it, flatsForPc(it)) }
 
 /**
  * The chord cards (with the key and display options over them unless [fitHeight] is set, when
@@ -305,7 +325,7 @@ private fun VoicingsResults(ui: ChordFinderUiState, viewModel: ChordFinderViewMo
     if (results == null) {
         if (!ui.generating) EmptyResults()
     } else {
-        if (fitHeight == null) ResultsHeader(results = results, settings = ui.settings, viewModel = viewModel)
+        if (fitHeight == null) ResultsHeader(results = results, settings = ui.settings, tonicPc = ui.tonicPc, viewModel = viewModel)
         ChordCards(results, ui.settings, onPlay = viewModel::playShape, fitHeight = fitHeight)
     }
 }
@@ -341,7 +361,12 @@ private fun ChordField(
         singleLine = true,
         supportingText = {
             Text(
-                text = if (count.total == 0) "0 chords parsed" else "${count.total} chords parsed · ${count.readable} readable",
+                text = when {
+                    count.total == 0 -> "No chords"
+                    count.readable < count.total -> "${count.total} chords · ${count.total - count.readable} not recognized"
+                    count.total == 1 -> "1 chord"
+                    else -> "${count.total} chords"
+                },
                 color = countColor,
             )
         },
@@ -378,6 +403,7 @@ private fun ResultsHeader(
     // Null in the landscape input card before the first generate: the options show, the key not yet.
     results: GeneratedVoicings?,
     settings: ChordSettings,
+    tonicPc: Int,
     viewModel: ChordFinderViewModel,
     modifier: Modifier = Modifier,
     // Standalone tonal buttons, for the bar inside the landscape input card.
@@ -403,7 +429,7 @@ private fun ResultsHeader(
             }
         }
         if (tonal) {
-            DisplayOptionsMenu(settings, viewModel, button)
+            DisplayOptionsMenu(settings, tonicPc, viewModel, button)
             MoreMenu(viewModel, button)
         }
     }
@@ -412,61 +438,70 @@ private fun ResultsHeader(
 private typealias MenuButton = @Composable (onClick: () -> Unit, icon: @Composable () -> Unit) -> Unit
 
 @Composable
-private fun DisplayOptionsMenu(settings: ChordSettings, viewModel: ChordFinderViewModel, button: MenuButton) {
+private fun DisplayOptionsMenu(settings: ChordSettings, tonicPc: Int, viewModel: ChordFinderViewModel, button: MenuButton) {
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     button({ optionsOpen = true }) {
-        Icon(Icons.Filled.Tune, contentDescription = "Display options", tint = MaterialTheme.colorScheme.onSurface)
+        Icon(Icons.Filled.Tune, contentDescription = "Chord options", tint = MaterialTheme.colorScheme.onSurface)
     }
-    if (optionsOpen) DisplayOptionsSheet(settings, viewModel, onDismiss = { optionsOpen = false })
+    if (optionsOpen) DisplayOptionsSheet(settings, tonicPc, viewModel, onDismiss = { optionsOpen = false })
 }
 
 /**
- * The display options as a sheet. Unlike a pick-one sheet it stays open while you change things,
- * so the cards can be watched updating behind it; swipe it down or tap outside to close.
+ * The options as a sheet. Unlike a pick-one sheet it stays open while you change things, so the
+ * cards can be watched updating behind it; swipe it down or tap outside to close.
+ * The tonic lives here rather than in the input card: it only matters for roman numerals, which
+ * stay unadvertised.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DisplayOptionsSheet(settings: ChordSettings, viewModel: ChordFinderViewModel, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        SheetTitle("Display options")
+private fun DisplayOptionsSheet(settings: ChordSettings, tonicPc: Int, viewModel: ChordFinderViewModel, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = LocalGroupedListColors.current.page) {
+        SheetTitle("Options")
+        // Scrolls so the whole sheet stays reachable on a short landscape screen.
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            SheetSectionLabel("View")
-            SegmentedRow(
-                options = VoicingView.entries,
-                selected = settings.view,
-                label = { if (it == VoicingView.Fretboard) "Fretboard" else "Tab" },
-                onSelect = viewModel::setView,
-            )
-            Spacer(Modifier.height(4.dp))
-            SheetSectionLabel("Labels")
-            SegmentedRow(
-                options = DiagramLabels.entries,
-                selected = settings.labels,
-                label = { if (it == DiagramLabels.Notes) "Notes" else "Degrees" },
-                onSelect = viewModel::setLabels,
-            )
+            GroupedSection(title = "Tonic") {
+                NoteWheel(
+                    labels = TonicLabels,
+                    selected = tonicPc,
+                    onSelect = viewModel::setTonic,
+                    contentDescription = "Tonic",
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    centerColor = LocalAccentColors.current.accent,
+                )
+            }
+            GroupedSection(title = "View") {
+                SegmentedRow(
+                    options = VoicingView.entries,
+                    selected = settings.view,
+                    label = { if (it == VoicingView.Fretboard) "Fretboard" else "Tab" },
+                    onSelect = viewModel::setView,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            GroupedSection(title = "Labels") {
+                SegmentedRow(
+                    options = DiagramLabels.entries,
+                    selected = settings.labels,
+                    label = { if (it == DiagramLabels.Notes) "Notes" else "Degrees" },
+                    onSelect = viewModel::setLabels,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            // The count runs 1-12, so a stepper rather than a list.
+            GroupedSection(title = null) {
+                NumberStepper(
+                    headline = "Fingerings per chord",
+                    valueText = "${settings.voicingCount}",
+                    onDecrement = { viewModel.changeVoicingCount(-1) },
+                    onIncrement = { viewModel.changeVoicingCount(1) },
+                )
+            }
         }
-        // The count runs 1-12, so a stepper rather than a list.
-        NumberStepper(
-            headline = "Fingerings per chord",
-            valueText = "${settings.voicingCount}",
-            onDecrement = { viewModel.changeVoicingCount(-1) },
-            onIncrement = { viewModel.changeVoicingCount(1) },
-        )
-        Spacer(Modifier.height(16.dp))
     }
-}
-
-@Composable
-private fun SheetSectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable
@@ -753,11 +788,6 @@ private fun KeyFinderCard(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun KeyFinderFields(ui: ChordFinderUiState, viewModel: ChordFinderViewModel) {
-    Text(
-        text = "Enter a chord progression and the matching key is detected live.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
     ChordField(value = ui.keyInput, onValueChange = viewModel::setKeyInput, count = ui.keyAnalysis.count)
 }
 

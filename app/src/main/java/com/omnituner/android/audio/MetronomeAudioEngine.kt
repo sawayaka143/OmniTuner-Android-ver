@@ -14,7 +14,7 @@ import kotlin.random.Random
 class MetronomeAudioEngine {
 
     fun interface TransportListener {
-        fun onTransport(barIndex: Int, patternPos: Int, progress: Double, countIn: Boolean, barActive: Boolean)
+        fun onTransport(barIndex: Int, patternPos: Int, progress: Double, countIn: Boolean, barActive: Boolean, pulsesPerBar: Int, pulsesPerBeat: Int)
     }
 
     private val scheduler = MetronomeScheduler { clockSeconds() }
@@ -149,6 +149,8 @@ class MetronomeAudioEngine {
                         snapshot.progress,
                         snapshot.countIn,
                         snapshot.barActive,
+                        snapshot.pulsesPerBar,
+                        snapshot.pulsesPerBeat,
                     )
                 }
             }
