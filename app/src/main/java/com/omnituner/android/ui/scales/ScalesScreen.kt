@@ -17,8 +17,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -47,8 +50,11 @@ import com.omnituner.android.data.Accidental
 import com.omnituner.android.data.FRET_COUNT_OPTIONS
 import com.omnituner.android.data.LabelMode
 import com.omnituner.android.ui.common.FretboardCanvas
+import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.NoteWheel
 import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.OptionsButton
+import com.omnituner.android.ui.common.SheetTitle
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.LibraryTuningSheet
 import com.omnituner.android.ui.common.PickerRow
@@ -57,6 +63,7 @@ import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.common.TopBarPicker
 import com.omnituner.android.ui.theme.LocalAccentColors
+import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.core.data.FLAT_NAMES
 import com.omnituner.core.data.SCALES
@@ -67,11 +74,12 @@ import com.omnituner.core.theory.noteName
 fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
     val ui by viewModel.ui.collectAsState()
     var scaleSheet by rememberSaveable { mutableStateOf(false) }
+    var optionsSheet by rememberSaveable { mutableStateOf(false) }
     val flats = ui.settings.accidental == Accidental.Flat
     val scale = SCALES.firstOrNull { it.id == ui.settings.scaleId } ?: SCALES.first()
 
-    // Upright, the scale and the instrument/tuning pickers live in the top bar (in landscape the
-    // rail replaces the bar, so the cards below keep them).
+    // Upright, the scale and the instrument/tuning pickers and the options button live in the top
+    // bar (in landscape the rail replaces the bar, so the cards below keep them).
     TopBarContent(
         title = {
             TopBarPicker(
@@ -82,9 +90,13 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
                 contentDescription = "Choose scale",
             )
         },
-        actions = { TuningMenu(ui = ui, viewModel = viewModel) },
+        actions = {
+            TuningMenu(ui = ui, viewModel = viewModel)
+            OptionsButton(onClick = { optionsSheet = true }, contentDescription = "Display options")
+        },
     )
     if (scaleSheet) ScaleSheet(ui = ui, flats = flats, viewModel = viewModel, onDismiss = { scaleSheet = false })
+    if (optionsSheet) DisplayOptionsSheet(ui = ui, viewModel = viewModel, onDismiss = { optionsSheet = false })
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val wide = maxWidth > maxHeight
@@ -99,28 +111,37 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
         ) {
             // The map comes first so a scale or root change below shows on the board without scrolling.
             // In landscape it fills the screen exactly: the cards wait below it.
-            ScaleMapCard(ui = ui, viewModel = viewModel, fitHeight = if (wide) screenCardHeight else null)
+            // Landscape is this page's main view; there the options button sits on the map's title line.
+            ScaleMapCard(
+                ui = ui,
+                viewModel = viewModel,
+                fitHeight = if (wide) screenCardHeight else null,
+                onOptions = if (wide) ({ optionsSheet = true }) else null,
+            )
             if (wide) {
                 // Landscape: the board keeps the full width; the cards under it pair up side by side.
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
                         ScaleCard(ui = ui, viewModel = viewModel, showScale = true)
                     }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        DisplayCard(ui = ui, viewModel = viewModel)
+                    Column(modifier = Modifier.weight(1f)) {
                         InstrumentCard(ui = ui, viewModel = viewModel)
                     }
                 }
             } else {
                 ScaleCard(ui = ui, viewModel = viewModel, showScale = false)
-                DisplayCard(ui = ui, viewModel = viewModel)
             }
         }
     }
 }
 
 @Composable
-private fun ScaleMapCard(ui: ScalesUiState, viewModel: ScalesViewModel, fitHeight: Dp? = null) {
+private fun ScaleMapCard(
+    ui: ScalesUiState,
+    viewModel: ScalesViewModel,
+    fitHeight: Dp? = null,
+    onOptions: (() -> Unit)? = null,
+) {
     val settings = ui.settings
     val flats = settings.accidental == Accidental.Flat
     val scale = SCALES.firstOrNull { it.id == settings.scaleId } ?: SCALES.first()
@@ -168,7 +189,12 @@ private fun ScaleMapCard(ui: ScalesUiState, viewModel: ScalesViewModel, fitHeigh
                         )
                     }
                 }
-                FilledTonalButton(onClick = viewModel::togglePlayScale, shape = SmoothShape.Full) {
+                // The card is the tonal grey itself, so its buttons take the page color to stand out.
+                FilledTonalButton(
+                    onClick = viewModel::togglePlayScale,
+                    shape = SmoothShape.Full,
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
                     Icon(
                         imageVector = if (ui.isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                         contentDescription = null,
@@ -176,6 +202,14 @@ private fun ScaleMapCard(ui: ScalesUiState, viewModel: ScalesViewModel, fitHeigh
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(if (ui.isPlaying) "Stop" else "Play")
+                }
+                if (onOptions != null) {
+                    OptionsButton(
+                        onClick = onOptions,
+                        contentDescription = "Display options",
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
                 }
             }
             FretboardCanvas(
@@ -253,8 +287,10 @@ private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel, showScale: 
     val scale = SCALES.firstOrNull { it.id == settings.scaleId } ?: SCALES.first()
     var scaleSheet by rememberSaveable { mutableStateOf(false) }
 
+    // Sharps / Flats moved to the display options sheet; the root stays on the page because it is
+    // what you change while playing.
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column {
+        Column(modifier = Modifier.padding(bottom = 8.dp)) {
             if (showScale) {
                 PickerRow(
                     headline = "Scale",
@@ -266,13 +302,6 @@ private fun ScaleCard(ui: ScalesUiState, viewModel: ScalesViewModel, showScale: 
                 labels = rootNames,
                 selected = settings.rootPitchClass,
                 onSelect = viewModel::setRootPitchClass,
-            )
-            SegmentedRow(
-                options = Accidental.entries,
-                selected = settings.accidental,
-                label = { if (it == Accidental.Sharp) "Sharps" else "Flats" },
-                onSelect = viewModel::setAccidental,
-                modifier = Modifier.padding(16.dp),
             )
         }
     }
@@ -355,33 +384,56 @@ private fun RootRow(labels: List<String>, selected: Int, onSelect: (Int) -> Unit
     }
 }
 
+/**
+ * How the board is drawn, as a sheet like the Chords display options: it stays open while you
+ * change things, so the board can be watched updating behind it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DisplayCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
+private fun DisplayOptionsSheet(ui: ScalesUiState, viewModel: ScalesViewModel, onDismiss: () -> Unit) {
     val settings = ui.settings
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Column(
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = LocalGroupedListColors.current.page) {
+        SheetTitle("Display options")
+        // Scrolls so the whole sheet stays reachable on a short landscape screen.
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            GroupedSection(title = "Frets") {
                 SegmentedRow(
                     options = FRET_COUNT_OPTIONS,
                     selected = settings.fretCount,
-                    label = { "$it frets" },
+                    label = { "$it" },
                     onSelect = viewModel::setFretCount,
+                    modifier = Modifier.padding(12.dp),
                 )
+            }
+            GroupedSection(title = "Labels") {
                 SegmentedRow(
                     options = LabelMode.entries,
                     selected = settings.labelMode,
                     label = { if (it == LabelMode.NoteNames) "Notes" else "Degrees" },
                     onSelect = viewModel::setLabelMode,
+                    modifier = Modifier.padding(12.dp),
                 )
             }
-            SwitchRow(
-                headline = "Show outside scale",
-                checked = settings.showOutsideScale,
-                onCheckedChange = viewModel::setShowOutsideScale,
-            )
+            GroupedSection(title = "Accidentals") {
+                SegmentedRow(
+                    options = Accidental.entries,
+                    selected = settings.accidental,
+                    label = { if (it == Accidental.Sharp) "Sharps" else "Flats" },
+                    onSelect = viewModel::setAccidental,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            GroupedSection(title = null) {
+                SwitchRow(
+                    headline = "Show outside scale",
+                    checked = settings.showOutsideScale,
+                    onCheckedChange = viewModel::setShowOutsideScale,
+                )
+            }
         }
     }
 }
