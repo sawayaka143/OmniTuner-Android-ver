@@ -2,6 +2,7 @@ package com.omnituner.android.ui.chords
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -9,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -37,6 +39,8 @@ private const val TOP = 6f
 private const val BOT = 18f
 private const val RING = 9f
 private const val MIN_COLUMNS = 5
+// Stretched, a fret column may widen to this many times its usual width, no further.
+private const val MAX_COL_STRETCH = 1.8f
 private const val LAST_FRET = 24
 
 private val INLAY_SINGLE = setOf(3, 5, 7, 9, 15, 17, 19, 21)
@@ -75,6 +79,10 @@ private enum class Anchor { Start, Center, End }
  * the shape sits within the first three frets; a higher shape that also rings open strings gets a
  * break (a gap and a doubled edge) between them, so its first fret never reads as fret 1. Each
  * ring holds its note's name or degree; every fret in the window is numbered.
+ *
+ * With [stretch] the canvas fills the space it is given: the height sets the scale and the fret
+ * columns widen (up to [MAX_COL_STRETCH]) into the spare width, the rest centred. Without it the
+ * diagram keeps its natural proportions and fills the width.
  */
 @Composable
 fun NeckDiagram(
@@ -86,6 +94,7 @@ fun NeckDiagram(
     labels: DiagramLabels,
     flats: Boolean,
     modifier: Modifier = Modifier,
+    stretch: Boolean = false,
 ) {
     val n = tuning.midi.size
     val fretted = frets.filterNotNull().filter { it > 0 }
@@ -102,14 +111,13 @@ fun NeckDiagram(
     val cols = hi - lo + 1
     val broken = lo > 1 && frets.any { it == 0 }
     val gridL = LEFT + IND + if (broken) BREAK else 0f
-    val gridR = gridL + cols * COL
-    val width = gridR + PAD
+    // Natural width, at the usual column width.
+    val width = gridL + cols * COL + PAD
     val height = TOP + n * ROW + BOT
     val yTop = TOP
     val yBot = TOP + n * ROW
     val indCx = LEFT + IND / 2
     fun stringY(s: Int): Float = yTop + (n - 1 - s) * ROW + ROW / 2
-    fun fretX(f: Int): Float = gridL + (f - lo) * COL + COL / 2
 
     val scheme = MaterialTheme.colorScheme
     val status = LocalStatusColors.current
@@ -131,77 +139,84 @@ fun NeckDiagram(
 
     Canvas(
         modifier = modifier
-            // Fills the width, unless a bounded height runs out first; then it fits the height.
-            .aspectRatio(width / height)
+            // Natural: fills the width, unless a bounded height runs out first; then it fits the height.
+            .then(if (stretch) Modifier.fillMaxSize() else Modifier.aspectRatio(width / height))
             .semantics { contentDescription = "$symbol fingering ${index + 1}" },
     ) {
-        val unit = size.width / width
+        val unit = if (stretch) minOf(size.width / width, size.height / height) else size.width / width
+        val col = if (stretch) ((size.width / unit - gridL - PAD) / cols).coerceIn(COL, COL * MAX_COL_STRETCH) else COL
+        val gridR = gridL + cols * col
+        fun fretX(f: Int): Float = gridL + (f - lo) * col + col / 2
         fun u(value: Float): Float = value * unit
+        // Centres what the column cap leaves over; zero when not stretched.
+        val dx = (size.width - u(gridR + PAD)) / 2
         fun label(text: AnnotatedString, x: Float, y: Float, sizeUnits: Float, color: Color, weight: FontWeight, anchor: Anchor) =
             drawLabel(measurer, text, Offset(u(x), u(y)), u(sizeUnits), color, weight, anchor)
         fun label(text: String, x: Float, y: Float, sizeUnits: Float, color: Color, weight: FontWeight = FontWeight.Normal, anchor: Anchor = Anchor.Center) =
             label(AnnotatedString(text), x, y, sizeUnits, color, weight, anchor)
 
-        for (f in lo until lo + cols) {
-            val cx = u(fretX(f))
-            if (f in INLAY_SINGLE) {
-                drawCircle(colors.subtle, u(4.5f), Offset(cx, u((yTop + yBot) / 2)))
-            } else if (f in INLAY_DOUBLE) {
-                drawCircle(colors.subtle, u(4.5f), Offset(cx, u(yTop + 0.3f * (yBot - yTop))))
-                drawCircle(colors.subtle, u(4.5f), Offset(cx, u(yTop + 0.7f * (yBot - yTop))))
+        translate(left = dx) {
+            for (f in lo until lo + cols) {
+                val cx = u(fretX(f))
+                if (f in INLAY_SINGLE) {
+                    drawCircle(colors.subtle, u(4.5f), Offset(cx, u((yTop + yBot) / 2)))
+                } else if (f in INLAY_DOUBLE) {
+                    drawCircle(colors.subtle, u(4.5f), Offset(cx, u(yTop + 0.3f * (yBot - yTop))))
+                    drawCircle(colors.subtle, u(4.5f), Offset(cx, u(yTop + 0.7f * (yBot - yTop))))
+                }
             }
-        }
 
-        for (k in 0..cols) {
-            val x = u(gridL + k * COL)
-            val nut = k == 0 && lo == 1
-            val color = when {
-                nut -> colors.nut
-                k == 0 -> colors.medium
-                else -> colors.subtle
+            for (k in 0..cols) {
+                val x = u(gridL + k * col)
+                val nut = k == 0 && lo == 1
+                val color = when {
+                    nut -> colors.nut
+                    k == 0 -> colors.medium
+                    else -> colors.subtle
+                }
+                drawLine(color, Offset(x, u(yTop - 2)), Offset(x, u(yBot + 2)), strokeWidth = u(if (nut) 4f else 1f))
             }
-            drawLine(color, Offset(x, u(yTop - 2)), Offset(x, u(yBot + 2)), strokeWidth = u(if (nut) 4f else 1f))
-        }
-        if (broken) {
-            val x = u(gridL - 3)
-            drawLine(colors.medium, Offset(x, u(yTop - 2)), Offset(x, u(yBot + 2)), strokeWidth = u(1f))
-        }
-
-        for (s in 0 until n) {
-            val y = u(stringY(s))
             if (broken) {
-                drawLine(colors.medium, Offset(u(LEFT), y), Offset(u(LEFT + IND), y), strokeWidth = u(1f))
-                drawLine(colors.medium, Offset(u(gridL), y), Offset(u(gridR), y), strokeWidth = u(1f))
-            } else {
-                drawLine(colors.medium, Offset(u(LEFT), y), Offset(u(gridR), y), strokeWidth = u(1f))
+                val x = u(gridL - 3)
+                drawLine(colors.medium, Offset(x, u(yTop - 2)), Offset(x, u(yBot + 2)), strokeWidth = u(1f))
             }
-            val muted = frets.getOrNull(s) == null
-            label(pcName(mod12(tuning.midi[s]), tuning.flats), LEFT - 4, stringY(s), 8f, if (muted) colors.dim else colors.label, anchor = Anchor.End)
-        }
 
-        val axisY = yBot + BOT / 2 + 1
-        if (frets.any { it == 0 }) label("0", indCx, axisY, 8f, colors.dim)
-        for (f in lo until lo + cols) label("$f", fretX(f), axisY, 8f, colors.dim)
+            for (s in 0 until n) {
+                val y = u(stringY(s))
+                if (broken) {
+                    drawLine(colors.medium, Offset(u(LEFT), y), Offset(u(LEFT + IND), y), strokeWidth = u(1f))
+                    drawLine(colors.medium, Offset(u(gridL), y), Offset(u(gridR), y), strokeWidth = u(1f))
+                } else {
+                    drawLine(colors.medium, Offset(u(LEFT), y), Offset(u(gridR), y), strokeWidth = u(1f))
+                }
+                val muted = frets.getOrNull(s) == null
+                label(pcName(mod12(tuning.midi[s]), tuning.flats), LEFT - 4, stringY(s), 8f, if (muted) colors.dim else colors.label, anchor = Anchor.End)
+            }
 
-        for (s in 0 until n) {
-            val fret = frets.getOrNull(s)
-            val y = stringY(s)
-            if (fret == null) {
-                label("x", indCx, y, 10f, colors.alt, FontWeight.Bold)
-                continue
+            val axisY = yBot + BOT / 2 + 1
+            if (frets.any { it == 0 }) label("0", indCx, axisY, 8f, colors.dim)
+            for (f in lo until lo + cols) label("$f", fretX(f), axisY, 8f, colors.dim)
+
+            for (s in 0 until n) {
+                val fret = frets.getOrNull(s)
+                val y = stringY(s)
+                if (fret == null) {
+                    label("x", indCx, y, 10f, colors.alt, FontWeight.Bold)
+                    continue
+                }
+                val midi = tuning.midi[s] + fret
+                val degree = mod12(midi - rootPc)
+                val color = colors.forDegree(degree)
+                val x = if (fret == 0) indCx else fretX(fret)
+                val center = Offset(u(x), u(y))
+                drawCircle(colors.ring, u(RING), center)
+                drawCircle(color, u(RING), center, style = Stroke(width = u(2f)))
+                val name = when (labels) {
+                    DiagramLabels.Notes -> pcName(mod12(midi), flats)
+                    DiagramLabels.Degrees -> DEGREE_LABELS[degree]
+                }
+                label(name, x, y, 9f, colors.ringText, FontWeight.Bold)
             }
-            val midi = tuning.midi[s] + fret
-            val degree = mod12(midi - rootPc)
-            val color = colors.forDegree(degree)
-            val x = if (fret == 0) indCx else fretX(fret)
-            val center = Offset(u(x), u(y))
-            drawCircle(colors.ring, u(RING), center)
-            drawCircle(color, u(RING), center, style = Stroke(width = u(2f)))
-            val name = when (labels) {
-                DiagramLabels.Notes -> pcName(mod12(midi), flats)
-                DiagramLabels.Degrees -> DEGREE_LABELS[degree]
-            }
-            label(name, x, y, 9f, colors.ringText, FontWeight.Bold)
         }
     }
 }

@@ -57,6 +57,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -640,12 +644,43 @@ private fun ChordCard(
                 return@Column
             }
             val flats = chord.flats || tuning.flats
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${index + 1}. ${chord.symbol}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    entry.badge?.let { NumeralChip(it) }
+            // Fitted, the fingerings scroll one block at a time under the name; this follows them.
+            val fingeringScroll = rememberScrollState()
+            val shapeCount = entry.shapes.size
+            val currentFingering by remember(shapeCount) {
+                derivedStateOf {
+                    val max = fingeringScroll.maxValue
+                    // Each block is the viewport's height, so the scroll range is (count - 1) blocks.
+                    if (max <= 0 || max == Int.MAX_VALUE) 0 else (fingeringScroll.value.toFloat() * (shapeCount - 1) / max).roundToInt()
                 }
-                Text(chordTonesLabel(chord, flats), style = MaterialTheme.typography.bodySmall, color = status.info)
+            }
+            // One line, so the diagram keeps the height. The tones only show when the diagram
+            // doesn't already name every note (degree labels, or the Tab view).
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("${index + 1}. ${chord.symbol}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                entry.badge?.let { NumeralChip(it) }
+                // The tones (or a spacer) take the free width, pushing the counter to the end.
+                if (settings.labels == DiagramLabels.Degrees || settings.view == VoicingView.Tab) {
+                    Text(
+                        text = chordTonesLabel(chord, flats),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = status.info,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                if (fillHeight && shapeCount > 1) {
+                    Text(
+                        text = "${currentFingering + 1} / $shapeCount",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier.semantics { contentDescription = "Fingering ${currentFingering + 1} of $shapeCount" },
+                    )
+                }
             }
             if (entry.shapes.isEmpty()) {
                 Text(
@@ -656,8 +691,9 @@ private fun ChordCard(
             }
             val fingering = @Composable { k: Int, shape: VoicingShape, blockModifier: Modifier ->
                 Column(modifier = blockModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Only worth naming when there are several to tell apart.
-                    if (entry.shapes.size > 1) {
+                    // Only worth naming when there are several to tell apart; fitted, the header's
+                    // counter names the one in view instead.
+                    if (shapeCount > 1 && !fillHeight) {
                         Text(
                             text = "FINGERING ${k + 1}",
                             style = MaterialTheme.typography.labelSmall,
@@ -667,8 +703,8 @@ private fun ChordCard(
                     val playable = Modifier
                         .clip(MaterialTheme.shapes.small)
                         .clickable(onClickLabel = "Play") { onPlay(shape) }
-                    // Fitted, the diagram gets what is left of its block under the label and keeps
-                    // its proportions inside it (centred where its width falls short).
+                    // Fitted, the diagram takes the whole block: its height sets the scale and the
+                    // frets widen into the spare width (centred past their cap).
                     Box(
                         modifier = if (fillHeight) Modifier.fillMaxWidth().weight(1f) else Modifier,
                         contentAlignment = Alignment.TopCenter,
@@ -682,6 +718,8 @@ private fun ChordCard(
                                 index = k,
                                 labels = settings.labels,
                                 flats = flats,
+                                // Fitted, the frets widen into the block's spare width.
+                                stretch = fillHeight,
                                 modifier = playable,
                             )
                             VoicingView.Tab -> TabBlock(shape, tuning, playable)
@@ -695,7 +733,7 @@ private fun ChordCard(
                 BoxWithConstraints(modifier = Modifier.weight(1f)) {
                     val block = maxHeight
                     Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        modifier = Modifier.fillMaxSize().verticalScroll(fingeringScroll),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         entry.shapes.forEachIndexed { k, shape -> fingering(k, shape, Modifier.height(block)) }
