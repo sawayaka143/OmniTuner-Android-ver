@@ -310,6 +310,8 @@ fun AppRoot() {
                     actions = {
                         slots.actions?.invoke(this)
                         ButtonSlot { spots.tab = it.centerInRoot() }
+                        // The bar and the button's touch target leave 8 dp; the cards sit 16 dp in.
+                        Spacer(Modifier.width(8.dp))
                     },
                 )
             }
