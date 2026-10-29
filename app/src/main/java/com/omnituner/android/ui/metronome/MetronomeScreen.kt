@@ -54,8 +54,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
@@ -113,6 +111,8 @@ import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.HeaderPicker
+import com.omnituner.android.ui.common.HeaderPickerRow
 import com.omnituner.android.ui.common.OptionsButton
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SegmentedRow
@@ -160,18 +160,24 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
     // the rail replaces the bar, and the panel header carries them itself).
     TopBarContent(
         title = {
-            MeterMenu(
-                metronome = ui.state,
-                onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+            HeaderPickerRow(
+                title = {
+                    MeterMenu(
+                        metronome = ui.state,
+                        onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+                    )
+                },
+                secondary = {
+                    PresetMenu(
+                        ui = ui,
+                        onApply = viewModel::applyPreset,
+                        onDelete = viewModel::deletePreset,
+                        onSave = { savingPreset = true },
+                    )
+                },
             )
         },
         actions = {
-            PresetMenu(
-                ui = ui,
-                onApply = viewModel::applyPreset,
-                onDelete = viewModel::deletePreset,
-                onSave = { savingPreset = true },
-            )
             OptionsButton(onClick = { optionsOpen = true }, contentDescription = "Metronome options")
         },
     )
@@ -219,6 +225,9 @@ private val PanelHeaderInset = 12.dp
 
 // Concentric with the panel, as on the tuner: inner radius = panel radius - inset.
 private val HeaderMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
+
+// Taller than the shared picker's default, as the metronome's header row has always been.
+private val HeaderPickerPadding = 10.dp
 
 @Composable
 private fun TempoPanel(
@@ -349,46 +358,6 @@ private val FoldSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBounc
 
 /** The panel-header trigger shared by both menus: a small caption over a large value. */
 @Composable
-private fun HeaderMenuTrigger(
-    caption: String,
-    value: String,
-    expanded: Boolean,
-    onClick: () -> Unit,
-    contentDescription: String,
-    alignEnd: Boolean = false,
-) {
-    Surface(onClick = onClick, shape = HeaderMenuShape, color = Color.Transparent) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f, fill = false),
-                horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
-            ) {
-                Text(
-                    text = caption,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = LocalContentColor.current.copy(alpha = 0.75f),
-                    maxLines = 1,
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-            Icon(
-                imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-@Composable
 private fun MeterMenu(
     metronome: MetronomeState,
     onPick: (TimeSignature) -> Unit,
@@ -397,12 +366,12 @@ private fun MeterMenu(
     val meter = metronome.timeSignature
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box(modifier = modifier) {
-        HeaderMenuTrigger(
+        HeaderPicker(
             caption = subdivisionLabel(metronome.divisionsPerBeat),
             value = "${meter.numerator}/${meter.denominator}",
-            expanded = expanded,
             onClick = { expanded = true },
             contentDescription = "Choose meter",
+            verticalPadding = HeaderPickerPadding,
         )
     }
     if (expanded) {
@@ -429,13 +398,13 @@ private fun PresetMenu(
     var expanded by rememberSaveable { mutableStateOf(false) }
     val current = ui.presets.firstOrNull { it.state == ui.state }
     Box(modifier = modifier) {
-        HeaderMenuTrigger(
+        HeaderPicker(
             caption = "Preset",
             value = current?.name ?: if (ui.presets.isEmpty()) "None" else "Custom",
-            expanded = expanded,
             onClick = { expanded = true },
             contentDescription = "Choose preset",
             alignEnd = true,
+            verticalPadding = HeaderPickerPadding,
         )
     }
     if (expanded) {

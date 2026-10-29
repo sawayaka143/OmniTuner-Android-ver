@@ -63,6 +63,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.MenuPickerRow
+import com.omnituner.android.ui.common.menuTitle
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.RepeatingIconButton

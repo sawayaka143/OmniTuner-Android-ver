@@ -193,6 +193,8 @@ Scales is used mainly in landscape: there the fretboard fills the screen, and po
 
 **The One Options Button Rule.** A page shows its instrument and at most one primary action. Everything that adjusts it lives in that tool's options sheet, reached by the same tune button (`OptionsButton`): in the top bar upright, and on the panel or card header in landscape, where the rail replaces the bar.
 
+**The Header Rule.** The header says what the page is on or in, and is built from one picker (`HeaderPicker`, a small caption over a bold value). The title is the context: instrument and tuning (Tuner, Chords), root and scale as one phrase (Scales, "E Minor"), the meter (Metronome). Instrument and tuning always read the same way: the instrument as the caption, the tuning as the value. Beside the title sits at most one secondary picker at the same size, pushed to the end; when both don't fit, the longer gives way with an ellipsis and the title keeps at least half. Then the Options button, then Settings. What the header names is not repeated on the page upright.
+
 **The Fit, Don't Scroll Rule.** In landscape, size the content to the screen; a tool on a music stand should never need scrolling to be read.
 
 **The No Shift Rule.** Transient indicators (progress, spinners, "copied" ticks) overlay or fill reserved space; they never push the content below them.

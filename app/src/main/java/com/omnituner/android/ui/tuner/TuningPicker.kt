@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omnituner.android.ui.common.GroupedSection
+import com.omnituner.android.ui.common.menuTitle
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.core.data.Tuning

@@ -53,6 +53,8 @@ import com.omnituner.android.ui.common.FretboardCanvas
 import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.NoteWheel
 import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.HeaderPicker
+import com.omnituner.android.ui.common.HeaderPickerRow
 import com.omnituner.android.ui.common.OptionsButton
 import com.omnituner.android.ui.common.SheetTitle
 import com.omnituner.android.ui.common.PickerOption
@@ -61,7 +63,7 @@ import com.omnituner.android.ui.common.PickerRow
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
 import com.omnituner.android.ui.common.TopBarContent
-import com.omnituner.android.ui.common.TopBarPicker
+import com.omnituner.android.ui.common.TuningHeaderPicker
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.LocalGroupedListColors
 import com.omnituner.android.ui.theme.SmoothShape
@@ -79,19 +81,23 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
     val scale = SCALES.firstOrNull { it.id == ui.settings.scaleId } ?: SCALES.first()
 
     // Upright, the scale and the instrument/tuning pickers and the options button live in the top
-    // bar (in landscape the rail replaces the bar, so the cards below keep them).
+    // bar (in landscape the rail replaces the bar, so the cards below keep them). The title reads
+    // the root and scale as one phrase ("E Minor"); the root itself is changed on the wheel below.
     TopBarContent(
         title = {
-            TopBarPicker(
-                caption = "Scale",
-                value = scale.label,
-                expanded = scaleSheet,
-                onClick = { scaleSheet = true },
-                contentDescription = "Choose scale",
+            HeaderPickerRow(
+                title = {
+                    HeaderPicker(
+                        caption = "Scale",
+                        value = "${noteName(ui.settings.rootPitchClass, flats)} ${scale.label}",
+                        onClick = { scaleSheet = true },
+                        contentDescription = "Choose scale",
+                    )
+                },
+                secondary = { TuningMenu(ui = ui, viewModel = viewModel) },
             )
         },
         actions = {
-            TuningMenu(ui = ui, viewModel = viewModel)
             OptionsButton(onClick = { optionsSheet = true }, contentDescription = "Display options")
         },
     )
@@ -148,7 +154,8 @@ private fun ScaleMapCard(
     val title = "${noteName(settings.rootPitchClass, flats)} ${scale.label}"
     val tuningLine = "${ui.tuning.label} · ${ui.tuning.strings.joinToString(" ") { it.name }}"
     // Fitted (landscape): the tuning shares the title's line and the tone row is left out, so the
-    // board gets every bit of height the card can spare.
+    // board gets every bit of height the card can spare. Upright, the top bar already names the
+    // scale and tuning, so the card drops its title line and Play goes under the tone row.
     val fitted = fitHeight != null
 
     Card(modifier = Modifier.fillMaxWidth().then(if (fitHeight != null) Modifier.height(fitHeight) else Modifier)) {
@@ -156,8 +163,8 @@ private fun ScaleMapCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(if (fitted) 12.dp else 16.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (fitted) {
+            if (fitted) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
                         Text(
                             text = title,
@@ -175,41 +182,15 @@ private fun ScaleMapCard(
                             modifier = Modifier.padding(start = 12.dp).alignByBaseline(),
                         )
                     }
-                } else {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = tuningLine,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    PlayScaleButton(isPlaying = ui.isPlaying, onClick = viewModel::togglePlayScale)
+                    if (onOptions != null) {
+                        OptionsButton(
+                            onClick = onOptions,
+                            contentDescription = "Display options",
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.padding(start = 8.dp),
                         )
                     }
-                }
-                // The card is the tonal grey itself, so its buttons take the page color to stand out.
-                FilledTonalButton(
-                    onClick = viewModel::togglePlayScale,
-                    shape = SmoothShape.Full,
-                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Icon(
-                        imageVector = if (ui.isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (ui.isPlaying) "Stop" else "Play")
-                }
-                if (onOptions != null) {
-                    OptionsButton(
-                        onClick = onOptions,
-                        contentDescription = "Display options",
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
                 }
             }
             FretboardCanvas(
@@ -223,8 +204,34 @@ private fun ScaleMapCard(
                     .then(if (fitted) Modifier.weight(1f) else Modifier)
                     .semantics { contentDescription = "Fretboard showing $title, highest string on top" },
             )
-            if (!fitted) ScaleTones(ui = ui, onPlay = viewModel::playTone)
+            if (!fitted) {
+                ScaleTones(ui = ui, onPlay = viewModel::playTone)
+                PlayScaleButton(
+                    isPlaying = ui.isPlaying,
+                    onClick = viewModel::togglePlayScale,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
+    }
+}
+
+// The card is the tonal grey itself, so the button takes the page color to stand out.
+@Composable
+private fun PlayScaleButton(isPlaying: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    FilledTonalButton(
+        onClick = onClick,
+        shape = SmoothShape.Full,
+        colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = modifier,
+    ) {
+        Icon(
+            imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(if (isPlaying) "Stop" else "Play")
     }
 }
 
@@ -325,16 +332,14 @@ private fun ScaleSheet(ui: ScalesUiState, flats: Boolean, viewModel: ScalesViewM
     )
 }
 
-/** The top bar's instrument and tuning picker: one sheet listing every instrument's tunings. */
+/** The top bar's instrument and tuning picker, beside the scale: one sheet listing every instrument's tunings. */
 @Composable
 private fun TuningMenu(ui: ScalesUiState, viewModel: ScalesViewModel) {
     var sheet by rememberSaveable { mutableStateOf(false) }
-    TopBarPicker(
-        caption = ui.instrument.label,
-        value = ui.tuning.label,
-        expanded = sheet,
+    TuningHeaderPicker(
+        instrument = ui.instrument,
+        tuningLabel = ui.tuning.label,
         onClick = { sheet = true },
-        contentDescription = "Choose instrument and tuning",
     )
     if (sheet) TuningSheet(ui = ui, viewModel = viewModel, onDismiss = { sheet = false })
 }

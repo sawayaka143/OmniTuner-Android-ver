@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MicOff
@@ -79,6 +78,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
 import com.omnituner.android.ui.common.TopBarContent
+import com.omnituner.android.ui.common.TuningHeaderPicker
 import com.omnituner.android.ui.theme.LocalAccentColors
 import com.omnituner.android.ui.theme.SmoothShape
 import com.omnituner.android.ui.theme.accentSwitchColors
@@ -173,7 +173,7 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
     // Upright, the tuning picker and the Auto switch live in the top bar (in landscape the rail
     // replaces the bar, and the panel carries them itself).
     TopBarContent(
-        title = { TuningButton(state = state, onClick = { pickerOpen = true }) },
+        title = { TuningHeaderPicker(instrument = state.instrument, tuningLabel = state.tuning.label, onClick = { pickerOpen = true }) },
         actions = {
             AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = viewModel::selectMode)
         },
@@ -270,43 +270,6 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
 
 /** The top-bar trigger for [TuningPickerSheet]: the instrument, and its tuning under it in smaller type. */
 @Composable
-private fun TuningButton(state: TunerUiState, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        onClick = onClick,
-        shape = TuningMenuShape,
-        color = Color.Transparent,
-        modifier = modifier,
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f, fill = false)) {
-                Text(
-                    text = state.instrument.menuTitle(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-                Text(
-                    text = state.tuning.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = LocalContentColor.current.copy(alpha = 0.75f),
-                    maxLines = 1,
-                )
-            }
-            Icon(
-                imageVector = Icons.Filled.ArrowDropDown,
-                contentDescription = "Choose tuning",
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-internal fun Instrument.menuTitle(): String = "$label $stringCount-string"
-
-@Composable
 private fun AutoSwitch(auto: Boolean, onModeChange: (TunerMode) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
@@ -397,7 +360,12 @@ private fun TunerPanel(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            TuningButton(state = state, onClick = onOpenPicker, modifier = Modifier.weight(1f, fill = false))
+                            TuningHeaderPicker(
+                                instrument = state.instrument,
+                                tuningLabel = state.tuning.label,
+                                onClick = onOpenPicker,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
                             Spacer(Modifier.weight(1f))
                             AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
                         }

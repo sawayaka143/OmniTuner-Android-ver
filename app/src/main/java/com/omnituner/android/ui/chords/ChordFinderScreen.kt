@@ -97,6 +97,7 @@ import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.SheetTitle
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.TopBarContent
+import com.omnituner.android.ui.common.TuningHeaderPicker
 import com.omnituner.android.ui.common.PullDownMenu
 import com.omnituner.android.ui.common.PullDownMenuItem
 import com.omnituner.android.ui.theme.LocalAccentColors
@@ -133,11 +134,23 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
         )
     }
 
-    // Upright, the options button (on the Voicings tab) and the overflow (Copy tab / Clear, once
-    // there are voicings to act on) live in the top bar; in landscape the rail replaces the bar
-    // and the input card carries them.
-    // They grow in beside the Settings button rather than popping in.
+    var tuningSheet by rememberSaveable { mutableStateOf(false) }
+    val library = ui.library
+
+    // Upright, the instrument and tuning are the bar's title, the options button (on the Voicings
+    // tab) and the overflow (Copy tab / Clear, once there are voicings to act on) its actions; in
+    // landscape the rail replaces the bar and the input card carries them.
+    // The buttons grow in beside the Settings button rather than popping in.
     TopBarContent(
+        title = library?.let {
+            {
+                TuningHeaderPicker(
+                    instrument = it.instrument,
+                    tuningLabel = it.tuning.label,
+                    onClick = { tuningSheet = true },
+                )
+            }
+        },
         actions = {
             val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
             AnimatedVisibility(
@@ -158,6 +171,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
             }
         },
     )
+    if (tuningSheet && library != null) TuningSheet(library, viewModel, onDismiss = { tuningSheet = false })
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth > maxHeight) {
@@ -169,7 +183,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
                 Pane(Modifier.width(inputWidth)) {
                     tabs()
                     when (ui.tab) {
-                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, withResultsBar = true)
+                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, withResultsBar = true, onOpenTuning = { tuningSheet = true })
                         ChordsTab.KeyFinder -> KeyFinderInput(ui, viewModel)
                     }
                 }
@@ -217,19 +231,24 @@ private fun Pane(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 }
 
 @Composable
-private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewModel, withResultsBar: Boolean = false) {
-    var tuningSheet by rememberSaveable { mutableStateOf(false) }
+private fun VoicingsInput(
+    ui: ChordFinderUiState,
+    viewModel: ChordFinderViewModel,
+    withResultsBar: Boolean = false,
+    // Landscape only: upright the top bar's title is the tuning picker, so the card leaves it out.
+    onOpenTuning: (() -> Unit)? = null,
+) {
     val library = ui.library
 
     // The progress bar floats in the gap under the input card instead of taking a row of its own,
     // so starting or finishing a generate never shifts the results below.
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
-            if (library != null) {
+            if (library != null && onOpenTuning != null) {
                 PickerRow(
                     headline = "Tuning",
                     value = "${library.instrument.label} · ${library.tuning.label}",
-                    onClick = { tuningSheet = true },
+                    onClick = onOpenTuning,
                 )
             }
             ChordField(
@@ -287,8 +306,6 @@ private fun VoicingsInput(ui: ChordFinderUiState, viewModel: ChordFinderViewMode
             )
         }
     }
-
-    if (tuningSheet && library != null) TuningSheet(library, viewModel, onDismiss = { tuningSheet = false })
 }
 
 @Composable
