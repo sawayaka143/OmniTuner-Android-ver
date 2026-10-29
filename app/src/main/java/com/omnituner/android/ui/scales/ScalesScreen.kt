@@ -152,7 +152,8 @@ private fun ScaleMapCard(
     val flats = settings.accidental == Accidental.Flat
     val scale = SCALES.firstOrNull { it.id == settings.scaleId } ?: SCALES.first()
     val title = "${noteName(settings.rootPitchClass, flats)} ${scale.label}"
-    val tuningLine = "${ui.tuning.label} · ${ui.tuning.strings.joinToString(" ") { it.name }}"
+    // Just the notes: the tuning's name is on the Tuning row below, and a long custom name crowded the line.
+    val tuningLine = ui.tuning.strings.joinToString(" ") { it.name }
     // Fitted (landscape): the tuning shares the title's line and the tone row is left out, so the
     // board gets every bit of height the card can spare. Upright, the top bar already names the
     // scale and tuning, so the card drops its title line and Play goes under the tone row.
@@ -445,23 +446,58 @@ private fun DisplayOptionsSheet(ui: ScalesUiState, viewModel: ScalesViewModel, o
 
 @Composable
 private fun InstrumentCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
-    var sheet by rememberSaveable { mutableStateOf(false) }
+    var instrumentSheet by rememberSaveable { mutableStateOf(false) }
+    var tuningSheet by rememberSaveable { mutableStateOf(false) }
 
-    // Both rows open the same sheet, which sets instrument and tuning in one tap.
+    // Each row opens its own list: Instrument the instruments, Tuning only the current instrument's
+    // tunings (the top bar's picker upright is the one that lists them all together).
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
             PickerRow(
                 headline = "Instrument",
                 value = ui.instrument.label,
-                onClick = { sheet = true },
+                onClick = { instrumentSheet = true },
             )
             PickerRow(
                 headline = "Tuning",
                 value = ui.tuning.label,
-                onClick = { sheet = true },
+                onClick = { tuningSheet = true },
             )
         }
     }
 
-    if (sheet) TuningSheet(ui = ui, viewModel = viewModel, onDismiss = { sheet = false })
+    if (instrumentSheet) {
+        OptionSheet(
+            title = "Instrument",
+            options = ui.catalog.map { entry ->
+                PickerOption(
+                    entry.instrument.id,
+                    entry.instrument.label,
+                    supporting = "${entry.instrument.stringCount}-string",
+                )
+            },
+            selected = ui.instrument.id,
+            onSelect = { id ->
+                // A new instrument starts on its first (standard) tuning.
+                if (id != ui.instrument.id) {
+                    ui.catalog.firstOrNull { it.instrument.id == id }?.tunings?.firstOrNull()?.let {
+                        viewModel.selectTuning(id, it.id)
+                    }
+                }
+            },
+            onDismiss = { instrumentSheet = false },
+        )
+    }
+    if (tuningSheet) {
+        val tunings = ui.catalog.firstOrNull { it.instrument.id == ui.instrument.id }?.tunings.orEmpty()
+        OptionSheet(
+            title = "Tuning",
+            options = tunings.map { tuning ->
+                PickerOption(tuning.id, tuning.label, supporting = tuning.strings.joinToString(" ") { it.name })
+            },
+            selected = ui.tuning.id,
+            onSelect = { id -> viewModel.selectTuning(ui.instrument.id, id) },
+            onDismiss = { tuningSheet = false },
+        )
+    }
 }
