@@ -24,7 +24,7 @@ OmniTuner is a musician's toolkit in one app: a tuner, a metronome, a chord find
 ## Operating Context
 
 - Used with an instrument in hand: often one hand free, phone on a stand, desk or music stand, sometimes in a dim or loud room. The tuner keeps the screen on and gives haptic and chime feedback when a string is in tune.
-- Works in portrait and landscape; landscape layouts fit everything to the screen rather than scrolling.
+- Works in portrait and landscape; landscape layouts fit everything to the screen rather than scrolling. Scales is meant mainly for landscape, with the fretboard filling the screen.
 - Settings carry per-tool preferences: reference pitch, in-tune feedback, "Pro accuracy" (exact cents offset), theme (system/light/dark), accent color (match wallpaper or a preset), and which tool the app opens in.
 
 ## Capabilities and Constraints

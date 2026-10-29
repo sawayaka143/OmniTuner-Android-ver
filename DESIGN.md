@@ -138,7 +138,7 @@ Density is moderate: one main readout per screen, controls grouped in cards with
 A grey-scale board with one signal light the user picks.
 
 ### Primary
-- **The Signal (user accent)** (default: the wallpaper's `system_accent1` tone 600 in light / 300 in dark; fallback `{colors.accent-pink}`): the one color that means something. It marks the tuner needle, the in-tune note, the metronome's sounding beat dot, every Switch and Slider, the selected segment of every segmented control, the Scales root, the active/tuned string chips, the selected item of every picker, the selected nav tab's icon and label, and in Chords the diagram's root ring, an "altered" numeral chip and a "moderate" key match. Its on-color is black or white, whichever contrasts more (luminance crossover 0.179).
+- **The Signal (user accent)** (default: the wallpaper's `system_accent1` tone 600 in light / 300 in dark; fallback `{colors.accent-pink}`): the one color that means something. It marks the tuner needle, the in-tune note, the metronome's sounding beat dot, the metronome's BPM readout and its Start button, every Switch and Slider, the selected segment of every segmented control, the Scales root, the active/tuned string chips, the selected item of every picker, the selected nav tab's icon and label, and in Chords the diagram's root ring, an "altered" numeral chip and a "moderate" key match. Its on-color is black or white, whichever contrasts more (luminance crossover 0.179).
 - **Signal presets**: Blue, Cyan, Green, Lime, Yellow, Orange, Pink, and Black (near-black `{colors.accent-black-light}` in light, flipping to near-white `{colors.accent-black-dark}` in dark so it never vanishes).
 
 ### Tertiary
@@ -189,6 +189,10 @@ Screens are a `Scaffold` with a top app bar and a bottom navigation bar of four 
 
 Each screen picks its layout from its own size (`maxWidth > maxHeight`), not from the device configuration. In landscape the bottom bar becomes a navigation rail on the phone's physical bottom edge and takes over the top bar's job. Fixed panels split side by side (Tuner: strings, readout, tuning list; Metronome: readout over Tap, menus over Start). Results fit the screen instead of scrolling (Chords pages one chord card at a time; Scales fits its fretboard to the height). Grouped lists cap their width at 640 dp.
 
+Scales is used mainly in landscape: there the fretboard fills the screen, and portrait is the secondary view.
+
+**The One Options Button Rule.** A page shows its instrument and at most one primary action. Everything that adjusts it lives in that tool's options sheet, reached by the same tune button (`OptionsButton`): in the top bar upright, and on the panel or card header in landscape, where the rail replaces the bar.
+
 **The Fit, Don't Scroll Rule.** In landscape, size the content to the screen; a tool on a music stand should never need scrolling to be read.
 
 **The No Shift Rule.** Transient indicators (progress, spinners, "copied" ticks) overlay or fill reserved space; they never push the content below them.
@@ -213,6 +217,7 @@ Refined and restrained: stock Material buttons, fully rounded.
 - **Filled:** Control Ink background with Paper text, so the main action reads black on white or white on black.
 - **Tonal / Text:** Board Grey container or no container, Control Ink label.
 - **Top-bar actions:** `FilledTonalIconButton`, circular; on Settings their container takes the group card color.
+- **On a grey panel or card:** tonal buttons and icon buttons take the Paper color as their container, or they vanish into the Board Grey.
 
 ### Segmented control
 - **Style:** equal segments on a soft Board Grey track (44 dp tall, 16 dp squircle, 4 dp inset), no outline or dividers.
@@ -255,6 +260,7 @@ The tuner's 41-tick canvas meter with 11sp scale labels; the needle and the in-t
 - **Do** build option choices from the shared pickers (`MenuPickerRow`, `PickerRow` + `OptionSheet`, `PullDownMenu`) and segmented choices from `SegmentedRow`.
 - **Do** set big readouts in bold with tabular figures, sized to fit their panel.
 - **Do** fit landscape layouts to the screen and cap grouped lists at 640 dp.
+- **Do** put a tool's adjustments in its options sheet behind the shared tune button, not inline on the page.
 
 ### Don't:
 - **Don't** spread the accent to headers, borders, backgrounds or decorative chrome.
