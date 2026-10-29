@@ -60,7 +60,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -114,6 +113,7 @@ import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.OptionSheet
+import com.omnituner.android.ui.common.OptionsButton
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
@@ -156,8 +156,8 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
         onDispose { view.keepScreenOn = false }
     }
 
-    // Upright, the meter and preset menus live in the top bar (in landscape the rail replaces the
-    // bar, and the panel carries them itself).
+    // Upright, the meter and preset menus and the options button live in the top bar (in landscape
+    // the rail replaces the bar, and the panel header carries them itself).
     TopBarContent(
         title = {
             MeterMenu(
@@ -172,6 +172,7 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
                 onDelete = viewModel::deletePreset,
                 onSave = { savingPreset = true },
             )
+            OptionsButton(onClick = { optionsOpen = true }, contentDescription = "Metronome options")
         },
     )
 
@@ -257,13 +258,23 @@ private fun TempoPanel(
                 onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
                 modifier = Modifier.weight(1f, fill = false),
             )
-            PresetMenu(
-                ui = ui,
-                onApply = viewModel::applyPreset,
-                onDelete = viewModel::deletePreset,
-                onSave = onSavePreset,
+            Row(
                 modifier = Modifier.weight(1f, fill = false),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PresetMenu(
+                    ui = ui,
+                    onApply = viewModel::applyPreset,
+                    onDelete = viewModel::deletePreset,
+                    onSave = onSavePreset,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                OptionsButton(
+                    onClick = onOptions,
+                    contentDescription = "Metronome options",
+                    containerColor = MaterialTheme.colorScheme.surface,
+                )
+            }
         }
     }
     val readout = @Composable { readoutModifier: Modifier, wide: Boolean ->
@@ -287,7 +298,6 @@ private fun TempoPanel(
                 if (!ui.isPlaying) wheelOpen = false
                 viewModel.toggle()
             },
-            onOptions = onOptions,
             tall = tall,
             modifier = transportModifier,
         )
@@ -757,7 +767,6 @@ private fun BeatDots(
 private fun TransportRow(
     isPlaying: Boolean,
     onToggle: () -> Unit,
-    onOptions: () -> Unit,
     modifier: Modifier = Modifier,
     // Landscape: the buttons fill the height they are given, as blocks with the panel's inner corner.
     tall: Boolean = false,
@@ -791,23 +800,12 @@ private fun TransportRow(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        // Icon only: the row is too narrow inside the panel for a "More" label.
-        FilledTonalButton(
-            onClick = onOptions,
-            shape = shape,
-            colors = panelTonalColors(),
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier
-                .width(MoreButtonWidth)
-                .then(height),
-        ) {
-            Icon(Icons.Filled.Tune, contentDescription = "More options", tint = MaterialTheme.colorScheme.onSurface)
-        }
+        // The options button left this row for the top bar (or the landscape panel header), where
+        // every tool keeps it, so Start takes the full width.
     }
 }
 
 private val TransportHeight = 56.dp
-private val MoreButtonWidth = 72.dp
 
 // The panel is the tonal grey itself, so tonal buttons on it take the page color to stand out.
 @Composable
