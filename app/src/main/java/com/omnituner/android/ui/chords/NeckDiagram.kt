@@ -36,7 +36,7 @@ private const val BREAK = 10f
 private const val TOP = 6f
 private const val BOT = 18f
 private const val RING = 9f
-private const val MIN_COLUMNS = 4
+private const val MIN_COLUMNS = 5
 private const val LAST_FRET = 24
 
 private val INLAY_SINGLE = setOf(3, 5, 7, 9, 15, 17, 19, 21)
@@ -69,23 +69,12 @@ private class NeckColors(
 private enum class Anchor { Start, Center, End }
 
 /**
- * How many frets a diagram for [strings] strings can show and still fit a box of width/height
- * [aspect] at full height: passed as `minColumns`, the window grows to the right until the diagram
- * is about as wide as the box, instead of leaving it empty beside a four-fret diagram.
- */
-fun neckDiagramColumnsFor(aspect: Float, strings: Int): Int {
-    val widthUnits = aspect * (TOP + strings * ROW + BOT)
-    return ((widthUnits - LEFT - IND - PAD) / COL).toInt().coerceAtLeast(MIN_COLUMNS)
-}
-
-/**
  * One fingering on a horizontal neck, lowest string at the bottom: tuning labels on the left, an
- * open/mute column and the fretted window (at least four frets). The window starts at the nut
- * whenever every fretted note fits in it from there; a higher shape that also rings open strings
- * gets a break (a gap and a doubled edge) between them, so its first fret never reads as fret 1.
- * Each ring holds its note's name or degree; fret numbers mark only the inlay frets and, away from
- * the nut, the window's first fret. [minColumns] widens the window (to the right, never past the
- * last fret) to fill a wide box.
+ * open/mute column and the fretted window. The window runs from one fret below the shape to one
+ * fret above it (at least five frets, padded on the high side), and starts at the nut instead when
+ * the shape sits within the first three frets; a higher shape that also rings open strings gets a
+ * break (a gap and a doubled edge) between them, so its first fret never reads as fret 1. Each
+ * ring holds its note's name or degree; every fret in the window is numbered.
  */
 @Composable
 fun NeckDiagram(
@@ -97,15 +86,19 @@ fun NeckDiagram(
     labels: DiagramLabels,
     flats: Boolean,
     modifier: Modifier = Modifier,
-    minColumns: Int = MIN_COLUMNS,
 ) {
     val n = tuning.midi.size
     val fretted = frets.filterNotNull().filter { it > 0 }
-    val window = maxOf(minColumns, MIN_COLUMNS)
-    // Open strings only read right against the nut, so start there whenever the shape fits.
-    val lo = if ((fretted.maxOrNull() ?: 0) <= window) 1 else fretted.min()
-    val reach = minOf(lo + window - 1, maxOf(LAST_FRET, lo + MIN_COLUMNS - 1))
-    val hi = maxOf(fretted.maxOrNull() ?: lo, reach)
+    val minFret = fretted.minOrNull() ?: 1
+    val maxFret = fretted.maxOrNull() ?: 1
+    val lastFret = maxOf(LAST_FRET, maxFret)
+    // One spare fret either side of the shape; near the nut, start at the nut so it reads as fret 1.
+    var lo = if (minFret - 1 <= 2) 1 else minFret - 1
+    var hi = maxOf(maxFret + 1, lo + MIN_COLUMNS - 1)
+    if (hi > lastFret) {
+        hi = lastFret
+        lo = maxOf(1, minOf(lo, hi - MIN_COLUMNS + 1))
+    }
     val cols = hi - lo + 1
     val broken = lo > 1 && frets.any { it == 0 }
     val gridL = LEFT + IND + if (broken) BREAK else 0f
@@ -188,9 +181,7 @@ fun NeckDiagram(
 
         val axisY = yBot + BOT / 2 + 1
         if (frets.any { it == 0 }) label("0", indCx, axisY, 8f, colors.dim)
-        for (f in lo until lo + cols) {
-            if (f in INLAY_SINGLE || f in INLAY_DOUBLE || (f == lo && lo > 1)) label("$f", fretX(f), axisY, 8f, colors.dim)
-        }
+        for (f in lo until lo + cols) label("$f", fretX(f), axisY, 8f, colors.dim)
 
         for (s in 0 until n) {
             val fret = frets.getOrNull(s)

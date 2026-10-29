@@ -633,17 +633,11 @@ private fun ChordCard(
                         .clip(MaterialTheme.shapes.small)
                         .clickable(onClickLabel = "Play") { onPlay(shape) }
                     // Fitted, the diagram gets what is left of its block under the label and keeps
-                    // its proportions inside it, showing as many frets as make it fill that space
-                    // (centred, in case a fret's width is left over).
-                    BoxWithConstraints(
+                    // its proportions inside it (centred where its width falls short).
+                    Box(
                         modifier = if (fillHeight) Modifier.fillMaxWidth().weight(1f) else Modifier,
                         contentAlignment = Alignment.TopCenter,
                     ) {
-                        val columns = if (fillHeight && maxHeight > 0.dp) {
-                            neckDiagramColumnsFor(maxWidth / maxHeight, tuning.midi.size)
-                        } else {
-                            0
-                        }
                         when (settings.view) {
                             VoicingView.Fretboard -> NeckDiagram(
                                 frets = shape.frets,
@@ -654,7 +648,6 @@ private fun ChordCard(
                                 labels = settings.labels,
                                 flats = flats,
                                 modifier = playable,
-                                minColumns = columns,
                             )
                             VoicingView.Tab -> TabBlock(shape, tuning, playable)
                         }
