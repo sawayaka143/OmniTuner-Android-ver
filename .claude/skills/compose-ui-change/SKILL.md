@@ -10,11 +10,10 @@ description: Procedure and gotchas for changing any OmniTuner screen in Jetpack 
 ## Steps
 
 1. **Find what already exists.** Before writing any control, list `app/src/main/java/com/omnituner/android/ui/common/` and grep for the closest match (`OptionSheet.kt` has `PullDownMenu`, `MenuPickerRow`, `PickerRow`, `OptionSheet`; also `SegmentedRow`, `NumberStepper`, `SwitchRow`, `NoteWheel`, `WheelPickerPage`, `GroupedSection`, `LibraryTuningSheet`, `TopBarPicker`). Reuse it or extend it with a parameter. The user has asked "why are we not using the same drop-down menus?" before.
-2. **Scope check.** Change only what was asked. Any other visual change (color, border, size, spacing, copy) is a question for the user first. If the request is vague ("something feels off", "make it prettier"), run the `grilling` skill before coding.
+2. **Scope check.** A visual change the user didn't ask for (color, border, size, spacing, copy) is a question for them first, even if it looks like an obvious improvement. If the request is vague ("something feels off", "make it prettier"), run the `grilling` skill before coding.
 3. **Make the change** in both orientations: the screen's `BoxWithConstraints` landscape branch usually needs the same edit. Portrait is the canonical layout. Landscape adapts it.
 4. **Trace every new value to every consumer.** Example: the Scales root picker once updated the tone row but never reached `FretboardCanvas`, so the board stayed in C for weeks.
 5. Run the `verify-build` skill, unless the user said "don't do any checks, just update the file".
-6. Report what changed and say the visual check is theirs.
 
 ## Gotchas
 
@@ -27,4 +26,3 @@ description: Procedure and gotchas for changing any OmniTuner screen in Jetpack 
 - **Sizes the user asks for are exact.** "Twice as big" means 2×, "0.75 vertically" means 0.75. Don't round to a nicer dp.
 - Black and white are pure in chrome: icons and inactive nav items are pure black (light) / pure white (dark). Greys come from `Theme.kt` / `LocalGroupedListColors`, never a new hex.
 - UI strings are hardcoded Kotlin literals for now (no `strings.xml` yet; localization is planned). Don't start migrating strings inside an unrelated change.
-- `remember` keyed on the wrong value is the usual cause of "it doesn't update" bugs. Check the keys before adding state.
