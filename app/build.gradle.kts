@@ -40,6 +40,15 @@ android {
 // The baseline profile is recorded on "nonMinifiedRelease" so it holds real class
 // names. The plugin turns shrinking off there with isMinifyEnabled, which AGP 9's
 // optimization block (copied from release) overrides, so switch that off too.
+// Run only the generator when making the profile: the startup benchmarks skip
+// themselves there, and AGP's test reporter crashes on skipped tests, which
+// stops the profile from being copied into src.
+baselineProfile {
+    filter {
+        include("com.omnituner.baselineprofile.BaselineProfileGenerator")
+    }
+}
+
 androidComponents {
     finalizeDsl { extension ->
         extension.buildTypes.findByName("nonMinifiedRelease")?.optimization?.enable = false
