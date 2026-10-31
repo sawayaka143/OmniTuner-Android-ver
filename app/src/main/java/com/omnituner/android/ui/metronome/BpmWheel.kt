@@ -73,7 +73,7 @@ import kotlin.math.tanh
  * [centerClickLabel] (null when tapping the centre does nothing).
  *
  * [collapse] folds the wheel into a plain readout: at 1 the neighbours have slid into the centre and
- * faded out, the centre value is drawn [CompactScale] larger and only a tap on it (or a drag, which
+ * faded out, the centre value is drawn [compactScale] larger and only a tap on it (or a drag, which
  * the caller should answer by unfolding) does anything. [onInteractionChange] reports when a drag,
  * fling or row tap starts (true) and when the wheel has settled and committed (false).
  */
@@ -88,6 +88,8 @@ fun BpmWheel(
     modifier: Modifier = Modifier,
     centerScale: () -> Float = { 1f },
     collapse: () -> Float = { 0f },
+    // How much larger the folded value is drawn than the open one.
+    compactScale: Float = CompactScale,
     onInteractionChange: (Boolean) -> Unit = {},
     centerColor: Color = Color.Unspecified,
     label: String = "Tempo",
@@ -200,11 +202,11 @@ fun BpmWheel(
                 onDragStarted = { setInteracting(true) },
                 onDragStopped = { velocity -> scope.launch { fling(-velocity / pitchPx) } },
             )
-            .pointerInput(bigPx, pitchPx, range) {
+            .pointerInput(bigPx, pitchPx, range, compactScale) {
                 detectTapGestures { offset ->
                     val dy = offset.y - size.height / 2f
                     val folded = latestCollapse() > 0.5f
-                    val centerHalf = bigPx / 2f * if (folded) CompactScale else 1f
+                    val centerHalf = bigPx / 2f * if (folded) compactScale else 1f
                     if (abs(dy) <= centerHalf) {
                         latestOnCenterClick()
                         return@detectTapGestures
@@ -262,7 +264,7 @@ fun BpmWheel(
                         // they slide, so they are gone before reaching it) while the centre grows.
                         val isCenter = abs(d) < 0.5f
                         translationY = geometry.offset(d) * (1f - fold)
-                        val foldScale = if (isCenter) lerp(1f, CompactScale, fold) else lerp(1f, FoldedNeighbourScale, fold)
+                        val foldScale = if (isCenter) lerp(1f, compactScale, fold) else lerp(1f, FoldedNeighbourScale, fold)
                         val scale = geometry.scale(d) * geometry.depth(angle) * lerp(1f, centerScale(), focus) * foldScale
                         scaleX = scale
                         scaleY = scale

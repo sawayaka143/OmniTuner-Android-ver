@@ -78,6 +78,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.TunerMode
+import com.omnituner.android.ui.common.PanelCorner
+import com.omnituner.android.ui.common.PanelHeaderInset
 import com.omnituner.android.ui.common.TopBarContent
 import com.omnituner.android.ui.common.TuningHeaderPicker
 import com.omnituner.android.ui.theme.LocalAccentColors
@@ -167,20 +169,15 @@ fun TunerScreen(viewModel: TunerViewModel = viewModel()) {
         }
     }
 
+    // The card carries the picker and Auto switch, so the bar is left with only Settings: an empty
+    // title, or the bar would fall back to the tab's name.
+    TopBarContent(title = {})
+
     LaunchedEffect(viewModel) {
         viewModel.lockEvents.collect {
             if (viewModel.ui.value.haptics) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         }
     }
-
-    // Upright, the tuning picker and the Auto switch live in the top bar (in landscape the rail
-    // replaces the bar, and the panel carries them itself).
-    TopBarContent(
-        title = { TuningHeaderPicker(instrument = state.instrument, tuningLabel = state.tuning.label, onClick = { pickerOpen = true }) },
-        actions = {
-            AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = viewModel::selectMode)
-        },
-    )
 
     Column(
         modifier = Modifier
@@ -313,9 +310,6 @@ private fun animatedTuneColors(state: TunerUiState): TuneColors {
     )
 }
 
-private val PanelCorner = 32.dp
-private val PanelHeaderInset = 12.dp
-
 // Landscape: where the header's text and the meter's outer labels sit, in from the column beside
 // the strings. It is the header picker's own start padding, so the picker needs none added.
 private val PanelContentInset = 16.dp
@@ -327,6 +321,9 @@ private const val WideSideBand = 0.3f
 
 // Landscape: the height the overlaid header takes, kept clear by the full-panel messages.
 private val WideHeaderClearance = 56.dp
+
+// Upright: the share of the card's width the picker may take before it ellipsizes.
+private const val UprightPickerShare = 0.6f
 
 // Concentric with the panel: inner radius = panel radius - inset, so the menu's press highlight
 // follows the panel's corner at an even distance instead of bulging into it.
@@ -383,38 +380,70 @@ private fun TunerPanel(
                         // before it, floating the switch mid-panel.
                         // The end padding tops Auto's own 8 dp up to the picker's 16 dp, so the
                         // header's text and switch sit on the same edges as the meter below.
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = PanelContentInset - AutoSwitchEndPadding),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TuningHeaderPicker(
-                                instrument = state.instrument,
-                                tuningLabel = state.tuning.label,
-                                onClick = onOpenPicker,
-                                // Kept to its side band, so a long tuning name ellipsizes before
-                                // it can reach under the note.
-                                modifier = Modifier
-                                    .weight(1f, fill = false)
-                                    .widthIn(max = sideBand),
-                            )
-                            AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
-                        }
+                        PanelHeader(
+                            state = state,
+                            onModeChange = onModeChange,
+                            onOpenPicker = onOpenPicker,
+                            // Kept to its side band, so a long tuning name ellipsizes before
+                            // it can reach under the note.
+                            maxPickerWidth = sideBand,
+                            modifier = Modifier.padding(end = PanelContentInset - AutoSwitchEndPadding),
+                        )
                     }
                 }
             } else {
-                Column {
-                    Box(modifier = Modifier.weight(1f)) { content(false) }
-                    StringRow(
+                // Upright, the same header lies over the card's top; the content starts below it.
+                Box {
+                    Column {
+                        Box(modifier = Modifier.weight(1f).padding(top = WideHeaderClearance)) { content(false) }
+                        StringRow(
+                            state = state,
+                            onSelect = onSelectString,
+                            modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
+                        )
+                    }
+                    PanelHeader(
                         state = state,
-                        onSelect = onSelectString,
-                        modifier = Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
+                        onModeChange = onModeChange,
+                        onOpenPicker = onOpenPicker,
+                        maxPickerWidth = this@BoxWithConstraints.maxWidth * UprightPickerShare,
+                        // As in landscape: the controls sit 12 dp in so their press highlight follows
+                        // the card's corner, and their text lands on the readout's edges below.
+                        modifier = Modifier.padding(
+                            start = PanelHeaderInset,
+                            end = PanelHeaderInset + PanelContentInset - AutoSwitchEndPadding,
+                            top = PanelHeaderInset,
+                        ),
                     )
                 }
             }
         }
+    }
+}
+
+// The instrument and tuning picker at the start, the Auto switch at the end.
+@Composable
+private fun PanelHeader(
+    state: TunerUiState,
+    onModeChange: (TunerMode) -> Unit,
+    onOpenPicker: () -> Unit,
+    maxPickerWidth: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TuningHeaderPicker(
+            instrument = state.instrument,
+            tuningLabel = state.tuning.label,
+            onClick = onOpenPicker,
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .widthIn(max = maxPickerWidth),
+        )
+        AutoSwitch(auto = state.mode == TunerMode.Auto, onModeChange = onModeChange)
     }
 }
 
@@ -494,7 +523,7 @@ private fun Readout(state: TunerUiState, inputLevel: () -> Float, colors: TuneCo
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = if (wide) PanelContentInset else 20.dp, vertical = 16.dp),
+            .padding(horizontal = if (wide) PanelContentInset else PanelHeaderInset + PanelContentInset, vertical = 16.dp),
     ) {
         val meterHeight = min(120.dp, maxHeight * if (wide) 0.22f else 0.28f)
         val typography = MaterialTheme.typography

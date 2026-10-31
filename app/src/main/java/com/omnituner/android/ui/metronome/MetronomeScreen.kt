@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -92,6 +93,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -114,6 +120,8 @@ import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.HeaderPicker
 import com.omnituner.android.ui.common.HeaderPickerRow
 import com.omnituner.android.ui.common.OptionsButton
+import com.omnituner.android.ui.common.PanelCorner
+import com.omnituner.android.ui.common.PanelHeaderInset
 import com.omnituner.android.ui.common.RepeatingIconButton
 import com.omnituner.android.ui.common.SegmentedRow
 import com.omnituner.android.ui.common.SwitchRow
@@ -220,9 +228,6 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
     }
 }
 
-private val PanelCorner = 32.dp
-private val PanelHeaderInset = 12.dp
-
 // Concentric with the panel, as on the tuner: inner radius = panel radius - inset.
 private val HeaderMenuShape = SmoothShape(PanelCorner - PanelHeaderInset)
 
@@ -256,33 +261,62 @@ private fun TempoPanel(
         label = "wheelFold",
     )
 
+    // Landscape only (upright the top bar carries the menus): the meter leads as the page's title,
+    // the preset and options close it, and the beat dots sit centred on the panel (over the tempo)
+    // in the room the wider of the two ends leaves.
     val header = @Composable { headerModifier: Modifier ->
-        Row(
+        val beat = beatView(ui)
+        Layout(
             modifier = headerModifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            MeterMenu(
-                metronome = ui.state,
-                onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
-                modifier = Modifier.weight(1f, fill = false),
+            content = {
+                // Each wrapped in a Box so every slot is exactly one measurable (the menus also
+                // compose their sheets).
+                Box {
+                    MeterMenu(
+                        metronome = ui.state,
+                        onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PresetMenu(
+                        ui = ui,
+                        onApply = viewModel::applyPreset,
+                        onDelete = viewModel::deletePreset,
+                        onSave = onSavePreset,
+                        // Long names ellipsize here so the dots keep their room.
+                        modifier = Modifier.widthIn(max = WidePresetMaxWidth),
+                    )
+                    OptionsButton(
+                        onClick = onOptions,
+                        contentDescription = "Metronome options",
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    )
+                }
+                Box {
+                    BeatDots(
+                        beats = beat.beats,
+                        group = beat.group,
+                        current = beat.current,
+                        countIn = ui.inCountIn,
+                        barActive = ui.barActive,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            },
+        ) { measurables, constraints ->
+            val loose = constraints.copy(minWidth = 0, minHeight = 0)
+            val start = measurables[0].measure(loose)
+            val end = measurables[1].measure(loose)
+            val width = constraints.maxWidth
+            val side = maxOf(start.width, end.width) + HeaderDotsGap.roundToPx()
+            val dots = measurables[2].measure(
+                Constraints.fixed((width - side * 2).coerceAtLeast(0), BeatDotMax.roundToPx()),
             )
-            Row(
-                modifier = Modifier.weight(1f, fill = false),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PresetMenu(
-                    ui = ui,
-                    onApply = viewModel::applyPreset,
-                    onDelete = viewModel::deletePreset,
-                    onSave = onSavePreset,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                OptionsButton(
-                    onClick = onOptions,
-                    contentDescription = "Metronome options",
-                    containerColor = MaterialTheme.colorScheme.surface,
-                )
+            val height = maxOf(start.height, end.height, dots.height)
+            layout(width, height) {
+                start.place(0, (height - start.height) / 2)
+                end.place(width - end.width, (height - end.height) / 2)
+                dots.place(side, (height - dots.height) / 2)
             }
         }
     }
@@ -320,27 +354,27 @@ private fun TempoPanel(
     ) {
         BoxWithConstraints {
             if (maxWidth > maxHeight) {
-                // Landscape: the tempo readout with a large Tap under it on the left; on the right the
-                // menus, and Start filling everything under them.
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Column(
+                // Landscape: the header across the top, the tempo filling the middle, and Tap beside
+                // Start on one bottom row, both blocks of the same height and inner corner.
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(PanelHeaderInset),
+                ) {
+                    header(Modifier)
+                    readout(Modifier.weight(1f), true)
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(bottom = PanelHeaderInset),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                            .fillMaxWidth()
+                            .height(WideActionHeight),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        readout(Modifier.weight(1f), true)
-                        TapButton(onTap = onTap, size = WideTapButtonSize)
-                    }
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(top = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset),
-                    ) {
-                        header(Modifier)
-                        transport(Modifier.weight(1f).padding(top = 8.dp), true)
+                        TapButton(
+                            onTap = onTap,
+                            shape = HeaderMenuShape,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                        )
+                        transport(Modifier.weight(2f), true)
                     }
                 }
             } else {
@@ -352,6 +386,11 @@ private fun TempoPanel(
         }
     }
 }
+
+// The landscape bottom row: Tap and Start share this height.
+private val WideActionHeight = 72.dp
+private val WidePresetMaxWidth = 180.dp
+private val HeaderDotsGap = 16.dp
 
 private const val WheelIdleMs = 2500L
 private val FoldSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
@@ -367,7 +406,8 @@ private fun MeterMenu(
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box(modifier = modifier) {
         HeaderPicker(
-            caption = subdivisionLabel(metronome.divisionsPerBeat),
+            // With no subdivision the caption names the value instead ("Beat only" read as a mode).
+            caption = if (metronome.divisionsPerBeat == 1) "Meter" else subdivisionLabel(metronome.divisionsPerBeat),
             value = "${meter.numerator}/${meter.denominator}",
             onClick = { expanded = true },
             contentDescription = "Choose meter",
@@ -476,13 +516,8 @@ private fun TempoReadout(
     wide: Boolean = false,
 ) {
     val metronome = ui.state
-    // One dot per written pulse (12/8 shows twelve), grouped into the meter's beats. While playing the
-    // dots follow the bar being played, which keeps the old meter until the next bar line.
-    val chosen = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator)
-    val playingBar = ui.isPlaying && ui.pulsesPerBar > 0
-    val beats = if (playingBar) ui.pulsesPerBar else chosen.numerator
-    val beatGroup = if (playingBar) ui.pulsesPerBeat else chosen.divisionsPerBeat
-    val currentBeat = if (ui.isPlaying) floor(ui.progress * beats).toInt().coerceIn(0, beats - 1) else null
+    val beat = beatView(ui)
+    val currentBeat = beat.current
 
     // A small kick on every beat, the metronome's counterpart of the tuner's in-tune note pop.
     val bpmScale = remember { Animatable(1f) }
@@ -501,31 +536,50 @@ private fun TempoReadout(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = ReadoutInset, vertical = 16.dp),
+            .padding(horizontal = ReadoutInset, vertical = if (wide) 4.dp else 16.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        // Three digits must fit between the steppers (also once grown by CompactScale when folded),
-        // and the drum needs room for rows around them.
-        val heightShare = if (wide) 0.3f else 0.2f
+        val compactScale = if (wide) WideCompactScale else CompactScale
+        val bpmSize: Dp
+        val contentWidth: Dp
+        if (wide) {
+            // Landscape: the folded value is the page's hero and fills the height left under the
+            // header (as the Tuner's note does); turning it shrinks it back to a drum that fits.
+            val free = maxHeight - WideCaptionAllowance
+            val folded = min(free * WideFoldedShare, (maxWidth - StepperSlot * 2) / 1.9f).coerceAtLeast(48.dp)
+            bpmSize = folded / compactScale
+            // The steppers stay next to the number instead of out at the panel's far edges.
+            contentWidth = min(maxWidth, folded * 1.9f + StepperSlot * 2 + 32.dp)
+        } else {
+            // Three digits must fit between the steppers (also once grown by CompactScale when folded),
+            // and the drum needs room for rows around them.
+            bpmSize = min(maxHeight * 0.2f, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp) * NumberShare
+            contentWidth = maxWidth
+        }
         val wheelShare = if (wide) WideWheelHeightShare else WheelHeightShare
-        val bpmSize = min(maxHeight * heightShare, (maxWidth - StepperSlot * 2) / 1.9f).coerceIn(48.dp, 144.dp) * NumberShare
         val rowPitch = (bpmSize * 0.36f).coerceIn(24.dp, 38.dp)
         val dotsHeight = min(32.dp, maxHeight * 0.08f)
 
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .width(contentWidth)
+                .fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            BeatDots(
-                beats = beats,
-                group = beatGroup,
-                current = currentBeat,
-                countIn = ui.inCountIn,
-                barActive = ui.barActive,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .height(dotsHeight),
-            )
+            // Landscape shows the dots in the panel header instead.
+            if (!wide) {
+                BeatDots(
+                    beats = beat.beats,
+                    group = beat.group,
+                    current = currentBeat,
+                    countIn = ui.inCountIn,
+                    barActive = ui.barActive,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .height(dotsHeight),
+                )
+            }
             Layout(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -533,12 +587,18 @@ private fun TempoReadout(
                 content = {
                     Box(contentAlignment = Alignment.Center) {
                         // Selection band behind the centre row; the steppers sit at its two ends.
-                        // It goes with the neighbours when the wheel folds.
+                        // It stays when the wheel folds, hugging the folded value, so "− 120 +"
+                        // reads as a field to set.
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(bpmSize + 20.dp)
-                                .graphicsLayer { alpha = 1f - fold() }
+                                .layout { measurable, constraints ->
+                                    val open = (bpmSize + 20.dp).toPx()
+                                    val folded = bpmSize.toPx() * compactScale * FoldedBandShare
+                                    val height = lerp(open, folded, fold()).roundToInt()
+                                    val placeable = measurable.measure(Constraints.fixed(constraints.maxWidth, height))
+                                    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                                }
                                 .background(MaterialTheme.colorScheme.surface, BandShape),
                         )
                         Row(
@@ -559,6 +619,7 @@ private fun TempoReadout(
                                 pitch = rowPitch,
                                 centerScale = { bpmScale.value },
                                 collapse = fold,
+                                compactScale = compactScale,
                                 onInteractionChange = onWheelInteraction,
                                 centerColor = numberColor,
                                 modifier = Modifier
@@ -573,20 +634,38 @@ private fun TempoReadout(
                         }
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "BPM · ${getTempoMarking(metronome.bpm)}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = LocalContentColor.current.copy(alpha = 0.7f),
-                        )
-                        Text(
-                            text = statusLabel(ui),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
+                        val marking = "BPM · ${getTempoMarking(metronome.bpm)}"
+                        if (wide) {
+                            // Landscape is short: the bar status joins the caption's one line rather
+                            // than reserving a second, empty one while stopped.
+                            val status = statusLabel(ui)
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(SpanStyle(color = LocalContentColor.current.copy(alpha = 0.7f))) { append(marking) }
+                                    if (status.isNotEmpty()) {
+                                        append("  ")
+                                        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(status) }
+                                    }
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                            )
+                        } else {
+                            Text(
+                                text = marking,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = LocalContentColor.current.copy(alpha = 0.7f),
+                            )
+                            Text(
+                                text = statusLabel(ui),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
                         // Rides with the readout as it folds; tapping only sets the tempo, it never
                         // unfolds the wheel.
-                        if (!wide) TapButton(onTap = onTap, modifier = Modifier.padding(top = 8.dp))
+                        if (!wide) TapButton(onTap = onTap, modifier = Modifier.padding(top = 8.dp).size(TapButtonSize))
                     }
                 },
             ) { measurables, constraints ->
@@ -599,7 +678,7 @@ private fun TempoReadout(
                 val wheel = measurables[0].measure(Constraints.fixed(width, wheelHeight))
                 layout(width, area) {
                     val f = fold()
-                    val folded = bpmSize.toPx() * CompactScale
+                    val folded = bpmSize.toPx() * compactScale
                     // Open, the wheel and caption are centred together. Folded, the value rises by
                     // part of the room its neighbours gave up and the caption follows it up.
                     val openCenter = (area - caption.height - gap) / 2f
@@ -632,8 +711,18 @@ private val StepperSlot = 56.dp
 // a drum that tall, so this also sets how many neighbours show.
 private const val WheelHeightShare = 0.56f
 
-// Landscape is short: the wheel takes nearly all of it, or its centre band would not fit.
-private const val WideWheelHeightShare = 0.9f
+// Landscape is short: the wheel takes all of the height above the caption.
+private const val WideWheelHeightShare = 1f
+
+// Landscape: the folded value's line height as a share of the wheel's height (its digits stay clear
+// of the wheel's edge fade), how much larger it is than the open drum's centre row, the caption's
+// one line plus its gap.
+private const val WideFoldedShare = 0.9f
+private const val WideCompactScale = 1.8f
+private val WideCaptionAllowance = 32.dp
+
+// The band's height around the folded value, as a share of its line height.
+private const val FoldedBandShare = 0.92f
 
 // The centre value's size relative to what fits (leaves room for its CompactScale growth).
 private const val NumberShare = 0.85f
@@ -679,6 +768,22 @@ private fun TempoEntryDialog(current: Int, onDismiss: () -> Unit, onSet: (Int) -
             TextButton(shape = SmoothShape.Full, onClick = onDismiss) { Text("Cancel") }
         },
     )
+}
+
+private class BeatView(val beats: Int, val group: Int, val current: Int?)
+
+/**
+ * One dot per written pulse (12/8 shows twelve), grouped into the meter's beats. While playing the
+ * dots follow the bar being played, which keeps the old meter until the next bar line.
+ */
+private fun beatView(ui: MetronomeUiState): BeatView {
+    val metronome = ui.state
+    val chosen = meterModel(metronome.timeSignature.numerator, metronome.timeSignature.denominator)
+    val playingBar = ui.isPlaying && ui.pulsesPerBar > 0
+    val beats = if (playingBar) ui.pulsesPerBar else chosen.numerator
+    val group = if (playingBar) ui.pulsesPerBeat else chosen.divisionsPerBeat
+    val current = if (ui.isPlaying) floor(ui.progress * beats).toInt().coerceIn(0, beats - 1) else null
+    return BeatView(beats, group, current)
 }
 
 private val BeatDotMax = 28.dp
@@ -760,7 +865,7 @@ private fun TransportRow(
             Icon(
                 imageVector = if (isPlaying) Icons.Filled.Stop else Icons.Filled.PlayArrow,
                 contentDescription = null,
-                modifier = Modifier.size(if (tall) 40.dp else 28.dp),
+                modifier = Modifier.size(if (tall) 32.dp else 28.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
@@ -783,7 +888,7 @@ private fun panelTonalColors() =
 
 /** Tap tempo; it flashes the accent while pressed so each tap registers visibly. */
 @Composable
-private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp = TapButtonSize) {
+private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, shape: Shape = CircleShape) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val accent = LocalAccentColors.current
@@ -800,11 +905,11 @@ private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp
     )
     FilledTonalButton(
         onClick = onTap,
-        shape = CircleShape,
+        shape = shape,
         colors = ButtonDefaults.filledTonalButtonColors(containerColor = container, contentColor = content),
         interactionSource = interaction,
         contentPadding = PaddingValues(0.dp),
-        modifier = modifier.size(size),
+        modifier = modifier,
     ) {
         Text(
             "Tap",
@@ -815,7 +920,6 @@ private fun TapButton(onTap: () -> Unit, modifier: Modifier = Modifier, size: Dp
 }
 
 private val TapButtonSize = 128.dp
-private val WideTapButtonSize = 136.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
