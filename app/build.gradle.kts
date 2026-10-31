@@ -37,6 +37,15 @@ android {
     }
 }
 
+// The baseline profile is recorded on "nonMinifiedRelease" so it holds real class
+// names. The plugin turns shrinking off there with isMinifyEnabled, which AGP 9's
+// optimization block (copied from release) overrides, so switch that off too.
+androidComponents {
+    finalizeDsl { extension ->
+        extension.buildTypes.findByName("nonMinifiedRelease")?.optimization?.enable = false
+    }
+}
+
 dependencies {
     implementation(project(":shared"))
     implementation(platform(libs.androidx.compose.bom))
