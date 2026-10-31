@@ -43,7 +43,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.text.style.TextOverflow
+import com.omnituner.android.ui.common.CardHeaderButtonEnd
+import com.omnituner.android.ui.common.CardHeaderInset
+import com.omnituner.android.ui.common.CardHeaderPickerStart
 import androidx.compose.foundation.layout.height
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.Accidental
@@ -80,27 +82,10 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
     val flats = ui.settings.accidental == Accidental.Flat
     val scale = SCALES.firstOrNull { it.id == ui.settings.scaleId } ?: SCALES.first()
 
-    // Upright, the scale and the instrument/tuning pickers and the options button live in the top
-    // bar (in landscape the rail replaces the bar, so the cards below keep them). The title reads
-    // the root and scale as one phrase ("E Minor"); the root itself is changed on the wheel below.
-    TopBarContent(
-        title = {
-            HeaderPickerRow(
-                title = {
-                    HeaderPicker(
-                        caption = "Scale",
-                        value = "${noteName(ui.settings.rootPitchClass, flats)} ${scale.label}",
-                        onClick = { scaleSheet = true },
-                        contentDescription = "Choose scale",
-                    )
-                },
-                secondary = { TuningMenu(ui = ui, viewModel = viewModel) },
-            )
-        },
-        actions = {
-            OptionsButton(onClick = { optionsSheet = true }, contentDescription = "Display options")
-        },
-    )
+    // The scale and tuning pickers and the options button sit on the map card's header in both
+    // orientations, so the bar is left with only Settings: an empty title, or it would fall back
+    // to the tab's name.
+    TopBarContent(title = {})
     if (scaleSheet) ScaleSheet(ui = ui, flats = flats, viewModel = viewModel, onDismiss = { scaleSheet = false })
     if (optionsSheet) DisplayOptionsSheet(ui = ui, viewModel = viewModel, onDismiss = { optionsSheet = false })
 
@@ -117,12 +102,12 @@ fun ScalesScreen(viewModel: ScalesViewModel = viewModel()) {
         ) {
             // The map comes first so a scale or root change below shows on the board without scrolling.
             // In landscape it fills the screen exactly: the cards wait below it.
-            // Landscape is this page's main view; there the options button sits on the map's title line.
             ScaleMapCard(
                 ui = ui,
                 viewModel = viewModel,
                 fitHeight = if (wide) screenCardHeight else null,
-                onOptions = if (wide) ({ optionsSheet = true }) else null,
+                onOpenScale = { scaleSheet = true },
+                onOptions = { optionsSheet = true },
             )
             if (wide) {
                 // Landscape: the board keeps the full width; the cards under it pair up side by side.
@@ -146,54 +131,57 @@ private fun ScaleMapCard(
     ui: ScalesUiState,
     viewModel: ScalesViewModel,
     fitHeight: Dp? = null,
-    onOptions: (() -> Unit)? = null,
+    onOpenScale: () -> Unit,
+    onOptions: () -> Unit,
 ) {
     val settings = ui.settings
     val flats = settings.accidental == Accidental.Flat
     val scale = SCALES.firstOrNull { it.id == settings.scaleId } ?: SCALES.first()
     val title = "${noteName(settings.rootPitchClass, flats)} ${scale.label}"
-    // Just the notes: the tuning's name is on the Tuning row below, and a long custom name crowded the line.
-    val tuningLine = ui.tuning.strings.joinToString(" ") { it.name }
-    // Fitted (landscape): the tuning shares the title's line and the tone row is left out, so the
-    // board gets every bit of height the card can spare. Upright, the top bar already names the
-    // scale and tuning, so the card drops its title line and Play goes under the tone row.
+    // Fitted (landscape): Play joins the header and the tone row is left out, so the board gets
+    // every bit of height the card can spare. Upright, Play goes full width under the tone row.
     val fitted = fitHeight != null
 
     Card(modifier = Modifier.fillMaxWidth().then(if (fitHeight != null) Modifier.height(fitHeight) else Modifier)) {
+        // The header reads the root and scale as one phrase ("E Minor"), the instrument and tuning
+        // against the end; the root itself is changed on the wheel below.
+        Row(
+            modifier = Modifier.padding(start = CardHeaderInset, end = CardHeaderButtonEnd, top = CardHeaderInset),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HeaderPickerRow(
+                title = {
+                    HeaderPicker(
+                        caption = "Scale",
+                        value = title,
+                        onClick = onOpenScale,
+                        contentDescription = "Choose scale",
+                        startPadding = CardHeaderPickerStart,
+                        shape = MaterialTheme.shapes.small,
+                    )
+                },
+                secondary = { TuningMenu(ui = ui, viewModel = viewModel) },
+                modifier = Modifier.weight(1f),
+            )
+            if (fitted) {
+                PlayScaleButton(
+                    isPlaying = ui.isPlaying,
+                    onClick = viewModel::togglePlayScale,
+                    modifier = Modifier.padding(start = 8.dp, end = 8.dp),
+                )
+            }
+            OptionsButton(
+                onClick = onOptions,
+                contentDescription = "Display options",
+                containerColor = MaterialTheme.colorScheme.surface,
+            )
+        }
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .then(if (fitted) Modifier.weight(1f) else Modifier)
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(if (fitted) 12.dp else 16.dp),
         ) {
-            if (fitted) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            modifier = Modifier.alignByBaseline(),
-                        )
-                        Text(
-                            text = tuningLine,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 12.dp).alignByBaseline(),
-                        )
-                    }
-                    PlayScaleButton(isPlaying = ui.isPlaying, onClick = viewModel::togglePlayScale)
-                    if (onOptions != null) {
-                        OptionsButton(
-                            onClick = onOptions,
-                            contentDescription = "Display options",
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                    }
-                }
-            }
             FretboardCanvas(
                 board = ui.board,
                 useNoteNames = settings.labelMode == LabelMode.NoteNames,
@@ -333,7 +321,7 @@ private fun ScaleSheet(ui: ScalesUiState, flats: Boolean, viewModel: ScalesViewM
     )
 }
 
-/** The top bar's instrument and tuning picker, beside the scale: one sheet listing every instrument's tunings. */
+/** The map header's instrument and tuning picker, beside the scale: one sheet listing every instrument's tunings. */
 @Composable
 private fun TuningMenu(ui: ScalesUiState, viewModel: ScalesViewModel) {
     var sheet by rememberSaveable { mutableStateOf(false) }
@@ -450,7 +438,7 @@ private fun InstrumentCard(ui: ScalesUiState, viewModel: ScalesViewModel) {
     var tuningSheet by rememberSaveable { mutableStateOf(false) }
 
     // Each row opens its own list: Instrument the instruments, Tuning only the current instrument's
-    // tunings (the top bar's picker upright is the one that lists them all together).
+    // tunings (the map header's picker is the one that lists them all together).
     Card(modifier = Modifier.fillMaxWidth()) {
         Column {
             PickerRow(

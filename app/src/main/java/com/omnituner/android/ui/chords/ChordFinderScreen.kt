@@ -87,6 +87,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.unit.min
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnituner.android.data.ChordSettings
@@ -95,7 +96,9 @@ import com.omnituner.android.data.LibraryState
 import com.omnituner.android.data.VoicingView
 import com.omnituner.android.ui.common.LibraryTuningSheet
 import com.omnituner.android.ui.common.NoteWheel
-import com.omnituner.android.ui.common.PickerRow
+import com.omnituner.android.ui.common.CardHeaderButtonEnd
+import com.omnituner.android.ui.common.CardHeaderInset
+import com.omnituner.android.ui.common.CardHeaderPickerStart
 import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.SheetTitle
@@ -124,6 +127,8 @@ private val MaxCardWidth = 380.dp
 private val CardPeek = 32.dp
 // Drops the 4 dp progress bar from the card's bottom edge to the middle of the 16 dp gap below it.
 private val ProgressGapOffset = 10.dp
+// The header picker's own height (caption + value + 6 dp above and below), kept while the library loads.
+private val CardHeaderMinHeight = 56.dp
 
 @Composable
 fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
@@ -141,37 +146,21 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
     var tuningSheet by rememberSaveable { mutableStateOf(false) }
     val library = ui.library
 
-    // Upright, the instrument and tuning are the bar's title, the options button (on the Voicings
-    // tab) and the overflow (Copy tab / Clear, once there are voicings to act on) its actions; in
-    // landscape the rail replaces the bar and the input card carries them.
-    // The buttons grow in beside the Settings button rather than popping in.
+    // The instrument and tuning and the options button sit on the input card's header (Voicings
+    // only: the key finder doesn't use the tuning). Upright, the bar keeps the overflow (Copy tab /
+    // Clear, once there are voicings to act on) beside Settings, growing in rather than popping in;
+    // its title stays empty, or it would fall back to the tab's name. In landscape the rail
+    // replaces the bar and the input card carries the overflow too.
     TopBarContent(
-        title = library?.let {
-            {
-                TuningHeaderPicker(
-                    instrument = it.instrument,
-                    tuningLabel = it.tuning.label,
-                    onClick = { tuningSheet = true },
-                )
-            }
-        },
+        title = {},
         actions = {
             val barButton: MenuButton = { onClick, icon -> FilledTonalIconButton(onClick = onClick, content = icon) }
             AnimatedVisibility(
-                visible = ui.tab == ChordsTab.Voicings,
+                visible = ui.tab == ChordsTab.Voicings && ui.results != null,
                 enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
                 exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut(),
             ) {
-                Row {
-                    DisplayOptionsMenu(ui.settings, ui.tonicPc, viewModel, barButton)
-                    AnimatedVisibility(
-                        visible = ui.results != null,
-                        enter = fadeIn() + expandHorizontally(expandFrom = Alignment.Start) + scaleIn(),
-                        exit = fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.Start) + scaleOut(),
-                    ) {
-                        MoreMenu(viewModel, barButton)
-                    }
-                }
+                MoreMenu(viewModel, barButton)
             }
         },
     )
@@ -187,7 +176,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
                 Pane(Modifier.width(inputWidth)) {
                     tabs()
                     when (ui.tab) {
-                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, withResultsBar = true, onOpenTuning = { tuningSheet = true })
+                        ChordsTab.Voicings -> VoicingsInput(ui, viewModel, onOpenTuning = { tuningSheet = true }, withResultsBar = true)
                         ChordsTab.KeyFinder -> KeyFinderInput(ui, viewModel)
                     }
                 }
@@ -208,7 +197,7 @@ fun ChordFinderScreen(viewModel: ChordFinderViewModel = viewModel()) {
                 tabs()
                 when (ui.tab) {
                     ChordsTab.Voicings -> {
-                        VoicingsInput(ui, viewModel)
+                        VoicingsInput(ui, viewModel, onOpenTuning = { tuningSheet = true })
                         VoicingsResults(ui, viewModel)
                     }
                     ChordsTab.KeyFinder -> KeyFinderTab(ui, viewModel)
@@ -238,39 +227,60 @@ private fun Pane(modifier: Modifier, content: @Composable ColumnScope.() -> Unit
 private fun VoicingsInput(
     ui: ChordFinderUiState,
     viewModel: ChordFinderViewModel,
+    onOpenTuning: () -> Unit,
     withResultsBar: Boolean = false,
-    // Landscape only: upright the top bar's title is the tuning picker, so the card leaves it out.
-    onOpenTuning: (() -> Unit)? = null,
 ) {
     val library = ui.library
+    // The card is the tonal grey itself, so the button takes the page color to show.
+    val cardButton: MenuButton = { onClick, icon ->
+        FilledTonalIconButton(
+            onClick = onClick,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surface),
+            content = icon,
+        )
+    }
 
     // The progress bar floats in the gap under the input card instead of taking a row of its own,
     // so starting or finishing a generate never shifts the results below.
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
-            if (library != null && onOpenTuning != null) {
-                PickerRow(
-                    headline = "Tuning",
-                    value = "${library.instrument.label} · ${library.tuning.label}",
-                    onClick = onOpenTuning,
-                )
+            // The card's header, as on the other tabs: what the voicings are for (instrument and
+            // tuning) at the start, the options at the end. Held at the picker's height so the
+            // field doesn't move when the library finishes loading.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = CardHeaderInset, end = CardHeaderButtonEnd, top = CardHeaderInset)
+                    .heightIn(min = CardHeaderMinHeight),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    if (library != null) {
+                        TuningHeaderPicker(
+                            instrument = library.instrument,
+                            tuningLabel = library.tuning.label,
+                            onClick = onOpenTuning,
+                            startPadding = CardHeaderPickerStart,
+                            shape = MaterialTheme.shapes.small,
+                        )
+                    }
+                }
+                DisplayOptionsMenu(ui.settings, ui.tonicPc, viewModel, cardButton)
             }
             ChordField(
                 value = ui.progressionInput,
                 onValueChange = viewModel::setProgressionInput,
                 count = ui.progressionCount,
                 onDone = viewModel::generate,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
             )
-            // Landscape: the key and display options sit right under the input, ahead of Generate,
+            // Landscape: the key and the overflow sit right under the input, ahead of Generate,
             // so they stay in view on a short screen while the buttons can scroll off. The bar is
             // there before the first generate too, so Generate never jumps down under the finger.
             if (withResultsBar) {
                 HorizontalDivider()
                 ResultsHeader(
                     results = ui.results,
-                    settings = ui.settings,
-                    tonicPc = ui.tonicPc,
                     viewModel = viewModel,
                     tonal = true,
                     modifier = Modifier.padding(vertical = 8.dp),
@@ -329,7 +339,7 @@ private fun VoicingsResults(ui: ChordFinderUiState, viewModel: ChordFinderViewMo
     if (results == null) {
         if (!ui.generating) EmptyResults()
     } else {
-        if (fitHeight == null) ResultsHeader(results = results, settings = ui.settings, tonicPc = ui.tonicPc, viewModel = viewModel)
+        if (fitHeight == null) ResultsHeader(results = results, viewModel = viewModel)
         ChordCards(results, ui.settings, onPlay = viewModel::playShape, fitHeight = fitHeight)
     }
 }
@@ -398,16 +408,14 @@ private fun EmptyResults() {
 
 /**
  * Sits above the chord cards: the detected key on the left and, in the landscape input card
- * ([tonal]), the display options and an overflow with Copy tab / Clear. Upright, those two live in
- * the top bar instead (see [DisplayOptionsMenu] and [MoreMenu]), so only the key shows here; it
- * appears once there is something to show.
+ * ([tonal]), the overflow with Copy tab / Clear. Upright, the overflow lives in the top bar instead
+ * (see [MoreMenu]), so only the key shows here; it appears once there is something to show.
+ * The display options are on the input card's header in both orientations.
  */
 @Composable
 private fun ResultsHeader(
-    // Null in the landscape input card before the first generate: the options show, the key not yet.
+    // Null in the landscape input card before the first generate: the overflow shows, the key not yet.
     results: GeneratedVoicings?,
-    settings: ChordSettings,
-    tonicPc: Int,
     viewModel: ChordFinderViewModel,
     modifier: Modifier = Modifier,
     // Standalone tonal buttons, for the bar inside the landscape input card.
@@ -432,10 +440,7 @@ private fun ResultsHeader(
                 KeyRow(keyName(key.tonicName, key.mode), key.alternatives.map { keyName(it.tonicName, it.mode) })
             }
         }
-        if (tonal) {
-            DisplayOptionsMenu(settings, tonicPc, viewModel, button)
-            MoreMenu(viewModel, button)
-        }
+        if (tonal) MoreMenu(viewModel, button)
     }
 }
 

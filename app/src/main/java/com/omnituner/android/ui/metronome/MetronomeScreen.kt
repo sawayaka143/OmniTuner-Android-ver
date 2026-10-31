@@ -118,7 +118,6 @@ import com.omnituner.android.ui.common.NumberStepper
 import com.omnituner.android.ui.common.PickerOption
 import com.omnituner.android.ui.common.OptionSheet
 import com.omnituner.android.ui.common.HeaderPicker
-import com.omnituner.android.ui.common.HeaderPickerRow
 import com.omnituner.android.ui.common.OptionsButton
 import com.omnituner.android.ui.common.PanelCorner
 import com.omnituner.android.ui.common.PanelHeaderInset
@@ -164,31 +163,10 @@ fun MetronomeScreen(viewModel: MetronomeViewModel = viewModel()) {
         onDispose { view.keepScreenOn = false }
     }
 
-    // Upright, the meter and preset menus and the options button live in the top bar (in landscape
-    // the rail replaces the bar, and the panel header carries them itself).
-    TopBarContent(
-        title = {
-            HeaderPickerRow(
-                title = {
-                    MeterMenu(
-                        metronome = ui.state,
-                        onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
-                    )
-                },
-                secondary = {
-                    PresetMenu(
-                        ui = ui,
-                        onApply = viewModel::applyPreset,
-                        onDelete = viewModel::deletePreset,
-                        onSave = { savingPreset = true },
-                    )
-                },
-            )
-        },
-        actions = {
-            OptionsButton(onClick = { optionsOpen = true }, contentDescription = "Metronome options")
-        },
-    )
+    // The meter and preset menus and the options button sit on the panel's header in both
+    // orientations, so the bar is left with only Settings: an empty title, or it would fall back
+    // to the tab's name.
+    TopBarContent(title = {})
 
     Column(
         modifier = Modifier
@@ -261,9 +239,38 @@ private fun TempoPanel(
         label = "wheelFold",
     )
 
-    // Landscape only (upright the top bar carries the menus): the meter leads as the page's title,
-    // the preset and options close it, and the beat dots sit centred on the panel (over the tempo)
-    // in the room the wider of the two ends leaves.
+    // Upright: the meter leads, the preset and options close the row (the preset giving way with
+    // an ellipsis when it runs long); the beat dots stay over the tempo below, as the row has no
+    // room left for them on a phone's width.
+    val uprightHeader = @Composable { headerModifier: Modifier ->
+        Row(
+            modifier = headerModifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MeterMenu(
+                metronome = ui.state,
+                onPick = { viewModel.setTimeSignature(it.numerator, it.denominator) },
+            )
+            Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
+                PresetMenu(
+                    ui = ui,
+                    onApply = viewModel::applyPreset,
+                    onDelete = viewModel::deletePreset,
+                    onSave = onSavePreset,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                OptionsButton(
+                    onClick = onOptions,
+                    contentDescription = "Metronome options",
+                    containerColor = MaterialTheme.colorScheme.surface,
+                )
+            }
+        }
+    }
+
+    // Landscape: the meter leads as the page's title, the preset and options close it, and the
+    // beat dots sit centred on the panel (over the tempo) in the room the wider of the two ends leaves.
     val header = @Composable { headerModifier: Modifier ->
         val beat = beatView(ui)
         Layout(
@@ -379,6 +386,8 @@ private fun TempoPanel(
                 }
             } else {
                 Column {
+                    // The same 12 dp inset as landscape, so the header's controls follow the corner.
+                    uprightHeader(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, top = PanelHeaderInset))
                     readout(Modifier.weight(1f), false)
                     transport(Modifier.padding(start = PanelHeaderInset, end = PanelHeaderInset, bottom = PanelHeaderInset), false)
                 }

@@ -191,9 +191,9 @@ Each screen picks its layout from its own size (`maxWidth > maxHeight`), not fro
 
 Scales is used mainly in landscape: there the fretboard fills the screen, and portrait is the secondary view.
 
-**The One Options Button Rule.** A page shows its instrument and at most one primary action. Everything that adjusts it lives in that tool's options sheet, reached by the same tune button (`OptionsButton`): in the top bar upright, and on the panel or card header in landscape, where the rail replaces the bar.
+**The One Options Button Rule.** A page shows its instrument and at most one primary action. Everything that adjusts it lives in that tool's options sheet, reached by the same tune button (`OptionsButton`) at the end of the tool's main panel or card header, in both orientations.
 
-**The Header Rule.** The header says what the page is on or in, and is built from one picker (`HeaderPicker`, a small caption over a bold value). The title is the context: instrument and tuning (Tuner, Chords), root and scale as one phrase (Scales, "E Minor"), the meter (Metronome). Instrument and tuning always read the same way: the instrument as the caption, the tuning as the value. Beside the title sits at most one secondary picker at the same size, pushed to the end; when both don't fit, the longer gives way with an ellipsis and the title keeps at least half. Then the Options button, then Settings. What the header names is not repeated on the page upright.
+**The Header Rule.** The header is the top of the tool's main panel or card, like the label on a pedal's housing, in both orientations; the top bar above keeps only Settings. It says what the page is on or in, and is built from one picker (`HeaderPicker`, a small caption over a bold value). The title is the context: instrument and tuning (Tuner, Chords), root and scale as one phrase (Scales, "E Minor"), the meter (Metronome). Instrument and tuning always read the same way: the instrument as the caption, the tuning as the value. Beside the title sits at most one secondary picker at the same size, pushed to the end; when both don't fit, the longer gives way with an ellipsis and the title keeps at least half. The Options button closes the header. What the header names is not repeated on the page.
 
 **The Fit, Don't Scroll Rule.** In landscape, size the content to the screen; a tool on a music stand should never need scrolling to be read.
 
@@ -234,7 +234,7 @@ Refined and restrained: stock Material buttons, fully rounded.
 
 ### Pickers, menus and sheets
 - **Anchored menus** (inline rows and overflow): 220–280 dp wide, group card color, medium squircle, 24 dp check on the selected item in the accent.
-- **Option sheets** (pickers opened from a top bar or panel header): a modal bottom sheet on the grouped page color, `headlineSmall` SemiBold title indented 32 dp, options in group cards; a pick closes it with a slide-down.
+- **Option sheets** (pickers opened from a panel or card header): a modal bottom sheet on the grouped page color, `headlineSmall` SemiBold title indented 32 dp, options in group cards; a pick closes it with a slide-down.
 - **Selected item:** check and label in the accent; everything else in Ink.
 
 ### Controls

@@ -15,6 +15,17 @@ import com.omnituner.android.ui.theme.SmoothShape
 val PanelCorner = 32.dp
 val PanelHeaderInset = 12.dp
 
+/**
+ * Header of a stock M3 card (16 dp corner, 16 dp content padding): the header's controls sit 4 dp
+ * in, so their press highlight is concentric with the corner (12 dp), and a [HeaderPicker] starts
+ * its text 12 dp further in, on the card's 16 dp content edge.
+ */
+val CardHeaderInset = 4.dp
+val CardHeaderPickerStart = 12.dp
+
+/** End padding of a card header ending in a 48 dp icon button: its 40 dp circle lands 12 dp in. */
+val CardHeaderButtonEnd = 8.dp
+
 /** A tonal pill button on the grouped-list group color, for pages and dialogs sitting on the grouped-list page color. */
 @Composable
 fun GroupTonalButton(
