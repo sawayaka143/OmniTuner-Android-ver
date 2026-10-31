@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 rootProject.name = "OmniTuner"
 include(":app")
 include(":shared")
+include(":baselineprofile")
