@@ -51,11 +51,13 @@ class StartupBenchmark {
         waitForAppReady()
     }
 
+    // No startupMode here: a cold start kills the app after setupBlock opens it,
+    // which leaves the tab walk with no app to measure.
     private fun tabs(mode: CompilationMode) = rule.measureRepeated(
         packageName = PACKAGE_NAME,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = mode,
-        startupMode = StartupMode.COLD,
+        startupMode = null,
         iterations = 5,
         setupBlock = {
             grantMicrophone()
