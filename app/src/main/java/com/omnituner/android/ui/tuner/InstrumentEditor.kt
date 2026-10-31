@@ -27,10 +27,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -61,6 +59,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import com.omnituner.android.ui.common.GroupTonalButton
 import com.omnituner.android.ui.common.GroupedSection
 import com.omnituner.android.ui.common.MenuPickerRow
 import com.omnituner.android.ui.common.menuTitle
@@ -304,14 +303,9 @@ private fun FullScreenEditor(
         title = title,
         onDismiss = onDismiss,
         action = {
-            FilledTonalButton(
+            GroupTonalButton(
                 onClick = onSave,
                 enabled = saveEnabled,
-                shape = SmoothShape.Full,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = LocalGroupedListColors.current.group,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
                 modifier = Modifier.padding(end = 8.dp),
             ) { Text("Save") }
         },

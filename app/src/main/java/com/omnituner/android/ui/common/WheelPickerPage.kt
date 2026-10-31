@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -101,14 +99,9 @@ fun WheelPickerPage(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (onReset != null) {
-                    FilledTonalButton(
+                    GroupTonalButton(
                         onClick = onReset,
                         enabled = resetEnabled,
-                        shape = SmoothShape.Full,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = LocalGroupedListColors.current.group,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
                         modifier = Modifier.weight(1f).height(ButtonHeight),
                     ) {
                         Text("Reset")
