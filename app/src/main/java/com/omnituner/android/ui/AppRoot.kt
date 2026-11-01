@@ -325,7 +325,13 @@ fun AppRoot() {
                             .coerceIn(0f, 1f)
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    navigationIcon = { ButtonSlot { spots.settings = it.centerInRoot() } },
+                    navigationIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // The bar and the button's touch target leave 8 dp; the cards sit 16 dp in.
+                            Spacer(Modifier.width(8.dp))
+                            ButtonSlot { spots.settings = it.centerInRoot() }
+                        }
+                    },
                 )
             }
         }
