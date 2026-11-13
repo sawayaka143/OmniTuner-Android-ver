@@ -49,5 +49,5 @@ if ! run lint :app:lintDebug; then
 fi
 
 rm -f "$LOG"
-[ $status -eq 0 ] && echo "ALL PASS - ready for the user to check on the emulator"
+[ $status -eq 0 ] && echo "ALL PASS"
 exit $status
