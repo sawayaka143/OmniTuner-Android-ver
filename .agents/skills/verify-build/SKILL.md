@@ -5,10 +5,10 @@ description: Run OmniTuner's one verification pass (compile, app + shared unit t
 
 # Verify the build
 
-Run exactly this from the repo root:
+Run this from the repo root (in PowerShell, call Git Bash explicitly because bare `bash` resolves to WSL):
 
-```bash
-bash .agents/skills/verify-build/scripts/verify.sh
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" .agents/skills/verify-build/scripts/verify.sh
 ```
 
 While iterating on a compile error, `--fast` runs the compile stage only. Run the full pass before reporting.

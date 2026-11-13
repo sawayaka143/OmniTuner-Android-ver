@@ -9,8 +9,8 @@
 - JDK: `C:\Program Files\Android\Android Studio\jbr` (set `JAVA_HOME` for Gradle).
 - Compile check: `.\gradlew.bat :app:compileDebugKotlin`
 - Lint: `.\gradlew.bat :app:lintDebug` (must pass clean; if lint fails, fix the cause, do not suppress)
-- APK output (AGP 9): `app\build\intermediates\apk\debug\app-debug.apk`
-- Emulator verification: run `verify-build` (compile, unit tests, lint) before reporting code done; you may also launch the `Medium_Phone` AVD (from Android Studio), install and run the app, and inspect or test UI and behavior on the emulator via `android` CLI / `adb` (`android emulator start`, `android run` / `install`, `android layout`, `android screen`, `android input`).
+- APK output (AGP 9): `app\build\outputs\apk\debug\app-debug.apk` (from `:app:assembleDebug`)
+- Emulator verification: run `verify-build` (compile, unit tests, lint) before reporting code done; for emulator testing on `Medium_Phone`, follow the `emulator-test` skill (`android` CLI / `adb`).
 
 ## UI patterns
 
