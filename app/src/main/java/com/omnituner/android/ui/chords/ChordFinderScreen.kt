@@ -290,21 +290,34 @@ private fun VoicingsInput(
             Row(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = if (withResultsBar) 8.dp else 12.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(shape = SmoothShape.Full, onClick = viewModel::generate, modifier = Modifier.weight(1f)) {
-                    Text("Generate")
+                Button(
+                    shape = SmoothShape.Full,
+                    onClick = viewModel::generate,
+                    contentPadding = ActionButtonPadding,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Generate", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
                 // The card is the tonal grey itself, so its tonal buttons take the page color to show.
-                FilledTonalButton(shape = SmoothShape.Full, onClick = viewModel::shuffle, colors = cardTonalColors()) {
+                FilledTonalButton(
+                    shape = SmoothShape.Full,
+                    onClick = viewModel::shuffle,
+                    colors = cardTonalColors(),
+                    contentPadding = ActionButtonPadding,
+                ) {
                     Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Shuffle")
+                    Text("Shuffle", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
                 FilledTonalButton(
                     shape = SmoothShape.Full,
                     onClick = viewModel::playProgression,
                     enabled = ui.results != null,
                     colors = cardTonalColors(),
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.width(48.dp),
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = "Play progression", modifier = Modifier.size(18.dp))
                 }
@@ -321,6 +334,8 @@ private fun VoicingsInput(
         }
     }
 }
+
+private val ActionButtonPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 
 @Composable
 private fun cardTonalColors() =

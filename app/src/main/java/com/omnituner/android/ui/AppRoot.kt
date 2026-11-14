@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -59,6 +60,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -89,6 +91,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -98,6 +101,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
@@ -234,6 +238,9 @@ fun AppRoot() {
                                 .graphicsLayer { translationY = size.height * motion.chromeOffEdge },
                             containerColor = MaterialTheme.colorScheme.surface,
                             tonalElevation = 0.dp,
+                            windowInsets = NavigationBarDefaults.windowInsets.union(
+                                WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                            ),
                         ) {
                             NavTabs(
                                 // The tab it leaves stays selected while it slides away.
@@ -307,6 +314,7 @@ fun AppRoot() {
                         alpha = 1f - (motion.progress / TabBarFadeOutEnd).coerceIn(0f, 1f)
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    windowInsets = topBarWindowInsets(),
                     actions = {
                         slots.actions?.invoke(this)
                         ButtonSlot { spots.tab = it.centerInRoot() }
@@ -325,6 +333,7 @@ fun AppRoot() {
                             .coerceIn(0f, 1f)
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    windowInsets = topBarWindowInsets(),
                     navigationIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // The bar and the button's touch target leave 8 dp; the cards sit 16 dp in.
@@ -379,6 +388,13 @@ private fun NavGraphBuilder.page(
 private const val TabBarFadeOutEnd = 0.25f
 private const val SettingsTitleFadeInStart = 0.8f
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun topBarWindowInsets(): WindowInsets =
+    TopAppBarDefaults.windowInsets.union(
+        WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+    )
+
 /** The height of a top app bar (and the status bar above it), which the Scaffold pads the content by. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -386,7 +402,7 @@ private fun TopBarSpace() {
     Spacer(
         Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(TopAppBarDefaults.windowInsets.only(WindowInsetsSides.Top))
+            .windowInsetsPadding(topBarWindowInsets().only(WindowInsetsSides.Top))
             .height(TopAppBarDefaults.TopAppBarExpandedHeight),
     )
 }
@@ -445,6 +461,12 @@ private fun SideRail(
     spots: ButtonSpots,
     windowInsets: WindowInsets,
 ) {
+    // Screens already leave 16 dp on the card side; matching that on the outer edge centres the rail.
+    val outerPadding = if (side == RailSide.Right) {
+        PaddingValues(end = RailEdgePadding)
+    } else {
+        PaddingValues(start = RailEdgePadding)
+    }
     NavigationRail(
         modifier = Modifier
             // Slides over the page, not under it.
@@ -472,17 +494,26 @@ private fun SideRail(
             },
         containerColor = MaterialTheme.colorScheme.surface,
         header = {
-            ButtonSlot {
-                spots.railSlot = it
-                spots.updateRail()
+            Box(Modifier.padding(outerPadding)) {
+                ButtonSlot {
+                    spots.railSlot = it
+                    spots.updateRail()
+                }
             }
         },
-        windowInsets = windowInsets.union(WindowInsets.systemBars.only(WindowInsetsSides.Vertical)),
+        windowInsets = windowInsets.union(
+            WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Vertical),
+        ),
     ) {
-        // Centred on its edge, like a dock, rather than stacked from the top.
-        Spacer(Modifier.weight(1f))
-        NavRailTabs(current = current, onSelect = onSelect)
-        Spacer(Modifier.weight(1f))
+        // Centred on its edge, like a dock, shrinking slot height when vertical room is tight.
+        BoxWithConstraints(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.Center,
+        ) {
+            val slotPx = constraints.maxHeight / Destination.tabs.size
+            val slot = with(LocalDensity.current) { slotPx.toDp() }.coerceIn(0.dp, RailSlot)
+            NavRailTabs(current = current, onSelect = onSelect, slot = slot, modifier = Modifier.padding(outerPadding))
+        }
     }
 }
 
@@ -546,9 +577,16 @@ private val TabShape = SmoothShape.Full
 // Padding around the bar's row, so the outer pills line up with the screens' 16 dp card margin.
 private val BarEdgePadding = 16.dp - TabInset
 
-// The rail is the stock 80 dp wide; its tabs keep the bar's inset on either side.
-private val RailTabWidth = 72.dp
+// The rail widens past the stock 80 dp so wider labels keep side clearance inside TabShape.
+private val RailTabs = Destination.tabs.reversed()
+private val RailTabWidth = 88.dp
+private val RailEdgePadding = 16.dp
 private val RailSlot = TabHeight + TabInset * 2
+private val MinTabInset = 2.dp
+private val TabIconGap = 4.dp
+private val MinTabIconGap = 2.dp
+private val CompactSlotStart = 60.dp
+private val CompactSlotEnd = 48.dp
 
 @Composable
 private fun animatePillOffset(slot: Dp, index: Int): State<Dp> = animateDpAsState(
@@ -583,30 +621,34 @@ private fun NavTabs(
                     destination = destination,
                     selected = destination == current,
                     onClick = { onSelect(destination) },
-                    modifier = Modifier.weight(1f).padding(horizontal = TabInset),
+                    modifier = Modifier.weight(1f).padding(horizontal = TabInset).height(TabHeight),
                 )
             }
         }
     }
 }
 
-// The same tabs and pill stood on end for the landscape rail: fixed-height slots, the pill
-// sliding vertically between them.
+// The same tabs and pill stood on end for the landscape rail (bottom-to-top so Tuner stays at
+// the bottom as on portrait's left edge), with equal-height slots that shrink when room is tight.
 @Composable
 private fun NavRailTabs(
     current: Destination,
     onSelect: (Destination) -> Unit,
+    slot: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val tabs = Destination.tabs
-    val pillOffset = animatePillOffset(RailSlot, tabs.indexOf(current))
+    val tabs = RailTabs
+    val compact = ((slot - CompactSlotEnd) / (CompactSlotStart - CompactSlotEnd)).coerceIn(0f, 1f)
+    val tabInset = lerp(MinTabInset, TabInset, compact)
+    val iconGap = lerp(MinTabIconGap, TabIconGap, compact)
+    val pillOffset = animatePillOffset(slot, tabs.indexOf(current))
     Box(modifier) {
         Box(
             Modifier
                 .offset { IntOffset(0, pillOffset.value.roundToPx()) }
                 .width(RailTabWidth)
-                .height(RailSlot)
-                .padding(vertical = TabInset)
+                .height(slot)
+                .padding(vertical = tabInset)
                 .background(LocalNavBarColors.current.indicator, TabShape),
         )
         Column(Modifier.selectableGroup()) {
@@ -615,7 +657,11 @@ private fun NavRailTabs(
                     destination = destination,
                     selected = destination == current,
                     onClick = { onSelect(destination) },
-                    modifier = Modifier.width(RailTabWidth).padding(vertical = TabInset),
+                    iconGap = iconGap,
+                    modifier = Modifier
+                        .width(RailTabWidth)
+                        .height(slot)
+                        .padding(vertical = tabInset),
                 )
             }
         }
@@ -628,6 +674,7 @@ private fun NavTab(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    iconGap: Dp = TabIconGap,
 ) {
     val color = if (selected) LocalAccentColors.current.accent else MaterialTheme.colorScheme.onSurface
 
@@ -646,7 +693,6 @@ private fun NavTab(
 
     Column(
         modifier = modifier
-            .height(TabHeight)
             .clip(TabShape)
             .selectable(
                 selected = selected,
@@ -656,7 +702,7 @@ private fun NavTab(
                 indication = ripple(color = color),
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(iconGap, Alignment.CenterVertically),
     ) {
         Icon(
             imageVector = if (selected) destination.selectedIcon else destination.icon,
