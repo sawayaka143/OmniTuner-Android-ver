@@ -22,9 +22,9 @@ public enum StartupMode: String, CaseIterable, Codable, Sendable, Identifiable {
     public var id: String { rawValue }
     public var label: String {
         switch self {
-        case .remember: "Remember"
-        case .auto: "Auto"
-        case .manual: "Manual"
+        case .remember: String(localized: "Remember", bundle: .module)
+        case .auto: String(localized: "Auto", bundle: .module)
+        case .manual: String(localized: "Manual", bundle: .module)
         }
     }
 }

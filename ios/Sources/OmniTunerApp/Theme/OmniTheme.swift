@@ -8,9 +8,9 @@ public enum ThemeMode: String, CaseIterable, Codable, Sendable, Identifiable {
     public var id: String { rawValue }
     public var label: String {
         switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .system: String(localized: "System", bundle: .module)
+        case .light: String(localized: "Light", bundle: .module)
+        case .dark: String(localized: "Dark", bundle: .module)
         }
     }
     public var colorScheme: ColorScheme? {
@@ -26,7 +26,16 @@ public enum AccentColorPreset: String, CaseIterable, Codable, Sendable, Identifi
     case blue, cyan, green, lime, yellow, orange, pink, black
     public var id: String { rawValue }
     public var label: String {
-        rawValue.prefix(1).uppercased() + rawValue.dropFirst()
+        switch self {
+        case .blue: String(localized: "Blue", bundle: .module)
+        case .cyan: String(localized: "Cyan", bundle: .module)
+        case .green: String(localized: "Green", bundle: .module)
+        case .lime: String(localized: "Lime", bundle: .module)
+        case .yellow: String(localized: "Yellow", bundle: .module)
+        case .orange: String(localized: "Orange", bundle: .module)
+        case .pink: String(localized: "Pink", bundle: .module)
+        case .black: String(localized: "Black", bundle: .module)
+        }
     }
 }
 

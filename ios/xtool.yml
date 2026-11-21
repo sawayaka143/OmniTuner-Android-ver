@@ -2,3 +2,7 @@ version: 1
 bundleID: com.omnituner.ios
 product: OmniTuner
 infoPath: Support/Info.plist
+# lproj folders in the app root: iOS builds its per-app Language list from these.
+resources:
+  - Support/Localization/en.lproj
+  - Support/Localization/ru.lproj

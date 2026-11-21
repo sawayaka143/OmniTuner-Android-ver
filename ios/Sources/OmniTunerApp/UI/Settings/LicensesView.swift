@@ -19,7 +19,7 @@ public struct LicensesView: View {
 
     public var body: some View {
         List {
-            Section("Libraries") {
+            Section {
                 ForEach(libraries) { lib in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(lib.name)
@@ -29,9 +29,11 @@ public struct LicensesView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            } header: {
+                Text("Libraries", bundle: .module)
             }
 
-            Section("License") {
+            Section {
                 Link(destination: Self.apacheURL) {
                     HStack {
                         Text("Apache License 2.0")
@@ -42,10 +44,13 @@ public struct LicensesView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            } header: {
+                Text("License", bundle: .module)
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Open-source licenses")
+        .settingsPageBackground()
+        .navigationTitle(Text("Open-source licenses", bundle: .module))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

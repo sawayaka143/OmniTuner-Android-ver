@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "OmniTuner",
+    defaultLocalization: "en",
     platforms: [
         .iOS("27.0"),
         .macOS(.v14),
@@ -26,6 +27,7 @@ let package = Package(
             ],
             resources: [
                 .process("Resources/Audio"),
+                .process("Resources/Localization"),
             ]
         ),
     ]
