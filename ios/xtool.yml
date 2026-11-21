@@ -1,0 +1,4 @@
+version: 1
+bundleID: com.omnituner.ios
+product: OmniTuner
+infoPath: Support/Info.plist
