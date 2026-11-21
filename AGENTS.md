@@ -12,6 +12,12 @@
 - APK output (AGP 9): `app\build\outputs\apk\debug\app-debug.apk` (from `:app:assembleDebug`)
 - Emulator verification: run `verify-build` (compile, unit tests, lint) before reporting code done; for emulator testing on `Medium_Phone`, follow the `emulator-test` skill (`android` CLI / `adb`).
 
+## iOS app
+
+- `ios/` is the native SwiftUI port: an xtool SwiftPM project (`ios/xtool.yml`, shared logic in `ios/Packages/OmniTunerCore`), built in WSL Ubuntu with xtool + the Darwin Swift SDK (no Mac). Run WSL commands through a login shell (`wsl -e bash -lc "..."`).
+- Building, installing on the user's iPhone and taking screenshots: follow the `ios-device` skill. Claude can't tap on the phone; the user navigates.
+- The Material 3 / Compose rules above are for the Android app; the iOS app uses native SwiftUI components.
+
 ## UI patterns
 
 - The app is **native Material 3**: `Scaffold` + `TopAppBar` + `NavigationBar`, M3 `Card`, `ListItem`, `Switch`, `Slider`, `FilterChip`, `SingleChoiceSegmentedButtonRow`, `AlertDialog`, `ModalBottomSheet`. Do not reintroduce custom look-alikes of web components.
