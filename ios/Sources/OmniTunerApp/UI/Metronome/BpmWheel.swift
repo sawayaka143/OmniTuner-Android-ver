@@ -106,7 +106,8 @@ public struct BpmWheel: View {
                             #endif
                         }
                         let base = dragBasePosition ?? position
-                        let next = min(Double(maxIndex), max(0.0, base - Double(drag.translation.height / pitch)))
+                        let step = max(1.0, geometry.dragPitch)
+                        let next = min(Double(maxIndex), max(0.0, base - Double(drag.translation.height) / step))
                         position = next
                         tickIfRowChanged(next)
                     }
@@ -114,18 +115,21 @@ public struct BpmWheel: View {
                         if didDrag {
                             didDrag = false
                             dragBasePosition = nil
-                            let velocityRows = -Double(drag.velocity.height / pitch)
+                            let step = max(1.0, geometry.dragPitch)
+                            let velocityRows = -Double(drag.velocity.height) / step
                             launchFling(velocityRows: velocityRows)
                         } else {
                             dragBasePosition = nil
-                            let dy = drag.location.y - halfHeight
                             let isFolded = collapse > 0.5
-                            let centerHalf = (centerSize / 2) * (isFolded ? compactScale : 1.0)
-                            if abs(dy) <= centerHalf {
+                            if isFolded {
                                 onCenterTap()
                                 return
                             }
-                            guard !isFolded else { return }
+                            let dy = drag.location.y - halfHeight
+                            if abs(dy) <= geometry.offset(0.5) {
+                                onCenterTap()
+                                return
+                            }
                             let tappedRow = (firstRow...lastRow).min { a, b in
                                 abs(geometry.offset(Double(a) - position) - dy)
                                     < abs(geometry.offset(Double(b) - position) - dy)
@@ -188,6 +192,7 @@ public struct BpmWheel: View {
         lastTickRow = row
         #if canImport(UIKit)
         selectionHaptic.selectionChanged()
+        selectionHaptic.prepare()
         #endif
     }
 
@@ -319,7 +324,7 @@ public struct BpmWheel: View {
     }
 
     private static let flingFriction: Double = 3.2
-    private static let minFlingVelocity: Double = 1.5
+    private static let minFlingVelocity: Double = 3.0
 }
 
 private struct DrumWheelRows: View, @MainActor Animatable {
@@ -357,10 +362,13 @@ private struct DrumWheelRows: View, @MainActor Animatable {
                     ? (1.0 + (compactScale - 1.0) * collapse)
                     : (1.0 + (Self.foldedNeighbourScale - 1.0) * collapse)
                 let beatScale = 1.0 + (centerScale - 1.0) * focus
-                let totalScale = geometry.scale(d) * geometry.depth(angle) * beatScale * foldScale
+                let openScale = geometry.scale(d, angle: angle)
+                let rowScale = openScale * (1.0 - collapse) + 1.0 * collapse
+                let totalScale = rowScale * beatScale * foldScale
                 let foldAlpha = isCenter ? 1.0 : (1.0 - collapse) * (1.0 - collapse)
+                let cosAngle = max(0.0, cos(angle))
                 let alpha = (Self.neighbourAlpha + (1.0 - Self.neighbourAlpha) * focus)
-                    * max(0.0, cos(angle))
+                    * pow(cosAngle, 0.7)
                     * foldAlpha
 
                 Text("\(rangeLowerBound + row)")
@@ -391,51 +399,35 @@ private struct DrumWheelRows: View, @MainActor Animatable {
     }
 
     private static let neighbourAlpha: Double = 0.45
-    private static let edgeFade: Double = 0.12
+    private static let edgeFade: Double = 0.16
     private static let foldedNeighbourScale: Double = 0.6
 }
 
 // MARK: - Drum Geometry
 
 private struct DrumGeometry {
-    private let bigPx: Double
-    private let pitchPx: Double
     private let radius: Double
-    private let smallPx: Double
+    let dragPitch: Double
     let visibleRows: Int
 
     private static let maxAngle = Double.pi / 2.0
-    private static let maxVisibleRows = 30
-    private static let sizeFalloff = 1.2
-    private static let neighbourRatio = 0.62
-    private static let drumRadiusShare = 0.9
-    private static let depthShrink = 0.4
+    private static let stepAngle = 27.0 * .pi / 180.0
+    private static let drumRadiusShare = 0.94
+    private static let depthShrink = 0.30
+    private static let centerBoost = 0.08
 
     init(bigPx: CGFloat, pitchPx: CGFloat, halfHeight: CGFloat) {
-        self.bigPx = Double(bigPx)
-        self.pitchPx = Double(pitchPx)
         self.radius = max(1.0, Double(halfHeight) * Self.drumRadiusShare)
-        self.smallPx = Self.neighbourRatio * Double(pitchPx)
-
-        var rows = 1
-        while rows < Self.maxVisibleRows && abs(Self.arc(Double(rows), pitchPx: Double(pitchPx), bigPx: Double(bigPx), smallPx: Self.neighbourRatio * Double(pitchPx))) < self.radius * Self.maxAngle {
-            rows += 1
-        }
-        self.visibleRows = rows
+        self.dragPitch = self.radius * Self.stepAngle
+        self.visibleRows = max(1, Int(ceil(Self.maxAngle / Self.stepAngle)))
     }
 
     func focus(_ d: Double) -> Double {
-        let c = cosh(d / Self.sizeFalloff)
-        return 1.0 / (c * c)
-    }
-
-    private static func arc(_ d: Double, pitchPx: Double, bigPx: Double, smallPx: Double) -> Double {
-        let signD = d < 0 ? -1.0 : 1.0
-        return signD * (pitchPx * abs(d) + (bigPx - smallPx) * sizeFalloff * tanh(abs(d) / sizeFalloff))
+        exp(-(d * d) / 1.2)
     }
 
     func angle(_ d: Double) -> Double {
-        let a = Self.arc(d, pitchPx: pitchPx, bigPx: bigPx, smallPx: smallPx) / radius
+        let a = d * Self.stepAngle
         return min(Self.maxAngle, max(-Self.maxAngle, a))
     }
 
@@ -443,12 +435,8 @@ private struct DrumGeometry {
         radius * sin(angle(d))
     }
 
-    func scale(_ d: Double) -> Double {
-        let minScale = bigPx > 0 ? (smallPx / bigPx) : 0.5
-        return minScale + (1.0 - minScale) * focus(d)
-    }
-
-    func depth(_ angle: Double) -> Double {
-        1.0 / (1.0 + Self.depthShrink * (1.0 - cos(angle)))
+    func scale(_ d: Double, angle: Double) -> Double {
+        let depth = 1.0 / (1.0 + Self.depthShrink * (1.0 - cos(angle)))
+        return depth * (1.0 + Self.centerBoost * focus(d))
     }
 }

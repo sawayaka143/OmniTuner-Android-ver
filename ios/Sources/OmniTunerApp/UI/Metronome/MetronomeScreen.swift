@@ -22,6 +22,8 @@ public struct MetronomeScreen: View {
     @State private var wheelOpen = false
     @State private var wheelBusy = false
     @State private var bpmScale: CGFloat = 1.0
+    @State private var bpmIncreaseTick = 0
+    @State private var bpmDecreaseTick = 0
     @State private var tapFlash = false
     @State private var tapFlashTask: Task<Void, Never>? = nil
 
@@ -60,6 +62,8 @@ public struct MetronomeScreen: View {
             }
         }
         .tint(palette.accent)
+        .sensoryFeedback(.increase, trigger: bpmIncreaseTick)
+        .sensoryFeedback(.decrease, trigger: bpmDecreaseTick)
         .onChange(of: scenePhase) { _, phase in
             model.setBackground(phase != .active)
         }
@@ -125,20 +129,20 @@ public struct MetronomeScreen: View {
     private func portraitBody(ui: MetronomeUiState) -> some View {
         VStack(spacing: 0) {
             headerRow(ui: ui, includeDots: false, includeSettings: false)
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
 
             Spacer(minLength: 8)
 
             beatDots(ui: ui)
-                .padding(.bottom, 6)
+                .padding(.bottom, 14)
 
             tempoCluster(
                 ui: ui,
-                wheelHeight: 176,
-                centerSize: 54,
-                compactScale: 1.48,
-                pitch: 28,
+                wheelHeight: 180,
+                centerSize: 34,
+                compactScale: 2.05,
+                pitch: 40,
                 isLandscape: false
             )
 
@@ -168,18 +172,18 @@ public struct MetronomeScreen: View {
     private func landscapeBody(ui: MetronomeUiState) -> some View {
         VStack(spacing: 8) {
             headerRow(ui: ui, includeDots: true, includeSettings: true)
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
 
             HStack(spacing: 16) {
                 VStack(spacing: 8) {
                     Spacer(minLength: 0)
                     tempoCluster(
                         ui: ui,
-                        wheelHeight: 132,
-                        centerSize: 40,
-                        compactScale: 1.55,
-                        pitch: 24,
+                        wheelHeight: 136,
+                        centerSize: 26,
+                        compactScale: 2.05,
+                        pitch: 30,
                         isLandscape: true
                     )
                     Spacer(minLength: 0)
@@ -213,7 +217,7 @@ public struct MetronomeScreen: View {
     // MARK: - Subviews
 
     private func headerRow(ui: MetronomeUiState, includeDots: Bool, includeSettings: Bool) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 12) {
             HeaderPicker(
                 caption: "Meter",
                 value: "\(ui.state.timeSignature.numerator)/\(ui.state.timeSignature.denominator)"
@@ -283,20 +287,14 @@ public struct MetronomeScreen: View {
     ) -> some View {
         let bpmInt = Int(ui.state.bpm.rounded())
         let collapse: CGFloat = wheelOpen ? 0.0 : 1.0
-        let openBand = centerSize + 18
-        let foldedBand = centerSize * compactScale * 1.12
-        let bandHeight = openBand * (1.0 - collapse) + foldedBand * collapse
         let statusText = ui.inCountIn ? "Count-in" : (!ui.barActive && ui.isPlaying ? "Muted bar" : "")
+        let spacing: CGFloat = isLandscape ? 12 : 16
 
-        return VStack(spacing: isLandscape ? 4 : 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(palette.paper)
-                    .frame(height: bandHeight)
-
-                HStack(spacing: 8) {
+        return VStack(spacing: isLandscape ? 6 : 10) {
+            GlassEffectContainer(spacing: spacing) {
+                HStack(spacing: spacing) {
                     Button {
-                        model.changeBpm(-1)
+                        stepBpm(-1)
                     } label: {
                         Image(systemName: "minus")
                             .font(.title3.weight(.semibold))
@@ -334,11 +332,13 @@ public struct MetronomeScreen: View {
                             wheelBusy = active
                         }
                     )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: wheelHeight)
+                    .frame(width: wheelHeight, height: wheelHeight)
+                    .clipShape(Circle())
+                    .contentShape(Circle())
+                    .glassEffect(.regular, in: .circle)
 
                     Button {
-                        model.changeBpm(1)
+                        stepBpm(1)
                     } label: {
                         Image(systemName: "plus")
                             .font(.title3.weight(.semibold))
@@ -351,7 +351,6 @@ public struct MetronomeScreen: View {
                     .disabled(bpmInt >= bpmMax)
                     .accessibilityLabel("Increase BPM")
                 }
-                .padding(.horizontal, 12)
             }
             .padding(.horizontal, isLandscape ? 4 : 16)
 
@@ -423,6 +422,18 @@ public struct MetronomeScreen: View {
     }
 
     // MARK: - Actions & Helpers
+
+    private func stepBpm(_ delta: Int) {
+        let before = Int(model.ui.state.bpm.rounded())
+        model.changeBpm(delta)
+        let after = Int(model.ui.state.bpm.rounded())
+        guard after != before else { return }
+        if delta > 0 {
+            bpmIncreaseTick += 1
+        } else if delta < 0 {
+            bpmDecreaseTick += 1
+        }
+    }
 
     private func togglePlayback(ui: MetronomeUiState) {
         if !ui.isPlaying {
