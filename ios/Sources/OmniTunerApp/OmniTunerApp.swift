@@ -66,7 +66,6 @@ private struct RootShellView: View {
                 TunerScreen(
                     model: tunerModel,
                     isActiveTab: selectedTab == .tuner && !settingsOpen,
-                    isSelectedTab: selectedTab == .tuner,
                     onOpenSettings: { settingsOpen = true }
                 )
             }

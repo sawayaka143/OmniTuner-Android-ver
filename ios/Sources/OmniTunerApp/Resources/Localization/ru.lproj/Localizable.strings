@@ -13,7 +13,6 @@
 "Light" = "Светлая";
 "Lime" = "Лаймовый";
 "Manual" = "Вручную";
-"Open tuner in" = "Открывать тюнер в режиме";
 "Open-source licenses" = "Лицензии открытого ПО";
 "Orange" = "Оранжевый";
 "Pink" = "Розовый";
@@ -21,11 +20,10 @@
 "Privacy policy" = "Политика конфиденциальности";
 "Pro accuracy" = "Профессиональная точность";
 "Reference pitch" = "Эталонная высота";
-"Remember" = "Запоминать";
 "Reset to 440 Hz" = "Сбросить на 440 Гц";
 "Settings" = "Настройки";
 "Show in-tune feedback" = "Показывать, что строй верный";
-"Show the exact offset in cents" = "Показывать точное отклонение в центах";
+"Show offset in cents instead of semitones" = "Показывать отклонение в центах вместо полутонов";
 "Standard concert pitch is 440 Hz." = "Стандартная концертная высота — 440 Гц.";
 "System" = "Системная";
 "Theme" = "Тема";

@@ -17,39 +17,17 @@ public enum TunerMode: String, CaseIterable, Codable, Sendable, Identifiable {
     }
 }
 
-public enum StartupMode: String, CaseIterable, Codable, Sendable, Identifiable {
-    case remember, auto, manual
-    public var id: String { rawValue }
-    public var label: String {
-        switch self {
-        case .remember: String(localized: "Remember", bundle: .module)
-        case .auto: String(localized: "Auto", bundle: .module)
-        case .manual: String(localized: "Manual", bundle: .module)
-        }
-    }
-}
-
 public let referencePitchRange = 415...466
 public let defaultReferencePitch = 440
 public let inTuneToleranceCents = 5
 public let inTuneHoldMs: Int64 = 500
 
 public struct TunerSettings: Codable, Equatable, Sendable {
-    public var mode: TunerMode = .auto
-    public var startupMode: StartupMode = .remember
     public var referencePitch: Int = defaultReferencePitch
     public var inTuneFeedback: Bool = true
     public var chime: Bool = true
     public var haptics: Bool = true
     public var proAccuracy: Bool = false
-
-    public func initialMode() -> TunerMode {
-        switch startupMode {
-        case .remember: mode
-        case .auto: .auto
-        case .manual: .manual
-        }
-    }
 }
 
 public enum Accidental: String, CaseIterable, Codable, Sendable, Identifiable {

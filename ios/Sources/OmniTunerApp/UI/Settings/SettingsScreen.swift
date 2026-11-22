@@ -106,18 +106,6 @@ public struct SettingsScreen: View {
                 }
 
                 Section {
-                    Picker(selection: Binding(
-                        get: { container.tuner.value.startupMode },
-                        set: { next in container.tuner.update { $0.startupMode = next } }
-                    )) {
-                        ForEach(StartupMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    } label: {
-                        Text("Open tuner in", bundle: .module)
-                    }
-                    .pickerStyle(.menu)
-
                     NavigationLink {
                         ReferencePitchView(container: container)
                     } label: {
@@ -134,7 +122,7 @@ public struct SettingsScreen: View {
                     )) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Pro accuracy", bundle: .module)
-                            Text("Show the exact offset in cents", bundle: .module)
+                            Text("Show offset in cents instead of semitones", bundle: .module)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

@@ -13,7 +13,6 @@
 "Light" = "Light";
 "Lime" = "Lime";
 "Manual" = "Manual";
-"Open tuner in" = "Open tuner in";
 "Open-source licenses" = "Open-source licenses";
 "Orange" = "Orange";
 "Pink" = "Pink";
@@ -21,11 +20,10 @@
 "Privacy policy" = "Privacy policy";
 "Pro accuracy" = "Pro accuracy";
 "Reference pitch" = "Reference pitch";
-"Remember" = "Remember";
 "Reset to 440 Hz" = "Reset to 440 Hz";
 "Settings" = "Settings";
 "Show in-tune feedback" = "Show in-tune feedback";
-"Show the exact offset in cents" = "Show the exact offset in cents";
+"Show offset in cents instead of semitones" = "Show offset in cents instead of semitones";
 "Standard concert pitch is 440 Hz." = "Standard concert pitch is 440 Hz.";
 "System" = "System";
 "Theme" = "Theme";

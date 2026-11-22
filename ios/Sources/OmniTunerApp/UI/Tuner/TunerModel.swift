@@ -12,7 +12,22 @@ public enum TuneStatus: Equatable, Sendable {
     case inTune
 }
 
-public struct TunerUiState: Sendable {
+public struct TunerLiveState: Equatable, Sendable {
+    public var capturing: Bool = false
+    public var cents: Double? = nil
+    public var displayCents: Double? = nil
+    public var needlePercent: Double = 50.0
+    public var noteMidi: Int? = nil
+    public var targetMidi: Int? = nil
+    public var frequency: Double? = nil
+    public var tuned: Bool = false
+    public var status: TuneStatus = .idle
+    public var holding: Bool = false
+    public var pulse: Bool = false
+    public var tolerance: Int = inTuneToleranceCents
+}
+
+public struct TunerChromeState: Sendable {
     public var capturing: Bool = false
     public var error: String? = nil
     public var mode: TunerMode = .auto
@@ -21,20 +36,6 @@ public struct TunerUiState: Sendable {
     public var tunings: [Tuning] = builtInInstruments[0].tunings
     public var tuning: Tuning = builtInInstruments[0].tunings[0]
     public var catalog: [InstrumentTunings] = []
-    public var activeIndex: Int? = nil
-    public var targetMidi: Int? = nil
-    public var cents: Double? = nil
-    public var tolerance: Int = inTuneToleranceCents
-    public var needlePercent: Double = 50.0
-    public var noteMidi: Int? = nil
-    public var frequency: Double? = nil
-    public var tuned: Bool = false
-    public var status: TuneStatus = .idle
-    public var tunedStrings: Set<String> = []
-    public var pulse: Bool = false
-    public var holding: Bool = false
-    public var haptics: Bool = true
-    public var proAccuracy: Bool = false
     public var recent: [RecentTuning] = []
 }
 
@@ -43,6 +44,7 @@ public struct TunerUiState: Sendable {
 public final class TunerModel {
     private static let lockPulseMs: Int64 = 900
     private static let noteSnapCents = 50.0
+    private static let numericUpdateIntervalMs: Int64 = 130
     private static let levelFloorDb = -66.0
     private static let levelCeilingDb = -24.0
     private static let levelAttack: Float = 0.5
@@ -56,63 +58,39 @@ public final class TunerModel {
     public private(set) var hasPermission: Bool = PitchCapture.hasPermission()
     public private(set) var permissionDenied: Bool = false
     public private(set) var lockPulseCount: Int = 0
+    public private(set) var activeIndex: Int? = nil
+    public private(set) var tunedStrings: Set<String> = []
+    public private(set) var live: TunerLiveState = TunerLiveState()
 
     private var capturing = false
-    private var startingCapture = false
-    private var captureGeneration: UInt64 = 0
     private var captureError: String? = nil
-    private var latestFrame: PitchFrame = .silent
     private var mode: TunerMode
-    private var manualIndex = 0
-    private var lockConfirmed = false
-    private var tunedStrings: Set<String> = []
-    private var pulseUntilMs: Int64 = 0
-    private var previousTarget: String? = nil
+
+    @ObservationIgnored private var startingCapture = false
+    @ObservationIgnored private var captureGeneration: UInt64 = 0
+    @ObservationIgnored private var latestFrame: PitchFrame = .silent
+    @ObservationIgnored private var manualIndex = 0
+    @ObservationIgnored private var lockConfirmed = false
+    @ObservationIgnored private var previousTarget: String? = nil
     @ObservationIgnored private var lastAppliedLowestHz: Double? = nil
+    @ObservationIgnored private var pulseActive = false
+    @ObservationIgnored private var pulseTask: Task<Void, Never>? = nil
+    @ObservationIgnored private var throttledDisplayCents: Double? = nil
+    @ObservationIgnored private var lastNumericUpdateMs: Int64 = 0
+    @ObservationIgnored private var lastDisplayNoteMidi: Int? = nil
+    @ObservationIgnored private var lastDisplayTargetName: String? = nil
+    @ObservationIgnored private var wasTunedForDisplay = false
 
     public init(container: AppContainer) {
         self.container = container
-        self.mode = container.tuner.value.initialMode()
+        self.mode = .auto
         syncLowestFrequency()
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
-    public var ui: TunerUiState {
-        let settings = container.tuner.value
+    public var chrome: TunerChromeState {
         let lib = container.instruments.state
-        let strings = lib.tuning.strings
-        let reading = readFrame(
-            frame: latestFrame,
-            mode: mode,
-            manualIndex: manualIndex,
-            strings: strings,
-            referencePitch: settings.referencePitch,
-            previousTarget: previousTarget,
-            capturing: capturing
-        )
-        let tracking = latestFrame.tracking
-        let cents = reading.cents
-        let withinTolerance = cents != nil && abs(cents!) <= Double(inTuneToleranceCents)
-        let showTuned = settings.inTuneFeedback && lockConfirmed
-        let tunedNow = settings.inTuneFeedback
-            ? showTuned
-            : (tracking == .locked && withinTolerance)
-
-        let status: TuneStatus
-        if !capturing {
-            status = .idle
-        } else if showTuned {
-            status = .inTune
-        } else if let name = reading.targetName, tracking == .locked || tracking == .holding {
-            status = .adjusting(name)
-        } else {
-            status = .listening
-        }
-
-        let targetMidi: Int? = (mode == .manual)
-            ? reading.activeIndex.flatMap { frequencyToMidiNote(strings[$0].freq) }
-            : nil
-
-        return TunerUiState(
+        return TunerChromeState(
             capturing: capturing,
             error: captureError,
             mode: mode,
@@ -121,22 +99,29 @@ public final class TunerModel {
             tunings: lib.tunings,
             tuning: lib.tuning,
             catalog: lib.catalog,
-            activeIndex: reading.activeIndex,
-            targetMidi: targetMidi,
-            cents: cents,
-            tolerance: inTuneToleranceCents,
-            needlePercent: needlePercentFromCents(cents),
-            noteMidi: reading.noteMidi,
-            frequency: latestFrame.frequency,
-            tuned: tunedNow && reading.activeIndex != nil,
-            status: status,
-            tunedStrings: tunedStrings,
-            pulse: pulseUntilMs > currentUptimeMs(),
-            holding: tracking == .holding,
-            haptics: settings.inTuneFeedback && settings.haptics,
-            proAccuracy: settings.proAccuracy,
             recent: lib.recent
         )
+    }
+
+    public var hapticsEnabled: Bool {
+        let settings = container.tuner.value
+        return settings.inTuneFeedback && settings.haptics
+    }
+
+    public var proAccuracyEnabled: Bool {
+        container.tuner.value.proAccuracy
+    }
+
+    public var inTuneFeedbackEnabled: Bool {
+        container.tuner.value.inTuneFeedback
+    }
+
+    public var settingsToken: TunerSettings {
+        container.tuner.value
+    }
+
+    public func refreshFromSettings() {
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
     public func ensurePermissionAndStart() async {
@@ -164,23 +149,29 @@ public final class TunerModel {
         capturing = true
         captureError = nil
         syncLowestFrequency()
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
         capture.startAsync(
             onFrame: { [weak self] frame in
-                Task { @MainActor [weak self] in
-                    self?.handleCapturedFrame(frame)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        self?.handleCapturedFrame(frame)
+                    }
                 }
             },
             onStarted: { [weak self] error in
-                Task { @MainActor [weak self] in
-                    guard let self, self.startingCapture, self.captureGeneration == gen else { return }
-                    self.startingCapture = false
-                    if let error {
-                        self.capturing = false
-                        self.captureError = error
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, self.startingCapture, self.captureGeneration == gen else { return }
+                        self.startingCapture = false
+                        if let error {
+                            self.capturing = false
+                            self.captureError = error
+                            self.rebuildLiveStateFromLatest(now: self.currentUptimeMs(), allowNumericUpdate: true)
+                        }
+                        #if canImport(UIKit)
+                        UIApplication.shared.isIdleTimerDisabled = self.capturing
+                        #endif
                     }
-                    #if canImport(UIKit)
-                    UIApplication.shared.isIdleTimerDisabled = self.capturing
-                    #endif
                 }
             }
         )
@@ -194,6 +185,11 @@ public final class TunerModel {
         capture.stopAsync()
         inputLevel = 0
         latestFrame = .silent
+        pulseTask?.cancel()
+        pulseTask = nil
+        pulseActive = false
+        resetDisplaySmoothing()
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
         #if canImport(UIKit)
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
@@ -222,18 +218,18 @@ public final class TunerModel {
         }
         mode = newMode
         resetHold()
-        container.tuner.update { $0.mode = newMode }
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
     public func selectString(index: Int) {
         manualIndex = index
         mode = .manual
         resetHold()
-        container.tuner.update { $0.mode = .manual }
         let strings = container.instruments.state.tuning.strings
         if index >= 0 && index < strings.count {
             container.noteAudio.playNote(midi: frequencyToMidiNote(strings[index].freq) ?? 69)
         }
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
     public func selectTuning(instrumentId: String, tuningId: String) {
@@ -242,6 +238,7 @@ public final class TunerModel {
         resetHold()
         container.instruments.select(instrumentId: instrumentId, tuningId: tuningId)
         syncLowestFrequency()
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
     public func saveCustomTuning(editingId: String?, name: String, notes: [Int]) -> String? {
@@ -252,6 +249,7 @@ public final class TunerModel {
             container.instruments.saveTuning(editingId: editingId, instrumentId: instrument.id, name: validName, notes: validNotes)
             resetHold()
             syncLowestFrequency()
+            rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
             return nil
         } catch {
             return error.localizedDescription
@@ -262,6 +260,7 @@ public final class TunerModel {
         resetHold()
         container.instruments.deleteTuning(tuningId)
         syncLowestFrequency()
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
     public func saveCustomInstrument(editingId: String?, name: String, stringCount: Int, notes: [Int]) -> String? {
@@ -272,6 +271,7 @@ public final class TunerModel {
             container.instruments.saveInstrument(editingId: editingId, name: validName, stringCount: validCount, notes: validNotes)
             resetHold()
             syncLowestFrequency()
+            rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
             return nil
         } catch {
             return error.localizedDescription
@@ -282,11 +282,15 @@ public final class TunerModel {
         resetHold()
         container.instruments.deleteInstrument(instrumentId)
         syncLowestFrequency()
+        rebuildLiveStateFromLatest(now: currentUptimeMs(), allowNumericUpdate: true)
     }
 
     private func handleCapturedFrame(_ frame: PitchFrame) {
         latestFrame = frame
-        inputLevel = smoothedLevel(previous: inputLevel, rms: frame.inputLevel)
+        let nextLevel = smoothedLevel(previous: inputLevel, rms: frame.inputLevel)
+        if abs(nextLevel - inputLevel) > 0.0005 || (nextLevel == 0 && inputLevel != 0) {
+            inputLevel = nextLevel
+        }
 
         let settings = container.tuner.value
         let strings = container.instruments.state.tuning.strings
@@ -312,25 +316,158 @@ public final class TunerModel {
             holdMs: inTuneHoldMs
         )
         if justConfirmed {
-            onConfirmed(reading: reading, settings: settings, currentMode: mode, now: now)
+            onConfirmed(reading: reading, settings: settings, currentMode: mode)
         }
         lockConfirmed = lock.confirmed
+
+        applyLiveState(
+            frame: frame,
+            reading: reading,
+            strings: strings,
+            settings: settings,
+            now: now,
+            allowNumericUpdate: true
+        )
     }
 
-    private func onConfirmed(reading: Reading, settings: TunerSettings, currentMode: TunerMode, now: Int64) {
+    private func rebuildLiveStateFromLatest(now: Int64, allowNumericUpdate: Bool) {
+        let settings = container.tuner.value
+        let strings = container.instruments.state.tuning.strings
+        let reading = readFrame(
+            frame: latestFrame,
+            mode: mode,
+            manualIndex: manualIndex,
+            strings: strings,
+            referencePitch: settings.referencePitch,
+            previousTarget: previousTarget,
+            capturing: capturing
+        )
+        applyLiveState(
+            frame: latestFrame,
+            reading: reading,
+            strings: strings,
+            settings: settings,
+            now: now,
+            allowNumericUpdate: allowNumericUpdate
+        )
+    }
+
+    private func applyLiveState(
+        frame: PitchFrame,
+        reading: Reading,
+        strings: [NamedFrequency],
+        settings: TunerSettings,
+        now: Int64,
+        allowNumericUpdate: Bool
+    ) {
+        let tracking = frame.tracking
+        let cents = reading.cents
+        let withinTolerance = cents != nil && abs(cents!) <= Double(inTuneToleranceCents)
+        let showTuned = settings.inTuneFeedback && lockConfirmed
+        let tunedNow = (settings.inTuneFeedback
+            ? showTuned
+            : (tracking == .locked && withinTolerance)) && reading.activeIndex != nil
+
+        let status: TuneStatus
+        if !capturing {
+            status = .idle
+        } else if showTuned {
+            status = .inTune
+        } else if let name = reading.targetName, tracking == .locked || tracking == .holding {
+            status = .adjusting(name)
+        } else {
+            status = .listening
+        }
+
+        let targetMidi: Int? = (mode == .manual)
+            ? reading.activeIndex.flatMap { frequencyToMidiNote(strings[$0].freq) }
+            : nil
+
+        if allowNumericUpdate {
+            updateDisplayCents(
+                cents: cents,
+                noteMidi: reading.noteMidi,
+                targetName: reading.targetName,
+                tunedNow: tunedNow,
+                now: now
+            )
+        }
+
+        if activeIndex != reading.activeIndex {
+            activeIndex = reading.activeIndex
+        }
+
+        let newLive = TunerLiveState(
+            capturing: capturing,
+            cents: cents,
+            displayCents: throttledDisplayCents,
+            needlePercent: needlePercentFromCents(cents),
+            noteMidi: reading.noteMidi,
+            targetMidi: targetMidi,
+            frequency: frame.frequency,
+            tuned: tunedNow,
+            status: status,
+            holding: tracking == .holding,
+            pulse: pulseActive,
+            tolerance: inTuneToleranceCents
+        )
+        if live != newLive {
+            live = newLive
+        }
+    }
+
+    private func updateDisplayCents(
+        cents: Double?,
+        noteMidi: Int?,
+        targetName: String?,
+        tunedNow: Bool,
+        now: Int64
+    ) {
+        guard capturing, let cents else {
+            resetDisplaySmoothing()
+            return
+        }
+
+        let hadNoDisplay = throttledDisplayCents == nil
+        let noteChanged = noteMidi != lastDisplayNoteMidi
+        let targetChanged = targetName != lastDisplayTargetName
+        let justTuned = tunedNow && !wasTunedForDisplay
+
+        if hadNoDisplay || noteChanged || targetChanged || justTuned
+            || (now - lastNumericUpdateMs >= Self.numericUpdateIntervalMs) {
+            throttledDisplayCents = cents
+            lastNumericUpdateMs = now
+        }
+
+        lastDisplayNoteMidi = noteMidi
+        lastDisplayTargetName = targetName
+        wasTunedForDisplay = tunedNow
+    }
+
+    private func resetDisplaySmoothing() {
+        throttledDisplayCents = nil
+        lastNumericUpdateMs = 0
+        lastDisplayNoteMidi = nil
+        lastDisplayTargetName = nil
+        wasTunedForDisplay = false
+    }
+
+    private func onConfirmed(reading: Reading, settings: TunerSettings, currentMode: TunerMode) {
         lockPulseCount += 1
         if currentMode == .auto, let name = reading.targetName {
             tunedStrings.insert(name)
         }
         if settings.inTuneFeedback {
-            pulseUntilMs = now + Self.lockPulseMs
+            pulseActive = true
+            pulseTask?.cancel()
+            pulseTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(Self.lockPulseMs))
+                guard !Task.isCancelled, let self else { return }
+                self.pulseActive = false
+                self.rebuildLiveStateFromLatest(now: self.currentUptimeMs(), allowNumericUpdate: false)
+            }
             if settings.chime {
                 container.noteAudio.playChime()
-            }
-            if settings.haptics {
-                #if canImport(UIKit)
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                #endif
             }
         }
     }
@@ -340,7 +477,10 @@ public final class TunerModel {
         previousTarget = nil
         lockConfirmed = false
         tunedStrings = []
-        pulseUntilMs = 0
+        pulseTask?.cancel()
+        pulseTask = nil
+        pulseActive = false
+        resetDisplaySmoothing()
     }
 
     private func syncLowestFrequency() {
