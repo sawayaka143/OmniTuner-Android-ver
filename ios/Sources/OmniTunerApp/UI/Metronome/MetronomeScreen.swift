@@ -26,6 +26,8 @@ public struct MetronomeScreen: View {
     @State private var bpmDecreaseTick = 0
     @State private var tapFlash = false
     @State private var tapFlashTask: Task<Void, Never>? = nil
+    // Landscape: the width of the header's end controls, so the beat dots keep clear of them.
+    @State private var headerSideWidth: CGFloat = 0
 
     public init(model: MetronomeModelView, onOpenSettings: @escaping () -> Void) {
         self.model = model
@@ -169,32 +171,40 @@ public struct MetronomeScreen: View {
 
     // MARK: - Landscape
 
+    // The landscape bottom row: Tap and Start share this height and corner.
+    private static let wideActionHeight: CGFloat = 72
+    // Concentric with the panel's 28 pt corner at the 12 pt inset.
+    private static let wideActionRadius: CGFloat = 16
+    private static let wideInset: CGFloat = 12
+    private static let headerDotsGap: CGFloat = 16
+
+    // Landscape: the header across the top, the tempo filling the middle, and Tap beside Start on
+    // one bottom row, both blocks of the same height and inner corner.
     private func landscapeBody(ui: MetronomeUiState) -> some View {
         VStack(spacing: 8) {
             headerRow(ui: ui, includeDots: true, includeSettings: true)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
 
-            HStack(spacing: 16) {
-                VStack(spacing: 8) {
-                    Spacer(minLength: 0)
-                    tempoCluster(
-                        ui: ui,
-                        wheelHeight: 136,
-                        centerSize: 26,
-                        compactScale: 2.05,
-                        pitch: 30,
-                        isLandscape: true
-                    )
-                    Spacer(minLength: 0)
+            // The folded value is the page's hero: the wheel takes all the height left over its
+            // caption, its digits and drum spacing scaled with it (the upright proportions).
+            GeometryReader { geo in
+                let wheel = max(96, min(240, geo.size.height - 26))
+                tempoCluster(
+                    ui: ui,
+                    wheelHeight: wheel,
+                    centerSize: wheel * 34 / 180,
+                    compactScale: 2.05,
+                    pitch: wheel * 40 / 180,
+                    isLandscape: true
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            GeometryReader { geo in
+                let third = (geo.size.width - 8) / 3
+                HStack(spacing: 8) {
                     tapPad(compact: true)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.leading, 14)
-                .padding(.bottom, 14)
+                        .frame(width: third)
 
-                VStack {
-                    Spacer(minLength: 0)
                     Button {
                         togglePlayback(ui: ui)
                     } label: {
@@ -204,41 +214,32 @@ public struct MetronomeScreen: View {
                     }
                     .buttonStyle(.glassProminent)
                     .tint(palette.accent)
-                    .buttonBorderShape(.roundedRectangle(radius: 24))
-                    .frame(minHeight: 80, maxHeight: 160)
+                    .buttonBorderShape(.roundedRectangle(radius: Self.wideActionRadius))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.trailing, 14)
-                .padding(.bottom, 14)
             }
+            .frame(height: Self.wideActionHeight)
         }
+        .padding(Self.wideInset)
     }
 
     // MARK: - Subviews
 
     private func headerRow(ui: MetronomeUiState, includeDots: Bool, includeSettings: Bool) -> some View {
-        HStack(spacing: 12) {
-            HeaderPicker(
-                caption: "Meter",
-                value: "\(ui.state.timeSignature.numerator)/\(ui.state.timeSignature.denominator)"
-            ) {
-                meterSheet = true
-            }
-
-            if includeDots {
-                Spacer(minLength: 4)
-                beatDots(ui: ui)
-                Spacer(minLength: 4)
-            } else {
-                Spacer()
-            }
-
+        let meterPicker = HeaderPicker(
+            caption: "Meter",
+            value: "\(ui.state.timeSignature.numerator)/\(ui.state.timeSignature.denominator)"
+        ) {
+            meterSheet = true
+        }
+        let endControls = HStack(spacing: 12) {
             HeaderPicker(
                 caption: "Preset",
                 value: ui.presets.first(where: { $0.state == ui.state })?.name ?? "Custom"
             ) {
                 presetsSheet = true
             }
+            // Long names ellipsize here so the dots keep their room.
+            .frame(maxWidth: 180, alignment: .trailing)
 
             OptionsButton(label: "Metronome options") {
                 optionsSheet = true
@@ -248,17 +249,51 @@ public struct MetronomeScreen: View {
                 LandscapeSettingsButton(action: onOpenSettings)
             }
         }
+
+        return Group {
+            if includeDots {
+                // The dots sit centred on the panel (over the tempo), in the room the wider of the
+                // header's two ends leaves either side of the centre.
+                GeometryReader { geo in
+                    let band = max(0, geo.size.width - 2 * (headerSideWidth + Self.headerDotsGap))
+                    ZStack {
+                        HStack(spacing: 12) {
+                            // Its text on the same 16 pt edge as upright; the buttons stay at the
+                            // 12 pt inset so their glass follows the panel's corner.
+                            meterPicker
+                                .padding(.leading, 4)
+                            Spacer(minLength: 0)
+                            endControls
+                                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { headerSideWidth = $0 }
+                        }
+                        beatDots(ui: ui, maxWidth: band)
+                    }
+                    .frame(maxHeight: .infinity)
+                }
+                .frame(height: 52)
+            } else {
+                HStack(spacing: 12) {
+                    meterPicker
+                    Spacer()
+                    endControls
+                }
+            }
+        }
     }
 
-    private func beatDots(ui: MetronomeUiState) -> some View {
+    private func beatDots(ui: MetronomeUiState, maxWidth: CGFloat = .infinity) -> some View {
         let modelInfo = meterModel(
             numerator: ui.state.timeSignature.numerator,
             denominator: ui.state.timeSignature.denominator
         )
         let beats = max(1, modelInfo.beatsPerBar)
         let currentBeat = currentBeat(for: ui)
+        let spacing: CGFloat = beats > 6 ? 6 : 10
+        // A long bar shrinks to the room it is given rather than running under the header's ends.
+        let naturalWidth = 14 + CGFloat(beats - 1) * (10 + spacing)
+        let fit = min(1, maxWidth / naturalWidth)
 
-        return HStack(spacing: beats > 6 ? 6 : 10) {
+        return HStack(spacing: spacing) {
             ForEach(0..<beats, id: \.self) { beat in
                 let isCurrent = ui.isPlaying && beat == currentBeat
                 let isDownbeat = beat == 0
@@ -274,7 +309,9 @@ public struct MetronomeScreen: View {
                     .animation(.spring(response: 0.18, dampingFraction: 0.7), value: currentBeat)
             }
         }
-        .frame(height: 22)
+        .fixedSize()
+        .scaleEffect(fit)
+        .frame(width: maxWidth.isFinite ? min(maxWidth, naturalWidth) : nil, height: 22)
     }
 
     private func tempoCluster(
@@ -392,14 +429,15 @@ public struct MetronomeScreen: View {
     @ViewBuilder
     private func tapPad(compact: Bool) -> some View {
         if compact {
+            // Landscape: a block filling the bottom row beside Start, with the same corner.
             Button(action: handleTap) {
                 Text("Tap")
-                    .font(.headline)
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(tapFlash ? palette.accent : palette.ink)
-                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .buttonStyle(.glass)
-            .controlSize(.large)
+            .buttonBorderShape(.roundedRectangle(radius: Self.wideActionRadius))
         } else {
             Button(action: handleTap) {
                 Text("Tap")
