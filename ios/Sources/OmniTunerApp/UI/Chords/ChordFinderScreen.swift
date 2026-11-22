@@ -26,7 +26,7 @@ public struct ChordFinderScreen: View {
                 let isLandscape = geo.size.width > geo.size.height
                 Group {
                     if isLandscape {
-                        landscapeBody(ui: ui)
+                        landscapeBody(ui: ui, size: geo.size)
                     } else {
                         portraitBody(ui: ui)
                     }
@@ -63,7 +63,7 @@ public struct ChordFinderScreen: View {
     private func portraitBody(ui: ChordFinderUiState) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                inputCard(ui: ui, includeOverflow: false)
+                inputCard(ui: ui, landscape: false)
 
                 if ui.tab == .voicings {
                     if let results = ui.results {
@@ -94,42 +94,44 @@ public struct ChordFinderScreen: View {
 
     // MARK: - Landscape
 
-    private func landscapeBody(ui: ChordFinderUiState) -> some View {
+    // The input on the left, what it produces on the right. The key, Play all and the overflow
+    // live in the input card, so the right side is nothing but chords, one card filling it at a time.
+    private func landscapeBody(ui: ChordFinderUiState, size: CGSize) -> some View {
         HStack(spacing: 16) {
             ScrollView {
-                VStack(spacing: 12) {
-                    inputCard(ui: ui, includeOverflow: true)
-                    if ui.tab == .voicings, let results = ui.results, let key = results.key {
-                        detectedKeyBanner(key: key, count: results.chords.count, onPlay: model.playProgression)
-                    }
-                }
-                .padding(.vertical, 12)
+                // On Voicings the card matches the chord cards' height (its buttons on the bottom
+                // edge); it only scrolls when its content can't fit.
+                inputCard(ui: ui, landscape: true)
+                    .frame(minHeight: ui.tab == .voicings ? size.height - 24 : nil)
+                    .padding(.vertical, 12)
             }
-            .frame(width: 340)
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(width: min(Self.maxInputPaneWidth, size.width * Self.inputPaneShare))
             .padding(.leading, 16)
 
             Group {
                 if ui.tab == .voicings {
                     if let results = ui.results {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 14) {
-                                ForEach(results.chords) { entry in
-                                    ChordResultCard(
-                                        entry: entry,
-                                        tuning: results.tuning,
-                                        settings: ui.settings,
-                                        stretchDiagram: true,
-                                        onPlayShape: model.playShape
-                                    )
-                                    .frame(width: 360)
-                                    .frame(maxHeight: .infinity)
+                        GeometryReader { pane in
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 16) {
+                                    ForEach(results.chords) { entry in
+                                        ChordResultCard(
+                                            entry: entry,
+                                            tuning: results.tuning,
+                                            settings: ui.settings,
+                                            stretchDiagram: true,
+                                            onPlayShape: model.playShape
+                                        )
+                                        .frame(width: pane.size.width, height: pane.size.height)
+                                    }
                                 }
+                                .scrollTargetLayout()
                             }
-                            .scrollTargetLayout()
-                            .padding(.trailing, 16)
+                            .scrollTargetBehavior(.viewAligned)
                         }
-                        .scrollTargetBehavior(.viewAligned)
                         .padding(.vertical, 12)
+                        .padding(.trailing, 16)
                     } else {
                         emptyPane(title: "Enter a chord progression", subtitle: "Tap Generate or Shuffle to find playable shapes.")
                     }
@@ -151,6 +153,9 @@ public struct ChordFinderScreen: View {
         }
     }
 
+    private static let inputPaneShare: CGFloat = 0.45
+    private static let maxInputPaneWidth: CGFloat = 420
+
     private func modePicker(ui: ChordFinderUiState) -> some View {
         Picker("Mode", selection: Binding(
             get: { ui.tab },
@@ -164,13 +169,13 @@ public struct ChordFinderScreen: View {
 
     // MARK: - Input Cards
 
-    private func inputCard(ui: ChordFinderUiState, includeOverflow: Bool) -> some View {
+    private func inputCard(ui: ChordFinderUiState, landscape: Bool) -> some View {
         PedalCard {
             VStack(alignment: .leading, spacing: 12) {
                 modePicker(ui: ui)
 
                 if ui.tab == .voicings {
-                    voicingsContent(ui: ui, includeOverflow: includeOverflow)
+                    voicingsContent(ui: ui, landscape: landscape)
                 } else {
                     keyFinderContent(ui: ui)
                 }
@@ -189,22 +194,16 @@ public struct ChordFinderScreen: View {
     }
 
     @ViewBuilder
-    private func voicingsContent(ui: ChordFinderUiState, includeOverflow: Bool) -> some View {
+    private func voicingsContent(ui: ChordFinderUiState, landscape: Bool) -> some View {
         HStack(spacing: 12) {
                     TuningHeaderPicker(instrument: ui.library.instrument, tuning: ui.library.tuning) {
                         tuningSheet = true
                     }
                     Spacer()
-                    if includeOverflow && ui.results != nil {
-                        moreMenu(ui: ui, inCard: true)
-                            .buttonStyle(.glass)
-                            .buttonBorderShape(.circle)
-                            .controlSize(.regular)
-                    }
                     OptionsButton(label: "Chord options") {
                         optionsSheet = true
                     }
-                    if includeOverflow {
+                    if landscape {
                         LandscapeSettingsButton(action: onOpenSettings)
                     }
                 }
@@ -224,14 +223,16 @@ public struct ChordFinderScreen: View {
                         .fill(palette.paper)
                 )
 
-                HStack {
-                    Text("\(ui.progressionCount.readable)/\(ui.progressionCount.total) chords")
-                        .font(.caption)
-                        .foregroundStyle(palette.mutedLabel)
-                    Spacer()
-                    Text("Key: \(pcName(ui.tonicPc, flats: flatsForPc(ui.tonicPc)))")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(palette.mutedLabel)
+                if !landscape {
+                    HStack {
+                        Text("\(ui.progressionCount.readable)/\(ui.progressionCount.total) chords")
+                            .font(.caption)
+                            .foregroundStyle(palette.mutedLabel)
+                        Spacer()
+                        Text("Key: \(pcName(ui.tonicPc, flats: flatsForPc(ui.tonicPc)))")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(palette.mutedLabel)
+                    }
                 }
 
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -253,6 +254,10 @@ public struct ChordFinderScreen: View {
                     }
                 }
 
+                if landscape {
+                    resultsBar(ui: ui)
+                }
+
                 HStack(spacing: 10) {
                     Button(action: model.shuffle) {
                         Label("Shuffle", systemImage: "shuffle")
@@ -272,6 +277,7 @@ public struct ChordFinderScreen: View {
                     .controlSize(.large)
                     .disabled(ui.progressionCount.total == 0)
                 }
+                .frame(maxHeight: landscape ? .infinity : nil, alignment: .bottom)
     }
 
     @ViewBuilder
@@ -321,6 +327,42 @@ public struct ChordFinderScreen: View {
                 }
             }
             .padding(14)
+        }
+    }
+
+    // Landscape: the detected key, the overflow and Play all, right under the input and ahead of
+    // Generate. It's there before the first generate too, so Generate never jumps under the finger.
+    private func resultsBar(ui: ChordFinderUiState) -> some View {
+        let results = ui.results
+        let key = results?.key
+        return VStack(spacing: 6) {
+            Divider().overlay(palette.hairline)
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Detected key")
+                        .font(.caption)
+                        .foregroundStyle(palette.mutedLabel)
+                    Text(key.map { keyName(tonicName: $0.tonicName, mode: $0.mode) } ?? "—")
+                        .font(.headline)
+                        .foregroundStyle(key == nil ? palette.mutedLabel : palette.ink)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                moreMenu(ui: ui, inCard: true)
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .controlSize(.small)
+                    .disabled(results == nil)
+                Button(action: model.playProgression) {
+                    Label("Play all", systemImage: "play.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.glassProminent)
+                .tint(palette.accent)
+                .controlSize(.small)
+                .disabled((results?.chords.isEmpty ?? true))
+            }
+            Divider().overlay(palette.hairline)
         }
     }
 
