@@ -235,15 +235,6 @@ public final class ChordFinderModel {
         return lines.joined(separator: "\n")
     }
 
-    public static func chordTonesLabel(chord: ParsedChord, flats: Bool) -> String {
-        let optional = Set(chord.optionalPcs)
-        let tones = chord.pcs.map { pc -> String in
-            let name = pcName(pc, flats: flats)
-            return optional.contains(pc) ? "(\(name))" : name
-        }.joined(separator: " ")
-        return "\(chord.quality) · \(tones)"
-    }
-
     public static func tabRows(shape: VoicingShape, tuning: ParsedTuning) -> [TabRow] {
         let width = shape.frets.contains { ($0 ?? 0) >= 10 } ? 8 : 7
         return tuning.midi.indices.reversed().map { s in

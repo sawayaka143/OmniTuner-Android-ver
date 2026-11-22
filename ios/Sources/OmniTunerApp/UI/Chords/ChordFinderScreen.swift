@@ -376,12 +376,14 @@ private struct ChordResultCard: View {
 
     @State private var shapeIndex = 0
 
+    private static let headerButton: CGFloat = 36
+
     var body: some View {
         PedalCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     Text(entry.chord?.symbol ?? entry.token)
-                        .font(.title3.weight(.bold))
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(palette.ink)
 
                     if let badge = entry.badge {
@@ -397,52 +399,56 @@ private struct ChordResultCard: View {
 
                     if !entry.shapes.isEmpty {
                         let clamped = min(shapeIndex, entry.shapes.count - 1)
-                        HStack(spacing: 6) {
+                        // Pager and play share one circle size and centre line so they read as one row.
+                        HStack(spacing: 8) {
                             Button {
                                 shapeIndex = max(0, clamped - 1)
                             } label: {
                                 Image(systemName: "chevron.left")
-                                    .font(.caption.weight(.bold))
-                                    .frame(width: 28, height: 28)
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(palette.ink)
+                                    .frame(width: Self.headerButton, height: Self.headerButton)
                                     .background(Circle().fill(palette.paper))
                             }
                             .buttonStyle(.plain)
                             .disabled(clamped == 0)
+                            .opacity(clamped == 0 ? 0.4 : 1)
+                            .accessibilityLabel("Previous fingering")
 
                             Text("\(clamped + 1) / \(entry.shapes.count)")
-                                .font(.caption.weight(.semibold).monospacedDigit())
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
                                 .foregroundStyle(palette.mutedLabel)
 
                             Button {
                                 shapeIndex = min(entry.shapes.count - 1, clamped + 1)
                             } label: {
                                 Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .frame(width: 28, height: 28)
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(palette.ink)
+                                    .frame(width: Self.headerButton, height: Self.headerButton)
                                     .background(Circle().fill(palette.paper))
                             }
                             .buttonStyle(.plain)
                             .disabled(clamped >= entry.shapes.count - 1)
-                        }
+                            .opacity(clamped >= entry.shapes.count - 1 ? 0.4 : 1)
+                            .accessibilityLabel("Next fingering")
 
-                        Button {
-                            onPlayShape(entry.shapes[clamped])
-                        } label: {
-                            Image(systemName: "play.fill")
-                                .font(.caption.weight(.bold))
+                            Button {
+                                onPlayShape(entry.shapes[clamped])
+                            } label: {
+                                Image(systemName: "play.fill")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(palette.onAccent)
+                                    .frame(width: Self.headerButton, height: Self.headerButton)
+                                    .background(Circle().fill(palette.accent))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Play fingering")
                         }
-                        .buttonStyle(.glassProminent)
-                        .tint(palette.accent)
-                        .buttonBorderShape(.circle)
-                        .controlSize(.small)
                     }
                 }
 
                 if let chord = entry.chord {
-                    Text(ChordFinderModel.chordTonesLabel(chord: chord, flats: chord.flats || tuning.flats))
-                        .font(.caption)
-                        .foregroundStyle(palette.mutedLabel)
-
                     if entry.shapes.isEmpty {
                         Text("No playable voicing found on this tuning.")
                             .font(.subheadline)
@@ -460,10 +466,11 @@ private struct ChordResultCard: View {
                                 index: clamped,
                                 labels: settings.labels,
                                 flats: chord.flats || tuning.flats,
-                                stretch: true
+                                // Upright the diagram takes the card's full width at its natural
+                                // proportions; landscape stretches it into the pane's height.
+                                stretch: stretchDiagram
                             )
                             .frame(maxWidth: .infinity)
-                            .frame(height: stretchDiagram ? nil : 210)
                             .onTapGesture { onPlayShape(shape) }
                         } else {
                             VStack(alignment: .leading, spacing: 3) {

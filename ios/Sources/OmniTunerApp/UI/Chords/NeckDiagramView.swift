@@ -21,7 +21,7 @@ public struct NeckDiagramView: View {
     nonisolated private static let breakGap: CGFloat = 10
     nonisolated private static let top: CGFloat = 6
     nonisolated private static let bot: CGFloat = 18
-    nonisolated private static let ringRadius: CGFloat = 9
+    nonisolated private static let ringRadius: CGFloat = 10
     nonisolated private static let minColumns = 5
     nonisolated private static let maxColStretch: CGFloat = 1.8
     nonisolated private static let lastFret = 24
@@ -143,17 +143,17 @@ public struct NeckDiagramView: View {
                 let muted = frets[s] == nil
                 let labelColor = muted ? palette.mutedLabel.opacity(0.5) : palette.mutedLabel
                 let name = pcName(mod12(tuning.midi[s]), flats: tuning.flats)
-                let resolved = ctx.resolve(Text(name).font(.system(size: u(8))).foregroundStyle(labelColor))
+                let resolved = ctx.resolve(Text(name).font(.system(size: u(9))).foregroundStyle(labelColor))
                 ctx.draw(resolved, at: CGPoint(x: u(Self.left - 4), y: y), anchor: .trailing)
             }
 
             let axisY = u(yBot + Self.bot / 2 + 1)
             if frets.contains(0) {
-                let res = ctx.resolve(Text("0").font(.system(size: u(8))).foregroundStyle(palette.mutedLabel.opacity(0.6)))
+                let res = ctx.resolve(Text("0").font(.system(size: u(9))).foregroundStyle(palette.mutedLabel.opacity(0.6)))
                 ctx.draw(res, at: CGPoint(x: u(indCx), y: axisY), anchor: .center)
             }
             for f in lo..<(lo + cols) {
-                let res = ctx.resolve(Text("\(f)").font(.system(size: u(8))).foregroundStyle(palette.mutedLabel.opacity(0.6)))
+                let res = ctx.resolve(Text("\(f)").font(.system(size: u(9))).foregroundStyle(palette.mutedLabel.opacity(0.6)))
                 ctx.draw(res, at: CGPoint(x: u(fretX(f)), y: axisY), anchor: .center)
             }
 
@@ -174,7 +174,7 @@ public struct NeckDiagramView: View {
                 ctx.stroke(Path(ellipseIn: rect), with: .color(color), lineWidth: u(2))
 
                 let labelText = labels == .notes ? pcName(mod12(midi), flats: flats) : degreeLabels[degree]
-                let res = ctx.resolve(Text(labelText).font(.system(size: u(9), weight: .bold)).foregroundStyle(palette.ink))
+                let res = ctx.resolve(Text(labelText).font(.system(size: u(10), weight: .bold)).foregroundStyle(palette.ink))
                 ctx.draw(res, at: CGPoint(x: u(x), y: u(y)), anchor: .center)
             }
         }
