@@ -41,6 +41,7 @@ public struct ChordFinderScreen: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         moreMenu(ui: ui)
                     }
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Settings", systemImage: "gearshape.fill", action: onOpenSettings)
@@ -62,10 +63,9 @@ public struct ChordFinderScreen: View {
     private func portraitBody(ui: ChordFinderUiState) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                modePicker(ui: ui)
+                inputCard(ui: ui, includeOverflow: false)
 
                 if ui.tab == .voicings {
-                    voicingsInputCard(ui: ui, includeOverflow: false)
                     if let results = ui.results {
                         if let key = results.key {
                             detectedKeyBanner(key: key, count: results.chords.count, onPlay: model.playProgression)
@@ -81,13 +81,14 @@ public struct ChordFinderScreen: View {
                         }
                     }
                 } else {
-                    keyFinderInputCard(ui: ui)
                     if let key = ui.keyAnalysis.key {
                         KeyFinderResultCard(key: key)
                     }
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 16)
         }
     }
 
@@ -97,14 +98,9 @@ public struct ChordFinderScreen: View {
         HStack(spacing: 16) {
             ScrollView {
                 VStack(spacing: 12) {
-                    modePicker(ui: ui)
-                    if ui.tab == .voicings {
-                        voicingsInputCard(ui: ui, includeOverflow: true)
-                        if let results = ui.results, let key = results.key {
-                            detectedKeyBanner(key: key, count: results.chords.count, onPlay: model.playProgression)
-                        }
-                    } else {
-                        keyFinderInputCard(ui: ui)
+                    inputCard(ui: ui, includeOverflow: true)
+                    if ui.tab == .voicings, let results = ui.results, let key = results.key {
+                        detectedKeyBanner(key: key, count: results.chords.count, onPlay: model.playProgression)
                     }
                 }
                 .padding(.vertical, 12)
@@ -168,18 +164,42 @@ public struct ChordFinderScreen: View {
 
     // MARK: - Input Cards
 
-    private func voicingsInputCard(ui: ChordFinderUiState, includeOverflow: Bool) -> some View {
+    private func inputCard(ui: ChordFinderUiState, includeOverflow: Bool) -> some View {
         PedalCard {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
+                modePicker(ui: ui)
+
+                if ui.tab == .voicings {
+                    voicingsContent(ui: ui, includeOverflow: includeOverflow)
+                } else {
+                    keyFinderContent(ui: ui)
+                }
+            }
+            .padding(16)
+        }
+        .overlay(alignment: .bottom) {
+            if ui.tab == .voicings && ui.generating {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .tint(palette.accent)
+                    .padding(.horizontal, 20)
+                    .offset(y: 10)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func voicingsContent(ui: ChordFinderUiState, includeOverflow: Bool) -> some View {
+        HStack(spacing: 12) {
                     TuningHeaderPicker(instrument: ui.library.instrument, tuning: ui.library.tuning) {
                         tuningSheet = true
                     }
                     Spacer()
                     if includeOverflow && ui.results != nil {
-                        moreMenu(ui: ui)
+                        moreMenu(ui: ui, inCard: true)
                             .buttonStyle(.glass)
                             .buttonBorderShape(.circle)
+                            .controlSize(.regular)
                     }
                     OptionsButton(label: "Chord options") {
                         optionsSheet = true
@@ -252,46 +272,30 @@ public struct ChordFinderScreen: View {
                     .controlSize(.large)
                     .disabled(ui.progressionCount.total == 0)
                 }
-            }
-            .padding(16)
-        }
-        .overlay(alignment: .bottom) {
-            if ui.generating {
-                ProgressView()
-                    .progressViewStyle(.linear)
-                    .tint(palette.accent)
-                    .padding(.horizontal, 20)
-                    .offset(y: 10)
-            }
-        }
     }
 
-    private func keyFinderInputCard(ui: ChordFinderUiState) -> some View {
-        PedalCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Analyze chords")
-                    .font(.headline)
-                    .foregroundStyle(palette.ink)
+    @ViewBuilder
+    private func keyFinderContent(ui: ChordFinderUiState) -> some View {
+        Text("Analyze chords")
+            .font(.headline)
+            .foregroundStyle(palette.ink)
 
-                TextField("Dm7, G7, Cmaj7, A7", text: Binding(
-                    get: { ui.keyInput },
-                    set: { model.setKeyInput($0) }
-                ))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(palette.paper)
-                )
+        TextField("Dm7, G7, Cmaj7, A7", text: Binding(
+            get: { ui.keyInput },
+            set: { model.setKeyInput($0) }
+        ))
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(palette.paper)
+        )
 
-                Text("\(ui.keyAnalysis.count.readable) of \(ui.keyAnalysis.count.total) chords recognized")
-                    .font(.caption)
-                    .foregroundStyle(palette.mutedLabel)
-            }
-            .padding(16)
-        }
+        Text("\(ui.keyAnalysis.count.readable) of \(ui.keyAnalysis.count.total) chords recognized")
+            .font(.caption)
+            .foregroundStyle(palette.mutedLabel)
     }
 
     private func detectedKeyBanner(key: DetectedKey, count: Int, onPlay: @escaping () -> Void) -> some View {
@@ -320,7 +324,7 @@ public struct ChordFinderScreen: View {
         }
     }
 
-    private func moreMenu(ui: ChordFinderUiState) -> some View {
+    private func moreMenu(ui: ChordFinderUiState, inCard: Bool = false) -> some View {
         Menu {
             Button {
                 if let text = model.tabText() {
@@ -343,8 +347,15 @@ public struct ChordFinderScreen: View {
                 Label("Clear results", systemImage: "xmark.circle")
             }
         } label: {
-            Label("More", systemImage: copiedFeedback ? "checkmark" : "ellipsis")
-                .labelStyle(.iconOnly)
+            if inCard {
+                Image(systemName: copiedFeedback ? "checkmark" : "ellipsis")
+                    .font(.system(size: 19, weight: .medium))
+                    .frame(width: 29, height: 29)
+                    .accessibilityLabel("More")
+            } else {
+                Label("More", systemImage: copiedFeedback ? "checkmark" : "ellipsis")
+                    .labelStyle(.iconOnly)
+            }
         }
     }
 
@@ -449,9 +460,10 @@ private struct ChordResultCard: View {
                                 index: clamped,
                                 labels: settings.labels,
                                 flats: chord.flats || tuning.flats,
-                                stretch: stretchDiagram
+                                stretch: true
                             )
                             .frame(maxWidth: .infinity)
+                            .frame(height: stretchDiagram ? nil : 210)
                             .onTapGesture { onPlayShape(shape) }
                         } else {
                             VStack(alignment: .leading, spacing: 3) {

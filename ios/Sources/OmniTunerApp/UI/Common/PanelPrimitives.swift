@@ -3,6 +3,8 @@ import SwiftUI
 
 // MARK: - Pedalboard Containers
 
+private let cardCornerRadius: CGFloat = 28
+
 public struct PedalPanel<Content: View>: View {
     @Environment(\.omniPalette) private var palette
     private let content: Content
@@ -14,10 +16,10 @@ public struct PedalPanel<Content: View>: View {
     public var body: some View {
         content
             .background(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                     .fill(palette.boardGrey)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
     }
 }
 
@@ -31,11 +33,12 @@ public struct PedalCard<Content: View>: View {
 
     public var body: some View {
         content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                     .fill(palette.boardGrey)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
     }
 }
 
@@ -71,8 +74,7 @@ public struct HeaderPicker: View {
                         .foregroundStyle(palette.mutedLabel)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -111,8 +113,8 @@ public struct OptionsButton: View {
     public var body: some View {
         Button(action: action) {
             Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: 22, height: 22)
+                .font(.system(size: 19, weight: .medium))
+                .frame(width: 29, height: 29)
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
@@ -131,8 +133,8 @@ public struct LandscapeSettingsButton: View {
     public var body: some View {
         Button(action: action) {
             Image(systemName: "gearshape.fill")
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: 22, height: 22)
+                .font(.system(size: 19, weight: .medium))
+                .frame(width: 29, height: 29)
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)

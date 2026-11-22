@@ -30,15 +30,18 @@ public struct ScalesScreen: View {
                         if isLandscape {
                             HStack(alignment: .top, spacing: 16) {
                                 scaleControlsCard(ui: ui, showScaleRow: true)
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                 instrumentCard(ui: ui)
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             }
+                            .fixedSize(horizontal: false, vertical: true)
                         } else {
                             scaleControlsCard(ui: ui, showScaleRow: false)
                         }
                     }
-                    .padding(16)
+                    .padding(.horizontal, 16)
+                    .padding(.top, isLandscape ? 12 : 4)
+                    .padding(.bottom, 16)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(palette.paper.ignoresSafeArea())
@@ -74,7 +77,7 @@ public struct ScalesScreen: View {
 
         return PedalCard {
             VStack(spacing: fitted ? 10 : 14) {
-                HStack(spacing: 6) {
+                HStack(spacing: 12) {
                     HeaderPicker(caption: "Scale", value: title) {
                         scaleSheet = true
                     }

@@ -2,9 +2,9 @@ import SwiftUI
 
 public enum RootTab: Hashable {
     case tuner
-    case metronome
     case chords
     case scales
+    case metronome
 }
 
 @main
@@ -70,13 +70,6 @@ private struct RootShellView: View {
                 )
             }
 
-            Tab("Metronome", systemImage: "metronome.fill", value: .metronome) {
-                MetronomeScreen(
-                    model: metronomeModel,
-                    onOpenSettings: { settingsOpen = true }
-                )
-            }
-
             Tab("Chords", systemImage: "guitars.fill", value: .chords) {
                 ChordFinderScreen(
                     model: chordsModel,
@@ -87,6 +80,13 @@ private struct RootShellView: View {
             Tab("Scales", systemImage: "music.note.list", value: .scales) {
                 ScalesScreen(
                     model: scalesModel,
+                    onOpenSettings: { settingsOpen = true }
+                )
+            }
+
+            Tab("Metronome", systemImage: "metronome.fill", value: .metronome) {
+                MetronomeScreen(
+                    model: metronomeModel,
                     onOpenSettings: { settingsOpen = true }
                 )
             }
