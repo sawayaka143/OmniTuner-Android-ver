@@ -19,6 +19,7 @@ public struct LicensesView: View {
 
     public var body: some View {
         List {
+          Group {
             Section {
                 ForEach(libraries) { lib in
                     VStack(alignment: .leading, spacing: 2) {
@@ -47,6 +48,8 @@ public struct LicensesView: View {
             } header: {
                 Text("License", bundle: .module)
             }
+          }
+          .settingsRows()
         }
         .listStyle(.insetGrouped)
         .settingsPageBackground()

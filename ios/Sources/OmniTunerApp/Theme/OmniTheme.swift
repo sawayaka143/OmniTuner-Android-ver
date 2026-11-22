@@ -1,7 +1,5 @@
 import SwiftUI
-#if canImport(UIKit)
 import UIKit
-#endif
 
 public enum ThemeMode: String, CaseIterable, Codable, Sendable, Identifiable {
     case system, light, dark
@@ -37,21 +35,37 @@ public enum AccentColorPreset: String, CaseIterable, Codable, Sendable, Identifi
         case .black: String(localized: "Black", bundle: .module)
         }
     }
+
+    /// Apple's system color for the preset ("Lime" is `systemMint`, the nearest system color;
+    /// "Pink" uses OmniTuner's `#FC48B3` because `systemPink` reads as red;
+    /// "Black" is the primary label color: black in light, white in dark).
+    fileprivate var systemColor: UIColor {
+        switch self {
+        case .blue: .systemBlue
+        case .cyan: .systemCyan
+        case .green: .systemGreen
+        case .lime: .systemMint
+        case .yellow: .systemYellow
+        case .orange: .systemOrange
+        case .pink: UIColor(red: 0xFC / 255.0, green: 0x48 / 255.0, blue: 0xB3 / 255.0, alpha: 1.0)
+        case .black: .label
+        }
+    }
 }
 
+/// Every color is one of Apple's system colors, resolved for the app's current light/dark theme at
+/// the base interface level (the level Apple's own Settings uses). Resolving at `.base` keeps grouped
+/// pages and cards from picking up the lighter "elevated" greys when shown inside a sheet.
 public struct OmniPalette: Sendable {
     public let isDark: Bool
     public let accent: Color
     public let onAccent: Color
 
-    // Pedalboard surfaces (DESIGN.md: pure white / AMOLED black + single board grey per theme)
     public let paper: Color
     public let boardGrey: Color
     public let groupedPage: Color
     public let groupedCard: Color
     public let ink: Color
-    public let controlInk: Color
-    public let onControlInk: Color
     public let mutedLabel: Color
     public let hairline: Color
 
@@ -63,74 +77,57 @@ public struct OmniPalette: Sendable {
 
     public init(accentPreset: AccentColorPreset, isDark: Bool) {
         self.isDark = isDark
-        let accentHex: UInt32
-        switch accentPreset {
-        case .blue: accentHex = 0x2B67FE
-        case .cyan: accentHex = 0x00B2FF
-        case .green: accentHex = 0x0EB4A0
-        case .lime: accentHex = 0xB2D20C
-        case .yellow: accentHex = 0xFFCC32
-        case .orange: accentHex = 0xFF7F65
-        case .pink: accentHex = 0xFC48B3
-        case .black: accentHex = isDark ? 0xF2F2F2 : 0x0E0E0E
-        }
-        let accentColor = Color(hex: accentHex)
-        self.accent = accentColor
-        self.onAccent = Self.relativeLuminance(hex: accentHex) > 0.179 ? .black : .white
+        // `init(traitsFrom:)` is deprecated, but its replacement mutates main-actor-isolated
+        // properties, which this nonisolated init can't do under Swift 6.
+        let traits = UITraitCollection(traitsFrom: [
+            UITraitCollection(userInterfaceStyle: isDark ? .dark : .light),
+            UITraitCollection(userInterfaceLevel: .base),
+        ])
+        func resolve(_ color: UIColor) -> UIColor { color.resolvedColor(with: traits) }
 
-        if isDark {
-            self.paper = Color(hex: 0x000000)
-            self.boardGrey = Color(hex: 0x1C1C1C)
-            self.groupedPage = Color(hex: 0x000000)
-            self.groupedCard = Color(hex: 0x1C1C1C)
-            self.ink = Color(hex: 0xFFFFFF)
-            self.controlInk = Color(hex: 0xECECEC)
-            self.onControlInk = Color(hex: 0x121212)
-            self.mutedLabel = Color(hex: 0x868688)
-            self.hairline = Color(hex: 0x333333)
-            self.goodGreen = Color(hex: 0x8FD3A8)
-            self.offPitchRed = Color(hex: 0xF2B8B5)
-            self.warnAmber = Color(hex: 0xC07A5E)
-            self.infoViolet = Color(hex: 0x9A8FB8)
-        } else {
-            self.paper = Color(hex: 0xFFFFFF)
-            self.boardGrey = Color(hex: 0xF3F3F2)
-            self.groupedPage = Color(hex: 0xF3F3F2)
-            self.groupedCard = Color(hex: 0xFFFFFF)
-            self.ink = Color(hex: 0x000000)
-            self.controlInk = Color(hex: 0x171717)
-            self.onControlInk = Color(hex: 0xFFFFFF)
-            self.mutedLabel = Color(hex: 0x868688)
-            self.hairline = Color(hex: 0xDADADA)
-            self.goodGreen = Color(hex: 0x1E7A45)
-            self.offPitchRed = Color(hex: 0xB3261E)
-            self.warnAmber = Color(hex: 0x8A4D00)
-            self.infoViolet = Color(hex: 0x544A8F)
-        }
+        let accentUI = resolve(accentPreset.systemColor)
+        self.accent = Color(uiColor: accentUI)
+        self.onAccent = Self.relativeLuminance(of: accentUI) > 0.179 ? .black : .white
+
+        self.paper = Color(uiColor: resolve(.systemBackground))
+        self.boardGrey = Color(uiColor: resolve(.secondarySystemBackground))
+        self.groupedPage = isDark ? Color(hex: 0x000000) : Color(hex: 0xF2F2F6)
+        self.groupedCard = isDark ? Color(hex: 0x1C1C1E) : Color(hex: 0xFFFFFE)
+        self.ink = Color(uiColor: resolve(.label))
+        self.mutedLabel = Color(uiColor: resolve(.secondaryLabel))
+        // Opaque variant: the hairline is also used as a fill (fret dots), where the translucent one would fade.
+        self.hairline = Color(uiColor: resolve(.opaqueSeparator))
+
+        self.goodGreen = Color(uiColor: resolve(.systemGreen))
+        self.offPitchRed = Color(uiColor: resolve(.systemRed))
+        self.warnAmber = Color(uiColor: resolve(.systemOrange))
+        self.infoViolet = Color(uiColor: resolve(.systemIndigo))
     }
 
-    private static func relativeLuminance(hex: UInt32) -> Double {
-        func linear(_ c: Double) -> Double {
-            c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+    private static func relativeLuminance(of color: UIColor) -> Double {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        func linear(_ c: CGFloat) -> Double {
+            let c = Double(c)
+            return c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
         }
-        let r = linear(Double((hex >> 16) & 0xFF) / 255.0)
-        let g = linear(Double((hex >> 8) & 0xFF) / 255.0)
-        let b = linear(Double(hex & 0xFF) / 255.0)
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
     }
 }
 
 public extension Color {
-    init(hex: UInt32, alpha: Double = 1.0) {
-        let r = Double((hex >> 16) & 0xFF) / 255.0
-        let g = Double((hex >> 8) & 0xFF) / 255.0
-        let b = Double(hex & 0xFF) / 255.0
-        self.init(.sRGB, red: r, green: g, blue: b, opacity: alpha)
+    init(hex: UInt32) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255.0,
+            green: Double((hex >> 8) & 0xFF) / 255.0,
+            blue: Double(hex & 0xFF) / 255.0,
+            opacity: 1.0
+        )
     }
 
     func interpolated(to other: Color, fraction: Double) -> Color {
         let t = min(1.0, max(0.0, fraction))
-        #if canImport(UIKit)
         var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
         var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
         UIColor(self).getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
@@ -142,9 +139,6 @@ public extension Color {
             blue: Double(b1 + (b2 - b1) * t),
             opacity: Double(a1 + (a2 - a1) * t)
         )
-        #else
-        return t < 0.5 ? self : other
-        #endif
     }
 }
 

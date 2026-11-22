@@ -20,9 +20,23 @@ public struct SettingsScreen: View {
         return Locale(identifier: id).localizedString(forIdentifier: id)?.localizedCapitalized ?? id
     }
 
+    /// A filled dot bitmap in the preset's color as it looks in the current theme.
+    /// Rendered via `UIGraphicsImageRenderer` rather than tinting an SF Symbol so `UIMenu`
+    /// never falls back to a monochrome black glyph.
+    private func dot(for preset: AccentColorPreset) -> UIImage {
+        let color = OmniPalette(accentPreset: preset, isDark: palette.isDark).accent
+        let size = CGSize(width: 14, height: 14)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            UIColor(color).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(origin: .zero, size: size))
+        }.withRenderingMode(.alwaysOriginal)
+    }
+
     public var body: some View {
         NavigationStack {
             Form {
+              Group {
                 Section {
                     Picker(selection: Binding(
                         get: { container.appearance.value.themeMode },
@@ -34,21 +48,41 @@ public struct SettingsScreen: View {
                     } label: {
                         Text("Theme", bundle: .module)
                     }
+                    .pickerStyle(.menu)
 
-                    Picker(selection: Binding(
-                        get: { container.appearance.value.accent },
-                        set: { next in container.appearance.update { $0.accent = next } }
-                    )) {
-                        ForEach(AccentColorPreset.allCases) { preset in
-                            Text(preset.label).tag(preset)
+                    // A pull-down like the other pickers, with each color's dot beside its name
+                    // (menus tint template images, so the dots are original-rendered bitmaps).
+                    LabeledContent {
+                        Menu {
+                            Picker(selection: Binding(
+                                get: { container.appearance.value.accent },
+                                set: { next in container.appearance.update { $0.accent = next } }
+                            )) {
+                                ForEach(AccentColorPreset.allCases) { preset in
+                                    Label {
+                                        Text(preset.label)
+                                    } icon: {
+                                        Image(uiImage: dot(for: preset))
+                                    }
+                                    .tag(preset)
+                                }
+                            } label: {
+                                Text("Accent color", bundle: .module)
+                            }
+                            .pickerStyle(.inline)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(palette.accent)
+                                    .frame(width: 12, height: 12)
+                                Text(container.appearance.value.accent.label)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.footnote.weight(.semibold))
+                            }
+                            .foregroundStyle(Color.secondary)
                         }
                     } label: {
-                        HStack(spacing: 8) {
-                            Text("Accent color", bundle: .module)
-                            Circle()
-                                .fill(palette.accent)
-                                .frame(width: 10, height: 10)
-                        }
+                        Text("Accent color", bundle: .module)
                     }
 
                     // Per-app language lives in iOS Settings -> OmniTuner -> Language.
@@ -82,6 +116,7 @@ public struct SettingsScreen: View {
                     } label: {
                         Text("Open tuner in", bundle: .module)
                     }
+                    .pickerStyle(.menu)
 
                     NavigationLink {
                         ReferencePitchView(container: container)
@@ -153,6 +188,8 @@ public struct SettingsScreen: View {
                         Text("Open-source licenses", bundle: .module)
                     }
                 }
+              }
+              .settingsRows()
             }
             .settingsPageBackground()
             .navigationTitle(Text("Settings", bundle: .module))

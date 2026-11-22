@@ -1,23 +1,32 @@
 import SwiftUI
 
-/// Settings pages sit on the palette's grouped page color (pure black in the dark theme).
-/// Light theme keeps the stock grouped-list background, so only the dark case is overridden.
+/// Settings pages wear Apple's grouped-list colors at the base interface level (what the Settings app
+/// uses). Presented in a sheet, iOS would otherwise lift the page and cards to the lighter "elevated" greys.
 private struct SettingsPageBackground: ViewModifier {
     @Environment(\.omniPalette) private var palette
 
     func body(content: Content) -> some View {
-        if palette.isDark {
-            content
-                .scrollContentBackground(.hidden)
-                .background(palette.groupedPage.ignoresSafeArea())
-        } else {
-            content
-        }
+        content
+            .scrollContentBackground(.hidden)
+            .background(palette.groupedPage.ignoresSafeArea())
+    }
+}
+
+private struct SettingsRowBackground: ViewModifier {
+    @Environment(\.omniPalette) private var palette
+
+    func body(content: Content) -> some View {
+        content.listRowBackground(palette.groupedCard)
     }
 }
 
 extension View {
     func settingsPageBackground() -> some View {
         modifier(SettingsPageBackground())
+    }
+
+    /// Put on a section's content (not on the `Form`) so its rows get the card color.
+    func settingsRows() -> some View {
+        modifier(SettingsRowBackground())
     }
 }

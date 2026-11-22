@@ -11,6 +11,7 @@ public struct ReferencePitchView: View {
     public var body: some View {
         let hz = container.tuner.value.referencePitch
         Form {
+          Group {
             Section {
                 Picker(selection: Binding(
                     get: { container.tuner.value.referencePitch },
@@ -41,6 +42,8 @@ public struct ReferencePitchView: View {
                     .foregroundStyle(palette.accent)
                 }
             }
+          }
+          .settingsRows()
         }
         .settingsPageBackground()
         .navigationTitle(Text("Reference pitch", bundle: .module))
