@@ -10,6 +10,8 @@ public struct ScalesScreen: View {
     @State private var scaleSheet = false
     @State private var optionsSheet = false
     @State private var tuningSheet = false
+    @State private var instrumentSheet = false
+    @State private var tuningOnlySheet = false
 
     public init(model: ScalesModelView, onOpenSettings: @escaping () -> Void) {
         self.model = model
@@ -21,22 +23,24 @@ public struct ScalesScreen: View {
         NavigationStack {
             GeometryReader { geo in
                 let isLandscape = geo.size.width > geo.size.height
-                let screenCardHeight = max(240, geo.size.height - 28)
+                // 12 pt above and below, as the other tabs' landscape panels.
+                let screenCardHeight = max(240, geo.size.height - 24)
 
                 ScrollView {
                     VStack(spacing: 16) {
                         scaleMapCard(ui: ui, fitHeight: isLandscape ? screenCardHeight : nil, includeSettings: isLandscape)
 
                         if isLandscape {
+                            // The board keeps the full width; the cards under it pair up side by side.
                             HStack(alignment: .top, spacing: 16) {
-                                scaleControlsCard(ui: ui, showScaleRow: true)
+                                scaleRootCard(ui: ui)
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                 instrumentCard(ui: ui)
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             }
                             .fixedSize(horizontal: false, vertical: true)
                         } else {
-                            scaleControlsCard(ui: ui, showScaleRow: false)
+                            scaleControlsCard(ui: ui)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -63,6 +67,12 @@ public struct ScalesScreen: View {
         }
         .sheet(isPresented: $tuningSheet) {
             LibraryTuningSheet(library: model.ui.library, onSelect: model.selectTuning)
+        }
+        .sheet(isPresented: $instrumentSheet) {
+            InstrumentPickerSheet(ui: model.ui, model: model)
+        }
+        .sheet(isPresented: $tuningOnlySheet) {
+            InstrumentTuningsSheet(ui: model.ui, model: model)
         }
     }
 
@@ -146,10 +156,9 @@ public struct ScalesScreen: View {
         .frame(height: fitHeight)
     }
 
-    private func scaleControlsCard(ui: ScalesUiState, showScaleRow: Bool) -> some View {
+    private func scaleControlsCard(ui: ScalesUiState) -> some View {
         let flats = ui.settings.accidental == .flat
         let labels = flats ? flatNames : sharpNames
-        let scale = allScales.first { $0.id == ui.settings.scaleId } ?? allScales[0]
 
         return PedalCard {
             VStack(alignment: .leading, spacing: 10) {
@@ -170,59 +179,86 @@ public struct ScalesScreen: View {
                 .pickerStyle(.wheel)
                 .frame(height: 112)
                 .clipped()
-
-                if showScaleRow {
-                    Divider().overlay(palette.hairline)
-                    Button {
-                        scaleSheet = true
-                    } label: {
-                        HStack {
-                            Text("Scale")
-                                .foregroundStyle(palette.ink)
-                            Spacer()
-                            Text(scale.label)
-                                .foregroundStyle(palette.accent)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(palette.mutedLabel)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             .padding(16)
         }
     }
 
-    private func instrumentCard(ui: ScalesUiState) -> some View {
-        PedalCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Instrument")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(palette.mutedLabel)
+    // Landscape: the scale as a row, the root as one sideways run of note chips under it.
+    private func scaleRootCard(ui: ScalesUiState) -> some View {
+        let flats = ui.settings.accidental == .flat
+        let labels = flats ? flatNames : sharpNames
+        let scale = allScales.first { $0.id == ui.settings.scaleId } ?? allScales[0]
 
-                Button {
-                    tuningSheet = true
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(ui.instrument.label)
-                                .font(.headline)
-                                .foregroundStyle(palette.ink)
-                            Text("\(ui.tuning.label) · \(ui.tuning.strings.map(\.name).joined(separator: " "))")
-                                .font(.caption)
-                                .foregroundStyle(palette.mutedLabel)
+        return PedalCard {
+            VStack(spacing: 0) {
+                pickerRow(title: "Scale", value: scale.label) { scaleSheet = true }
+                Divider().overlay(palette.hairline)
+                HStack(spacing: 12) {
+                    Text("Root")
+                        .foregroundStyle(palette.ink)
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(0..<labels.count, id: \.self) { pc in
+                                    let selected = pc == ui.settings.rootPitchClass
+                                    Button {
+                                        model.setRootPitchClass(pc)
+                                    } label: {
+                                        Text(labels[pc])
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(selected ? palette.onAccent : palette.ink)
+                                            .frame(minWidth: 22)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 6)
+                                            .background(Capsule(style: .continuous).fill(selected ? palette.accent : palette.paper))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .id(pc)
+                                }
+                            }
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(palette.mutedLabel)
+                        .onAppear { proxy.scrollTo(ui.settings.rootPitchClass, anchor: .center) }
                     }
                 }
-                .buttonStyle(.plain)
+                .frame(minHeight: 52)
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
         }
+    }
+
+    // Landscape: each row opens its own list. The map header's picker is the one that lists every
+    // instrument's tunings together.
+    private func instrumentCard(ui: ScalesUiState) -> some View {
+        PedalCard {
+            VStack(spacing: 0) {
+                pickerRow(title: "Instrument", value: ui.instrument.label) { instrumentSheet = true }
+                Divider().overlay(palette.hairline)
+                pickerRow(title: "Tuning", value: ui.tuning.label) { tuningOnlySheet = true }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func pickerRow(title: String, value: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .foregroundStyle(palette.ink)
+                Spacer(minLength: 8)
+                Text(value)
+                    .foregroundStyle(palette.accent)
+                    .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(palette.mutedLabel)
+            }
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func playButton(isPlaying: Bool, compact: Bool) -> some View {
@@ -265,6 +301,52 @@ private struct ScalePickerSheet: View {
                             dismiss()
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+private struct InstrumentPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let ui: ScalesUiState
+    let model: ScalesModelView
+
+    var body: some View {
+        NativeOptionSheet(title: "Instrument") {
+            ForEach(ui.catalog) { entry in
+                NativeOptionRow(
+                    title: entry.instrument.label,
+                    subtitle: "\(entry.instrument.stringCount)-string",
+                    selected: entry.instrument.id == ui.instrument.id
+                ) {
+                    // A new instrument starts on its first (standard) tuning.
+                    if entry.instrument.id != ui.instrument.id, let first = entry.tunings.first {
+                        model.selectTuning(instrumentId: entry.instrument.id, tuningId: first.id)
+                    }
+                    dismiss()
+                }
+            }
+        }
+    }
+}
+
+private struct InstrumentTuningsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let ui: ScalesUiState
+    let model: ScalesModelView
+
+    var body: some View {
+        let tunings = ui.catalog.first { $0.instrument.id == ui.instrument.id }?.tunings ?? ui.instrument.tunings
+        NativeOptionSheet(title: "Tuning") {
+            ForEach(tunings) { tuning in
+                NativeOptionRow(
+                    title: tuning.label,
+                    subtitle: tuning.strings.map(\.name).joined(separator: " "),
+                    selected: tuning.id == ui.tuning.id
+                ) {
+                    model.selectTuning(instrumentId: ui.instrument.id, tuningId: tuning.id)
+                    dismiss()
                 }
             }
         }
