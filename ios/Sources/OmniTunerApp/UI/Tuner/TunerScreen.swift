@@ -408,7 +408,7 @@ public struct TunerScreen: View {
             }
             .buttonStyle(.glassProminent)
             .tint(palette.accent)
-            .buttonBorderShape(.roundedRectangle(radius: 14))
+            .buttonBorderShape(.capsule)
         } else {
             Button {
                 model.selectString(index: index)

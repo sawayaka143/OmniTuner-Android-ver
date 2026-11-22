@@ -760,6 +760,7 @@ private struct MetronomeOptionsSheet: View {
                                 Text(opt.label).tag(opt.id)
                             }
                         }
+                        .pickerStyle(.menu)
                         Slider(value: Binding(
                             get: { role.vol },
                             set: { model.setSlotVolume(slot: slot, volume: $0) }

@@ -24,8 +24,10 @@ public struct NativeOptionSheet<Content: View>: View {
         NavigationStack {
             List {
                 content
+                    .settingsRows()
             }
             .listStyle(.insetGrouped)
+            .settingsPageBackground()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -65,7 +67,9 @@ public struct NativeFormSheet<Content: View>: View {
         NavigationStack {
             Form {
                 content
+                    .settingsRows()
             }
+            .settingsPageBackground()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

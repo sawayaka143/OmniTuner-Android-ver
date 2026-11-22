@@ -74,6 +74,7 @@ public struct TuningEditorSheet: View {
     public var body: some View {
         NavigationStack {
             Form {
+              Group {
                 Section {
                     TextField("Tuning name", text: $name)
                         .textInputAutocapitalization(.words)
@@ -99,6 +100,7 @@ public struct TuningEditorSheet: View {
                                 Text(preset.label).tag(Optional(preset.id))
                             }
                         }
+                        .pickerStyle(.menu)
                         .onChange(of: baseId) { _, next in
                             if let preset = presets.first(where: { $0.id == next }) {
                                 notes = preset.midiNotes()
@@ -111,7 +113,10 @@ public struct TuningEditorSheet: View {
                 Section(instrument.label) {
                     StringNotesEditor(notes: $notes, baseNotes: baseNotes)
                 }
+              }
+              .settingsRows()
             }
+            .settingsPageBackground()
             .navigationTitle(draft.editingId == nil ? "New tuning" : "Edit tuning")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -165,6 +170,7 @@ public struct InstrumentEditorSheet: View {
     public var body: some View {
         NavigationStack {
             Form {
+              Group {
                 Section {
                     TextField("Instrument name", text: $name)
                         .textInputAutocapitalization(.words)
@@ -201,6 +207,7 @@ public struct InstrumentEditorSheet: View {
                             Text(inst.label).tag(Optional(inst.id))
                         }
                     }
+                    .pickerStyle(.menu)
                     .onChange(of: baseId) { _, next in
                         if let inst = instruments.first(where: { $0.id == next }) {
                             stringCount = inst.stringCount
@@ -213,7 +220,10 @@ public struct InstrumentEditorSheet: View {
                 Section("Strings") {
                     StringNotesEditor(notes: $notes, baseNotes: baseNotes)
                 }
+              }
+              .settingsRows()
             }
+            .settingsPageBackground()
             .navigationTitle(draft.editingId == nil ? "New instrument" : "Edit instrument")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -298,8 +308,10 @@ public struct ManageInstrumentsSheet: View {
                                 }
                             }
                         }
+                        .settingsRows()
                     }
                     .listStyle(.insetGrouped)
+                    .settingsPageBackground()
                 }
             }
             .navigationTitle("Custom instruments")
