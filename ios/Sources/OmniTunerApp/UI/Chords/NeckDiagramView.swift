@@ -24,6 +24,7 @@ public struct NeckDiagramView: View {
     nonisolated private static let ringRadius: CGFloat = 10
     nonisolated private static let minColumns = 5
     nonisolated private static let maxColStretch: CGFloat = 1.8
+    nonisolated private static let maxRowStretch: CGFloat = 1.6
     nonisolated private static let lastFret = 24
     nonisolated private static let singleInlays: Set<Int> = [3, 5, 7, 9, 15, 17, 19, 21]
     nonisolated private static let doubleInlays: Set<Int> = [12, 24]
@@ -78,14 +79,19 @@ public struct NeckDiagramView: View {
             let colW: CGFloat = stretch
                 ? min(Self.col * Self.maxColStretch, max(Self.col, (size.width / unit - gridL - Self.pad) / CGFloat(cols)))
                 : Self.col
+            // When the width is the limit (few strings, a narrow card), spread the strings
+            // to fill the leftover height, as colW does for the frets.
+            let rowH: CGFloat = stretch
+                ? min(Self.row * Self.maxRowStretch, max(Self.row, (size.height / unit - Self.top - Self.bot) / CGFloat(n)))
+                : Self.row
             let gridR = gridL + CGFloat(cols) * colW
             let dx = (size.width - (gridR + Self.pad) * unit) / 2
 
             func u(_ v: CGFloat) -> CGFloat { v * unit }
             func fretX(_ f: Int) -> CGFloat { gridL + CGFloat(f - lo) * colW + colW / 2 }
-            func stringY(_ s: Int) -> CGFloat { Self.top + CGFloat(n - 1 - s) * Self.row + Self.row / 2 }
+            func stringY(_ s: Int) -> CGFloat { Self.top + CGFloat(n - 1 - s) * rowH + rowH / 2 }
             let yTop = Self.top
-            let yBot = Self.top + CGFloat(n) * Self.row
+            let yBot = Self.top + CGFloat(n) * rowH
             let indCx = Self.left + Self.ind / 2
 
             ctx.translateBy(x: dx, y: 0)
@@ -178,7 +184,22 @@ public struct NeckDiagramView: View {
                 ctx.draw(res, at: CGPoint(x: u(x), y: u(y)), anchor: .center)
             }
         }
-        .aspectRatio(stretch ? nil : (naturalWidth / naturalHeight), contentMode: .fit)
+        // Stretched, the canvas takes all the space it's offered. aspectRatio(nil) would size
+        // it by the canvas's ideal ratio instead and leave the card's lower part empty.
+        .modifier(DiagramSizing(stretch: stretch, ratio: naturalWidth / naturalHeight))
         .accessibilityLabel("\(symbol) fingering \(index + 1)")
+    }
+}
+
+private struct DiagramSizing: ViewModifier {
+    let stretch: Bool
+    let ratio: CGFloat
+
+    func body(content: Content) -> some View {
+        if stretch {
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            content.aspectRatio(ratio, contentMode: .fit)
+        }
     }
 }

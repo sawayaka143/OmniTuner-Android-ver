@@ -470,7 +470,7 @@ private struct ChordResultCard: View {
                                 // proportions; landscape stretches it into the pane's height.
                                 stretch: stretchDiagram
                             )
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, maxHeight: stretchDiagram ? .infinity : nil)
                             .onTapGesture { onPlayShape(shape) }
                         } else {
                             VStack(alignment: .leading, spacing: 3) {
