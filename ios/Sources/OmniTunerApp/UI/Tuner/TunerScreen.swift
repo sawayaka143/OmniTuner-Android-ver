@@ -35,7 +35,8 @@ public struct TunerScreen: View {
 
                 PedalPanel {
                     if isLandscape {
-                        landscapeBody(state: state)
+                        // The panel's own height (the screen less its 12 pt margins) less its 12 pt inset.
+                        landscapeBody(state: state, contentHeight: geo.size.height - 24 - 2 * Self.panelInset)
                     } else {
                         portraitBody(state: state)
                     }
@@ -178,85 +179,51 @@ public struct TunerScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Landscape (Split: Strings left, Readout+Meter center, Tunings list right)
+    // MARK: - Landscape
 
-    private func landscapeBody(state: TunerChromeState) -> some View {
-        HStack(spacing: 12) {
-            // Left: strings (highest on top)
-            StringChipsColumn(strings: state.tuning.strings, model: model)
+    private static let panelInset: CGFloat = 12
+    // The share of the readout's width each top corner keeps for its controls (the tuning picker;
+    // Auto and Settings); the note may grow into everything between them.
+    fileprivate static let wideSideBand: CGFloat = 0.3
 
-            // Center: header + readout + meter
-            VStack(spacing: 6) {
-                HStack {
-                    TuningHeaderPicker(instrument: state.instrument, tuning: state.tuning) {
-                        pickerOpen = true
-                    }
-                    Spacer()
-                    autoToggle(state: state)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
+    // Landscape: the strings run down the left edge (highest on top) sharing the full height, and
+    // the readout takes the rest with the tuning picker, Auto and Settings laid over its top
+    // corners. A header strip would cost the note its height for controls that only use the ends.
+    // The picker already opens the tuning list, so no unfolded list repeats it here.
+    private func landscapeBody(state: TunerChromeState, contentHeight: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            StringChipsColumn(strings: state.tuning.strings, model: model, height: contentHeight)
 
-                Spacer(minLength: 0)
+            GeometryReader { geo in
+                let sideBand = geo.size.width * Self.wideSideBand
+                ZStack(alignment: .top) {
+                    TunerLiveArea(
+                        model: model,
+                        isLandscape: true,
+                        hasPermission: model.hasPermission,
+                        permissionDenied: model.permissionDenied,
+                        errorMessage: state.error,
+                        area: geo.size
+                    )
 
-                TunerLiveArea(
-                    model: model,
-                    isLandscape: true,
-                    hasPermission: model.hasPermission,
-                    permissionDenied: model.permissionDenied,
-                    errorMessage: state.error
-                )
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity)
-
-            // Right: unfolded tunings list + Settings
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(state.instrument.label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(palette.mutedLabel)
-                    Spacer()
-                    LandscapeSettingsButton(action: onOpenSettings)
-                }
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 4) {
-                        ForEach(state.tunings) { tuning in
-                            let selected = tuning.id == state.tuning.id
-                            Button {
-                                model.selectTuning(instrumentId: state.instrument.id, tuningId: tuning.id)
-                            } label: {
-                                HStack {
-                                    Text(tuning.label)
-                                        .font(.subheadline.weight(selected ? .semibold : .regular))
-                                        .foregroundStyle(selected ? palette.accent : palette.ink)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    if selected {
-                                        Image(systemName: "checkmark")
-                                            .font(.caption.weight(.bold))
-                                            .foregroundStyle(palette.accent)
-                                    }
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(selected ? palette.paper : Color.clear)
-                                )
-                            }
-                            .buttonStyle(.plain)
+                    HStack(spacing: 12) {
+                        TuningHeaderPicker(instrument: state.instrument, tuning: state.tuning) {
+                            pickerOpen = true
                         }
+                        // Kept to its side band, so a long tuning name ellipsizes before it can
+                        // reach under the note.
+                        .frame(maxWidth: sideBand, alignment: .leading)
+
+                        Spacer(minLength: 0)
+
+                        autoToggle(state: state)
+                        LandscapeSettingsButton(action: onOpenSettings)
                     }
+                    .padding(.leading, 16)
                 }
             }
-            .frame(width: 170)
-            .padding(.top, 18)
-            .padding(.bottom, 16)
-            .padding(.trailing, 18)
         }
+        .padding(Self.panelInset)
     }
 
     // MARK: - Subviews
@@ -287,6 +254,13 @@ private struct TunerLiveArea: View {
     let hasPermission: Bool
     let permissionDenied: Bool
     let errorMessage: String?
+    /// Landscape: the readout's whole area, which the header's corner controls overlay.
+    var area: CGSize = .zero
+
+    // Landscape: the height the overlaid header takes, kept clear by the permission card.
+    private static let wideHeaderClearance: CGFloat = 56
+    // The direction and numeric lines under the note, with their spacing.
+    private static let readoutLinesHeight: CGFloat = 20 + 18 + 12
 
     var body: some View {
         let live = model.live
@@ -295,19 +269,40 @@ private struct TunerLiveArea: View {
 
         Group {
             if isLandscape {
-                VStack(spacing: 6) {
-                    readoutBlock(live: live, proAccuracy: proAccuracy, inTuneFeedback: inTuneFeedback)
-                    if !hasPermission || errorMessage != nil {
-                        permissionCard
-                    } else {
+                if !hasPermission || errorMessage != nil {
+                    permissionCard
+                        .frame(maxWidth: 380)
+                        .padding(.top, Self.wideHeaderClearance)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    let meterHeight = min(120, max(72, area.height * 0.26))
+                    // Landscape is short: the note takes all the height its lines and the meter
+                    // leave (a line runs ~1.2 times the font size), and no more width than the band
+                    // between the header's corner controls (a note with its octave runs about 1.45
+                    // times its size wide, "C#4" being the widest).
+                    let byHeight = (area.height - meterHeight - Self.readoutLinesHeight - 8) / 1.2
+                    let byWidth = area.width * (1 - 2 * TunerScreen.wideSideBand) / 1.45
+                    let noteSize = min(200, max(56, min(byHeight, byWidth)))
+                    VStack(spacing: 0) {
+                        readoutBlock(
+                            live: live,
+                            proAccuracy: proAccuracy,
+                            inTuneFeedback: inTuneFeedback,
+                            noteSize: noteSize
+                        )
+                        .frame(maxHeight: .infinity)
+
+                        // The meter drops to the bottom edge, level with the lowest string.
                         NeedleMeterView(
                             needlePercent: live.needlePercent,
                             needleColor: needleColor(live: live),
                             cents: live.cents,
                             dimmed: live.holding,
                             showTickLabels: proAccuracy,
+                            height: meterHeight,
                             model: model
                         )
+                        .padding(.horizontal, 16)
                     }
                 }
             } else {
@@ -339,13 +334,20 @@ private struct TunerLiveArea: View {
         }
     }
 
-    private func readoutBlock(live: TunerLiveState, proAccuracy: Bool, inTuneFeedback: Bool) -> some View {
+    private func readoutBlock(
+        live: TunerLiveState,
+        proAccuracy: Bool,
+        inTuneFeedback: Bool,
+        noteSize: CGFloat? = nil
+    ) -> some View {
         let displayMidi = live.noteMidi ?? live.targetMidi
         let label = displayMidi.map { midiNoteLabel($0) }
         let (noteName, octave) = splitNoteLabel(label)
         let faded = live.noteMidi == nil && live.targetMidi != nil
         let noteColor = live.tuned ? palette.accent : palette.ink
-        let noteOpacity = live.holding || faded ? 0.5 : 1.0
+        // Landscape: at the large size the idle dash reads as a solid bar, so it stays faint.
+        let idleDash = label == nil && noteSize != nil
+        let noteOpacity = idleDash ? 0.25 : (live.holding || faded ? 0.5 : 1.0)
         let octaveOpacity = live.holding || faded ? 0.45 : 0.75
 
         let direction = directionText(live: live, inTuneFeedback: inTuneFeedback)
@@ -354,13 +356,15 @@ private struct TunerLiveArea: View {
         return VStack(spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(noteName)
-                    .font(.system(size: 88, weight: .bold).monospacedDigit())
+                    .font(.system(size: noteSize ?? 88, weight: .bold).monospacedDigit())
                     .foregroundStyle(noteColor)
                     .opacity(noteOpacity)
                     .scaleEffect(live.pulse ? 1.08 : 1.0)
                 if !octave.isEmpty {
+                    // Landscape keeps the octave in proportion to the larger note.
                     Text(octave)
-                        .font(.title.weight(.semibold).monospacedDigit())
+                        .font(noteSize.map { .system(size: $0 * 0.4, weight: .semibold).monospacedDigit() }
+                            ?? .title.weight(.semibold).monospacedDigit())
                         .foregroundStyle(noteColor)
                         .opacity(octaveOpacity)
                 }
@@ -519,31 +523,58 @@ private struct StringChipsRow: View {
     }
 }
 
+/// Landscape: the strings stood on end down the panel's edge, highest on top. They share the height
+/// the way the upright row shares its width; when they would come out shorter than `minHeight`
+/// they split into as few even columns as fit, the highest strings in the first.
 private struct StringChipsColumn: View {
     let strings: [NamedFrequency]
     let model: TunerModel
+    let height: CGFloat
+
+    private static let spacing: CGFloat = 8
+    private static let minHeight: CGFloat = 40
+    private static let width: CGFloat = 56
+
+    private func share(_ perColumn: Int) -> CGFloat {
+        (height - Self.spacing * CGFloat(perColumn - 1)) / CGFloat(perColumn)
+    }
 
     var body: some View {
         let activeIndex = model.activeIndex
         let tunedStrings = model.tunedStrings
+        let count = max(1, strings.count)
+        let columns = (1...count).first { n in share((count + n - 1) / n) >= Self.minHeight } ?? count
+        let perColumn = (count + columns - 1) / columns
+        let chipHeight = max(0, min(Self.width, share(perColumn)))
+        let order = Array(strings.indices.reversed())
+        let lines = stride(from: 0, to: order.count, by: perColumn).map {
+            Array(order[$0..<min($0 + perColumn, order.count)])
+        }
 
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-                ForEach(Array(strings.enumerated().reversed()), id: \.offset) { idx, string in
-                    StringChipButton(
-                        name: string.name,
-                        isActive: activeIndex == idx,
-                        isTuned: tunedStrings.contains(string.name),
-                        expandWidth: false
-                    ) {
-                        model.selectString(index: idx)
+        HStack(alignment: .top, spacing: Self.spacing) {
+            ForEach(lines.indices, id: \.self) { column in
+                // One column spreads its strings over the full height (the spacers carry the gap,
+                // so the stack adds none of its own); several stack from the top.
+                VStack(spacing: columns == 1 ? 0 : Self.spacing) {
+                    ForEach(Array(lines[column].enumerated()), id: \.element) { position, idx in
+                        if columns == 1 && position > 0 {
+                            Spacer(minLength: Self.spacing)
+                        }
+                        StringChipButton(
+                            name: strings[idx].name,
+                            isActive: activeIndex == idx,
+                            isTuned: tunedStrings.contains(strings[idx].name),
+                            expandWidth: true,
+                            height: chipHeight
+                        ) {
+                            model.selectString(index: idx)
+                        }
+                        .frame(width: Self.width)
                     }
                 }
+                .frame(height: height, alignment: .top)
             }
-            .padding(.vertical, 16)
         }
-        .frame(width: 72)
-        .padding(.leading, 16)
     }
 }
 
@@ -578,9 +609,9 @@ private struct StringChipButton: View {
     let isActive: Bool
     let isTuned: Bool
     let expandWidth: Bool
+    var height: CGFloat = 46
     let action: () -> Void
 
-    private static let height: CGFloat = 46
     private static let squircleRadius: CGFloat = 14
 
     var body: some View {
@@ -604,7 +635,7 @@ private struct StringChipButton: View {
                     .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: expandWidth ? .infinity : nil)
-            .frame(minWidth: expandWidth ? Self.height : 56, minHeight: Self.height, maxHeight: Self.height)
+            .frame(minWidth: expandWidth ? height : 56, minHeight: height, maxHeight: height)
             .background {
                 Color.clear
                     .glassEffect(

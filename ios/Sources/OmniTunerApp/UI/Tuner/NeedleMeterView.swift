@@ -6,6 +6,7 @@ public struct NeedleMeterView: View {
     public let cents: Double?
     public let dimmed: Bool
     public let showTickLabels: Bool
+    public let height: CGFloat
     public let model: TunerModel
 
     nonisolated private static let rangeCents = 50
@@ -20,6 +21,7 @@ public struct NeedleMeterView: View {
         cents: Double?,
         dimmed: Bool = false,
         showTickLabels: Bool = true,
+        height: CGFloat = 120,
         model: TunerModel
     ) {
         self.needlePercent = needlePercent
@@ -27,6 +29,7 @@ public struct NeedleMeterView: View {
         self.cents = cents
         self.dimmed = dimmed
         self.showTickLabels = showTickLabels
+        self.height = height
         self.model = model
     }
 
@@ -82,7 +85,7 @@ public struct NeedleMeterView: View {
                     .animation(.easeOut(duration: 0.12), value: needleColor)
             }
         }
-        .frame(height: 120)
+        .frame(height: height)
         .accessibilityLabel(cents == nil ? "Tuning meter, no pitch detected" : "Tuning meter, \(Int((cents ?? 0).rounded())) cents")
     }
 }
