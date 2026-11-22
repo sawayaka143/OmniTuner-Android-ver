@@ -14,9 +14,9 @@ public enum AudioSessionCoordinator {
     public static func configureForTunerCapture() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker])
             try session.setPreferredSampleRate(48000)
-            try session.setPreferredIOBufferDuration(0.02)
+            try session.setPreferredIOBufferDuration(0.01)
             try session.setActive(true)
         } catch {
             // Fallback to default playAndRecord if measurement mode fails on a route.

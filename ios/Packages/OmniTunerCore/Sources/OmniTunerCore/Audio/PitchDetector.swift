@@ -1,3 +1,6 @@
+#if canImport(Accelerate)
+import Accelerate
+#endif
 import Foundation
 
 public struct PitchEstimate: Sendable, Hashable {
@@ -255,15 +258,33 @@ public final class PitchDetector {
     }
 
     public static func computeRMS(_ buffer: [Float]) -> Double {
+        guard !buffer.isEmpty else { return 0.0 }
+#if canImport(Accelerate)
+        var rms: Float = 0.0
+        vDSP_rmsqv(buffer, 1, &rms, vDSP_Length(buffer.count))
+        return Double(rms)
+#else
         var sum = 0.0
         for v in buffer {
             let d = Double(v)
             sum += d * d
         }
         return sqrt(sum / Double(buffer.count))
+#endif
     }
 
     public static func removeDCOffset(_ buffer: inout [Float]) {
+        guard !buffer.isEmpty else { return }
+#if canImport(Accelerate)
+        var mean: Float = 0.0
+        vDSP_meanv(buffer, 1, &mean, vDSP_Length(buffer.count))
+        if abs(Double(mean)) < 0.0001 { return }
+        buffer.withUnsafeMutableBufferPointer { ptr in
+            guard let base = ptr.baseAddress else { return }
+            var negMean = -mean
+            vDSP_vsadd(base, 1, &negMean, base, 1, vDSP_Length(ptr.count))
+        }
+#else
         var sum = 0.0
         for v in buffer {
             sum += Double(v)
@@ -273,5 +294,6 @@ public final class PitchDetector {
         for i in buffer.indices {
             buffer[i] = Float(Double(buffer[i]) - mean)
         }
+#endif
     }
 }

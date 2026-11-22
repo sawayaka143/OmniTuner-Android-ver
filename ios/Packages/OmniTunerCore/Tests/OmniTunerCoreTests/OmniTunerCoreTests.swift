@@ -80,6 +80,35 @@ struct OmniTunerCoreTests {
         #expect(engine.trackingState == .idle)
     }
 
+    @Test func yinDifferenceMatchesNaiveReference() {
+        let n = 1024
+        let maxLag = 200
+        let w = n - maxLag
+        let signal: [Float] = (0..<n).map { i in
+            let t = Double(i) / Self.rate
+            return Float(
+                0.35 * sin(2.0 * .pi * 110.0 * t + 0.2)
+                    + 0.25 * sin(2.0 * .pi * 220.0 * t + 0.7)
+                    + 0.12 * cos(2.0 * .pi * 330.0 * t)
+            )
+        }
+
+        var actual = [Double](repeating: 0.0, count: maxLag + 1)
+        let diff = YinDifference()
+        diff.compute(buffer: signal, maxLag: maxLag, out: &actual)
+
+        var maxError = 0.0
+        for tau in 1...maxLag {
+            var expected = 0.0
+            for j in 0..<w {
+                let delta = Double(signal[j]) - Double(signal[j + tau])
+                expected += delta * delta
+            }
+            maxError = max(maxError, abs(actual[tau] - expected))
+        }
+        #expect(maxError < 1e-6)
+    }
+
     // MARK: - ChordTheory
 
     private func parseOk(_ symbol: String) -> ParsedChord {
